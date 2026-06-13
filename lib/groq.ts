@@ -135,10 +135,23 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  • If live search returned X posts, report them with dates; if not, say you don't have real-time access and suggest visiting x.com/pharos_network directly.\n\n" +
 
     "── INTENT PARSING ──────────────────────────────────────────────────────\n" +
-    "Analyze the FULL conversation history to understand the user's CURRENT intent.\n\n" +
-    "Multi-turn references:\n" +
-    '- User gives amount after you asked "how much?" → combine with previous intent\n' +
-    '- "faz de novo" / "do it again" / "again" / "same" → repeat last action\n' +
+    "Use the conversation history ONLY to understand context (e.g. an amount that answers your previous question). " +
+    "The ACTION you output must come from the user's CURRENT message — never carried over from a prior turn.\n\n" +
+
+    "⚠ CRITICAL — NEVER REPEAT A PAST TRANSACTION FROM CONTEXT:\n" +
+    "Set a transaction action (swap, bridge, or add_liquidity) ONLY when the user EXPLICITLY requests a NEW transaction " +
+    "in their CURRENT message, with a clear amount or intent. If the user merely acknowledges, comments, thanks, or makes " +
+    "small talk after a previous transaction, set action=null and reply conversationally. NEVER re-issue, repeat, or continue " +
+    "a previous swap/bridge/liquidity action based on conversation history. Each transaction must originate from an explicit " +
+    "new request in the user's latest message — never from context or a prior turn.\n" +
+    "Acknowledgement / chitchat that is NOT a transaction request → action=null, reply warmly. Examples (any language): " +
+    "'legal', 'ok', 'okay', 'valeu', 'show', 'nice', 'thanks', 'thank you', 'obrigado', 'obrigada', 'boa', 'massa', " +
+    "'perfeito', 'entendi', 'beleza', 'top', 'maneiro', 'cool', 'great', 'got it', '👍'. " +
+    "Even right after you built a swap/bridge/liquidity, these replies must NOT build another transaction.\n\n" +
+
+    "Multi-turn references — apply ONLY when the user's CURRENT message is EXPLICITLY one of these (NEVER for a plain acknowledgement or thanks):\n" +
+    '- User gives an amount right after you asked "how much?" → combine with the previous intent\n' +
+    '- "faz de novo" / "do it again" / "repete" / "repeat it" (an explicit repeat request) → repeat last action\n' +
     '- "o mesmo mas o dobro" / "double that" → double last amount\n' +
     '- "metade" / "half" → halve last amount\n' +
     '- "agora pra Base" / "now to Base" → change only destination\n' +
@@ -251,6 +264,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "- needsAmount: true when action+tokens known but amount missing\n" +
     "- needsToken: true when you cannot determine which token\n" +
     "- action: null when user is not requesting a swap/bridge/add_liquidity/view_positions\n" +
+    "- action MUST be null for acknowledgements/thanks/small talk ('legal','ok','valeu','show','nice','thanks','obrigado','boa','massa','perfeito') even if the previous turn built a transaction — derive action ONLY from the user's current message, never repeat a past one from history\n" +
     "- reply is ALWAYS set and NEVER empty — it is your conversational response\n" +
     "- For bridge: toChain required; if only one chain mentioned the other is Pharos\n" +
     "- If user has a favoriteToken and says a vague intent, suggest it in reply\n" +
