@@ -1277,7 +1277,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen"
       style={{
-        background: "radial-gradient(ellipse at 50% -10%, rgba(0,70,150,0.5) 0%, rgba(0,30,80,0.18) 40%, transparent 60%), linear-gradient(170deg, #060c1e 0%, #050a1a 55%, #030710 100%)",
+        background: "radial-gradient(ellipse at 50% -10%, oklch(0.36 0.28 264 / 0.45) 0%, oklch(0.18 0.18 264 / 0.35) 40%, transparent 62%), radial-gradient(ellipse at top, oklch(0.18 0.18 264) 0%, oklch(0.06 0.06 262) 70%)",
       }}>
 
       {/* Wave background — subtle */}
