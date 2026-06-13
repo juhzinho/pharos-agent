@@ -1,0 +1,56 @@
+{
+  "name": "Pharos Agent API",
+  "version": "1.0",
+  "description": "AI DeFi copilot for Pharos Network (chain ID 1672). RAG-grounded ecosystem knowledge plus read-only swap/bridge quotes via LI.FI. Non-custodial: never signs or broadcasts transactions.",
+  "capabilities": ["knowledge", "swap-quote", "bridge-quote", "token-price"],
+  "discovery": "/api/info",
+  "endpoints": [
+    {
+      "id": "knowledge",
+      "method": "POST",
+      "path": "/api/query",
+      "description": "Ask anything about the Pharos ecosystem, its dapps, RWA, or DeFi concepts. Answers are grounded in a vector knowledge base with source citations.",
+      "request": { "question": "string (max 2000 chars)" },
+      "response": {
+        "answer": "string",
+        "sources": [{ "name": "string" }],
+        "foundInKnowledge": "boolean"
+      }
+    },
+    {
+      "id": "swap-quote",
+      "method": "POST",
+      "path": "/api/quote",
+      "description": "Read-only LI.FI quote for a token swap on Pharos or a bridge to Ethereum/Base/Arbitrum/Polygon/Optimism. Returns estimate + unsigned transactionRequest.",
+      "request": {
+        "action": "swap | bridge",
+        "fromToken": "PROS | WPROS | USDC | WETH | LINK | PGOLD | USDpm",
+        "toToken": "PROS | WPROS | USDC | WETH | LINK | PGOLD | USDpm",
+        "amount": "number",
+        "fromChain": "string (optional, default Pharos)",
+        "toChain": "string (required for bridge)"
+      },
+      "response": "LI.FI quote JSON"
+    },
+    {
+      "id": "token-price",
+      "method": "GET",
+      "path": "/api/price?token=pros",
+      "description": "Live token price via CoinGecko (60s cache). Supported tokens: PROS, WPROS, BTC, ETH, WETH, USDC, LINK.",
+      "response": {
+        "token": "string",
+        "priceUsd": "number",
+        "marketCap": "number",
+        "change24h": "number",
+        "volume24h": "number",
+        "source": "CoinGecko",
+        "timestamp": "ISO string"
+      }
+    }
+  ],
+  "rateLimit": { "requestsPerMinute": 20, "scope": "ip" },
+  "security": {
+    "custody": "none",
+    "signing": "never — quotes only; users sign in their own wallet"
+  }
+}

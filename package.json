@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:knowledge": "node --experimental-strip-types scripts/build-knowledge.mjs",
     "start": "next start",
     "lint": "eslint"
   },

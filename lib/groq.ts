@@ -1,5 +1,6 @@
 import { CORE_KNOWLEDGE, getDetailedSection } from "./knowledge";
 import { callAI, type ChatMessage } from "./ai-providers";
+import { retrieveKnowledge, formatRagContext } from "./rag";
 
 export interface GroqResult {
   action: "swap" | "bridge" | "add_liquidity" | "view_positions" | null;
@@ -25,11 +26,20 @@ export interface GroqResult {
   needsDocs?: boolean;
   docsTarget?: string | null;
   docsQuery?: string | null;
+  // RAG anti-hallucination: which knowledge-base sources grounded the answer
+  sources?: string[];
+  foundInKnowledge?: boolean;
+  // Live price layer (CoinGecko): token symbol when the user asks for a price
+  needsPrice?: string | null;
+  // Swap routing: LI.FI aggregator (default) or direct FaroSwap pool
+  swapVia?: "lifi" | "faroswap" | null;
+  // Bridge routing: null = show provider choice; "cctp" = direct Circle CCTP v2
+  bridgeVia?: "lifi" | "ccip" | "cctp" | null;
   // Which AI provider answered (for debugging)
   _provider?: string;
 }
 
-function buildSystemPrompt(prefsContext?: string, txContext?: string, searchContext?: string, docsContext?: string, detailedContext?: string): string {
+function buildSystemPrompt(prefsContext?: string, txContext?: string, searchContext?: string, docsContext?: string, knowledgeContext?: string): string {
   return (
     "CRITICAL OUTPUT FORMAT: You MUST respond with ONLY a valid JSON object. " +
     "No prose, no markdown, no explanation before or after the JSON. " +
@@ -66,8 +76,9 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "── 3-LAYER KNOWLEDGE SYSTEM ────────────────────────────────────────────\n" +
     "You have three knowledge layers. Choose the right one for each question:\n\n" +
 
-    "LAYER 1 — BUILT-IN (answer instantly, no flags needed):\n" +
-    "  • Everything in the PHAROS KNOWLEDGE BASE below (full dapp directory, specs, contracts)\n" +
+    "LAYER 1 — RETRIEVED KNOWLEDGE BASE (answer instantly, no flags needed):\n" +
+    "  • Everything in the RETRIEVED KNOWLEDGE section below — the most relevant chunks of the\n" +
+    "    Pharos knowledge base, selected by semantic search for THIS question.\n" +
     "  • General DeFi/RWA concepts (slippage, IL, liquidity, yield farming, ERC-4626, LSTs, etc.)\n" +
     "  • Any transaction intent (swap/bridge/add_liquidity/view_positions)\n" +
     "  → Use this layer first. If the answer is here, answer immediately without any flags.\n\n" +
@@ -75,7 +86,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "LAYER 2 — LIVE SEARCH via Tavily (set needsSearch=true + searchQuery):\n" +
     "  • Current news, recent events, announcements about Pharos or ecosystem projects\n" +
     "  • 'novidades', 'o que aconteceu', 'notícias', 'any news about X'\n" +
-    "  • Live prices of non-PROS tokens, current TVL/APY when not in knowledge base\n" +
+    "  • Current TVL/APY when not in knowledge base (NOT token prices — see LIVE PRICES layer)\n" +
     "  • General world/crypto events not covered in knowledge base\n" +
     "  → For Pharos news: search broadly on blog/news sites; X.com is unreliable to fetch.\n" +
     "  → TVL/APY: mention defillama.com/chain/pharos or the dapp's own app for current numbers.\n\n" +
@@ -91,6 +102,18 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "    that goes beyond what's in the built-in knowledge, about those 5 specific dapps.\n" +
     "  → docsTarget: one of: pharos, faroo, aquaflux, bitverse, zona\n" +
     "  → docsQuery: the specific technical question as a clean English query string\n\n" +
+
+    "LIVE PRICES via CoinGecko (set needsPrice='<token>'):\n" +
+    "  When the user asks for the price, market cap, 24h change, or volume of a token —\n" +
+    "  any phrasing, PT or EN: 'preço', 'cotação', 'quanto vale', 'quanto custa', 'price of',\n" +
+    "  'how much is', 'market cap do PROS', 'PROS está subindo?', etc.\n" +
+    "  → Set needsPrice to the token symbol in lowercase. Supported: pros, wpros, btc, eth, weth, usdc, link.\n" +
+    "  → reply: a SHORT intro sentence in the user's language (e.g. 'Aqui está o preço atual do PROS:'\n" +
+    "    or 'Here's the current PROS price:'). The live data block (price, 24h change, market cap,\n" +
+    "    volume) is fetched and appended automatically — do NOT invent or state any numbers yourself.\n" +
+    "  → For unsupported tokens: needsPrice=null and suggest checking coingecko.com.\n" +
+    "  → Do NOT use needsSearch for token prices of supported tokens.\n" +
+    "  → needsPrice=null for everything that is not a price/market-data question.\n\n" +
 
     "── PHAROS PORT & ECOSYSTEM AWARENESS ──────────────────────────────────────\n" +
     "port.pharos.xyz is the official Pharos ecosystem portal (Omni Port).\n" +
@@ -151,8 +174,16 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '- Bridge: "This will bridge X USDC from Pharos to Base via [provider] — you\'ll sign in your wallet."\n' +
     '- Add liquidity: "This will add X WPROS + Y USDC to the FaroSwap WPROS/USDC 0.30% pool, giving you an LP NFT."\n' +
     "Keep it short — one informative sentence, not a lecture.\n\n" +
-    CORE_KNOWLEDGE +
-    (detailedContext || "") +
+    "── GROUNDING & CITATIONS (anti-hallucination) ─────────────────────────\n" +
+    "Each chunk in RETRIEVED KNOWLEDGE is tagged with [source: NAME].\n" +
+    "When your answer uses one or more chunks: set foundInKnowledge=true and list the\n" +
+    "exact source names you used in the 'sources' array (only sources you actually used).\n" +
+    "When the answer comes from live search or deep docs instead: foundInKnowledge=false, sources=[].\n" +
+    "When NONE of the layers has the answer and it is Pharos-specific: foundInKnowledge=false,\n" +
+    "sources=[], and say clearly that you don't have that information, pointing the user to\n" +
+    "docs.pharosnetwork.xyz or port.pharos.xyz/ecosystem. NEVER invent facts, figures, or addresses.\n" +
+    "For casual chat or pure action intents (swap/bridge/etc.): foundInKnowledge=false, sources=[].\n\n" +
+    (knowledgeContext || CORE_KNOWLEDGE) +
     (prefsContext ? `User history: ${prefsContext}\n` : "") +
     (txContext ? `Session tx state: ${txContext}\n` : "") +
     (searchContext
@@ -191,6 +222,11 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '  "needsDocs": false,\n' +
     '  "docsTarget": null,\n' +
     '  "docsQuery": null,\n' +
+    '  "needsPrice": "pros"|null,\n' +
+    '  "swapVia": "lifi"|"faroswap"|null,\n' +
+    '  "bridgeVia": "lifi"|"ccip"|"cctp"|null,\n' +
+    '  "sources": ["Pharos Docs — R25"],\n' +
+    '  "foundInKnowledge": true,\n' +
     '  "reply": "short friendly message in same language as user"\n' +
     "}\n\n" +
     "Rules:\n" +
@@ -234,18 +270,37 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  If feeTier=null OR rangeMode=null: reply MUST ask for the missing info.\n" +
     "  Example reply when both missing: 'Which fee tier? Available: 0.01%, 0.05%, 0.30%, 1.00%. And what price range — full range, ±X%, or a min/max price?'\n" +
     "  Example reply when only range missing: 'Got it — 0.30% fee. What price range? Full range, ±X%, or specific min/max prices?'\n" +
+    "- swapVia (swap routing, only relevant when action='swap'):\n" +
+    "  Default null (= LI.FI aggregator, best route). Set swapVia='faroswap' ONLY when the user explicitly\n" +
+    "  asks for a direct FaroSwap swap: 'via faroswap', 'direto no faroswap', 'on faroswap', 'faroswap direct',\n" +
+    "  'pelo faroswap', 'use faroswap'.\n" +
+    "  FaroSwap direct supports ONLY PROS/WPROS ↔ USDC (the 0.01% pool). If the user asks for FaroSwap\n" +
+    "  direct with another pair, keep swapVia=null and mention in reply that direct FaroSwap routing only\n" +
+    "  supports PROS/WPROS ↔ USDC, so LI.FI will be used.\n" +
+    "- bridgeVia (bridge routing, only relevant when action='bridge'):\n" +
+    "  Default null — the user picks the provider from buttons in the UI.\n" +
+    "  Set bridgeVia='cctp' when the user mentions: 'cctp', 'circle', 'via circle', 'interport', 'usdc nativo'.\n" +
+    "    Circle CCTP v2 = native USDC burn&mint, no aggregator fee. ONLY for: USDC, from Pharos,\n" +
+    "    to Ethereum/Base/Arbitrum/Optimism/Polygon. If the request doesn't fit, keep null and explain.\n" +
+    "  Set bridgeVia='ccip' when the user says 'chainlink' or 'via ccip'.\n" +
+    "  Set bridgeVia='lifi' when the user says 'jumper', 'lifi' or 'li.fi'.\n" +
     "- For view_positions: no tokens or amounts needed. Set fromToken=null, toToken=null, amount=null.\n" +
     "  Triggers: 'my positions', 'my LP', 'show liquidity', 'minhas posições', 'ver minha liquidez', 'quanto eu tenho no pool'.\n\n" +
     "IMPORTANT — ONLY mention features this app actually has. Do NOT invent providers or capabilities.\n" +
     "This app's REAL capabilities:\n" +
-    "- SWAP tokens on Pharos (via LI.FI/Jumper)\n" +
+    "- SWAP tokens on Pharos (via LI.FI/Jumper by default, or direct FaroSwap pool for PROS/WPROS ↔ USDC)\n" +
     "- BRIDGE tokens between Pharos and: Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
     "- ADD LIQUIDITY to FaroSwap V3 WPROS/USDC pool (full-range, NFT position). User gets an LP NFT.\n" +
     "- VIEW POSITIONS: show the user's existing FaroSwap V3 LP positions (read-only, no tx needed).\n" +
-    "- Bridge providers available: ONLY TWO — 'Jumper (LI.FI)' and 'Chainlink CCIP'.\n" +
-    "  NEVER mention Connext, Hop, cBridge, Stargate, or any other provider — they are NOT in this app.\n" +
+    "- Bridge providers this app EXECUTES: THREE — 'Jumper (LI.FI)', 'Chainlink CCIP', and\n" +
+    "  'Circle CCTP v2' (CCTP: USDC only, from Pharos to Ethereum/Base/Arbitrum/Optimism/Polygon,\n" +
+    "  native burn&mint with no aggregator fee).\n" +
+    "  NEVER claim the app can execute Connext, Hop, cBridge, Stargate, or any other provider.\n" +
+    "  Stargate (stargate.finance) DOES support Pharos (USDC/rUSD/wsrUSD) but only as an EXTERNAL app —\n" +
+    "  if the user asks about Stargate/LayerZero, point them to stargate.finance and offer Jumper/CCIP\n" +
+    "  if they want the transaction built here.\n" +
     "- Supported tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm.\n" +
-    "If asked what bridges/providers are available, say exactly: 'Jumper (LI.FI) and Chainlink CCIP'.\n" +
+    "If asked what bridges the app can execute, say: 'Jumper (LI.FI), Chainlink CCIP, and Circle CCTP v2 (USDC from Pharos)' (Stargate works on Pharos but only via its own site, stargate.finance).\n" +
     "If asked about transaction status or why something is slow, say you cannot track on-chain status in real time and suggest checking Pharosscan (pharosscan.xyz), instead of inventing reasons.\n" +
     "Never claim capabilities the app does not have. If unsure, say so.\n\n" +
     "CRITICAL — TRUTHFULNESS ABOUT TRANSACTION EXECUTION:\n" +
@@ -337,6 +392,9 @@ function wrapProseAsResult(raw: string, providerName: string): GroqResult {
     needsDocs: false,
     docsTarget: null,
     docsQuery: null,
+    needsPrice: null,
+    sources: [],
+    foundInKnowledge: false,
     reply: text,
     _provider: providerName,
   };
@@ -358,6 +416,9 @@ const FALLBACK: GroqResult = {
   needsDocs: false,
   docsTarget: null,
   docsQuery: null,
+  needsPrice: null,
+  sources: [],
+  foundInKnowledge: false,
   reply:
     "Estou com dificuldades de conexão agora — mas já volto! Tente novamente em instante. " +
     "Posso ajudar com: trocar tokens, fazer bridge entre redes, adicionar liquidez no FaroSwap ou responder dúvidas sobre Pharos.\n\n" +
@@ -376,8 +437,21 @@ export async function parseWithGroq(
   docsContext?: string
 ): Promise<GroqResult> {
   const lastUserMsg = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
-  const detailedCtx = getDetailedSection(lastUserMsg);
-  const systemContent = buildSystemPrompt(prefsContext, txContext, searchContext, docsContext, detailedCtx);
+
+  // RAG: inject only the top-K semantically relevant knowledge chunks instead of
+  // the full knowledge base. Falls back to the legacy keyword-matched knowledge
+  // (CORE + detailed section) if embedding retrieval fails.
+  let knowledgeCtx: string | undefined;
+  try {
+    const chunks = await retrieveKnowledge(lastUserMsg, 4);
+    knowledgeCtx = formatRagContext(chunks);
+    console.log("[pharos:rag] retrieved:", chunks.map((c) => `${c.id}(${c.score.toFixed(3)})`).join(", "));
+  } catch (err) {
+    console.warn("[pharos:rag] retrieval failed, using keyword fallback —", err instanceof Error ? err.message : err);
+    knowledgeCtx = CORE_KNOWLEDGE + getDetailedSection(lastUserMsg);
+  }
+
+  const systemContent = buildSystemPrompt(prefsContext, txContext, searchContext, docsContext, knowledgeCtx);
 
   let rawText: string;
   let providerName: string;
@@ -420,6 +494,17 @@ export async function parseWithGroq(
   parsed.needsDocs = parsed.needsDocs === true;
   if (!parsed.docsTarget) parsed.docsTarget = null;
   if (!parsed.docsQuery) parsed.docsQuery = null;
+  parsed.needsPrice =
+    typeof parsed.needsPrice === "string" && parsed.needsPrice.trim()
+      ? parsed.needsPrice.trim().toLowerCase()
+      : null;
+  parsed.swapVia = parsed.swapVia === "faroswap" ? "faroswap" : parsed.swapVia === "lifi" ? "lifi" : null;
+  parsed.bridgeVia = (["lifi", "ccip", "cctp"] as const).find((v) => v === parsed.bridgeVia) ?? null;
+  parsed.foundInKnowledge = parsed.foundInKnowledge === true;
+  parsed.sources = Array.isArray(parsed.sources)
+    ? parsed.sources.filter((s): s is string => typeof s === "string" && s.length > 0).slice(0, 4)
+    : [];
+  if (!parsed.foundInKnowledge) parsed.sources = [];
   parsed._provider = providerName;
 
   return parsed;

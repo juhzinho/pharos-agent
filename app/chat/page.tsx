@@ -11,8 +11,10 @@ import {
   type LiquidityBuildResult, type LiquidityParams, type FeeTier,
 } from "@/lib/liquidity";
 import { fetchUserPositions, formatPositionSummary, type V3Position } from "@/lib/positions";
+import { buildFaroSwapSwap, faroswapSupportsPair, type FaroSwapBuildResult } from "@/lib/faroswap";
 import { BrowserProvider } from "ethers";
 import { checkCcipSupport, buildCcipTransaction, type CcipTxData } from "@/lib/ccip";
+import { checkCctpSupport, buildCctpTransaction, type CctpTxData } from "@/lib/cctp";
 import {
   connectWallet,
   getBalance,
@@ -26,6 +28,7 @@ import { TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/lib/memory";
 import { webSearch, formatSearchContext } from "@/lib/search";
 import { queryDocs, formatDocsContext } from "@/lib/docs";
+import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -40,9 +43,11 @@ interface ApprovalData {
 }
 
 interface PendingTx {
-  provider: "lifi" | "ccip";
+  provider: "lifi" | "ccip" | "faroswap" | "cctp";
   quote?: QuoteResult;
   ccip?: CcipTxData;
+  cctpV2?: CctpTxData;
+  faroswap?: FaroSwapBuildResult;
   intent: ParsedIntent;
   description: string;
   needsApproval: boolean;
@@ -53,10 +58,25 @@ interface ProviderChoice {
   intent: ParsedIntent;
   ccipSupported: boolean;
   ccipNote?: string;
+  cctpSupported: boolean;
+  cctpNote?: string;
 }
 
 interface LiquidityPendingTx {
   result: LiquidityBuildResult;
+}
+
+// Swap route comparison: pre-built pending txs for each available provider,
+// shown side by side so the user can pick the better quote.
+interface SwapRouteOption {
+  provider: "lifi" | "faroswap";
+  pending: PendingTx;
+  summary: string;
+  receiveLabel: string;
+}
+
+interface SwapChoice {
+  options: SwapRouteOption[];
 }
 
 interface Message {
@@ -67,10 +87,12 @@ interface Message {
   liquidityPending?: LiquidityPendingTx;
   positions?: V3Position[];
   providerChoice?: ProviderChoice;
+  swapChoice?: SwapChoice;
   txHash?: string;
   isLoading?: boolean;
   isSearching?: boolean;
   isError?: boolean;
+  sources?: string[];
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────────
@@ -193,7 +215,7 @@ function SearchingIndicator() {
 
 // ─── provider choice ───────────────────────────────────────────────────────
 
-function ProviderChoiceButtons({ choice, onChoose }: { choice: ProviderChoice; onChoose: (p: "lifi" | "ccip") => void }) {
+function ProviderChoiceButtons({ choice, onChoose }: { choice: ProviderChoice; onChoose: (p: "lifi" | "ccip" | "cctp") => void }) {
   return (
     <div className="mt-4">
       <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
@@ -238,6 +260,69 @@ function ProviderChoiceButtons({ choice, onChoose }: { choice: ProviderChoice; o
             {choice.ccipSupported ? "Secure cross-chain messaging" : (choice.ccipNote || "Unavailable for this route")}
           </span>
         </button>
+
+        <button onClick={() => choice.cctpSupported && onChoose("cctp")}
+          disabled={!choice.cctpSupported} title={choice.cctpNote}
+          className={`flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 ${!choice.cctpSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${choice.cctpSupported ? "rgba(16,185,129,0.22)" : "rgba(255,255,255,0.05)"}` }}
+          onMouseEnter={(e) => {
+            if (!choice.cctpSupported) return;
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(16,185,129,0.07)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.4)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+          }}
+          onMouseLeave={(e) => {
+            if (!choice.cctpSupported) return;
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.22)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "";
+          }}>
+          <span className={`text-sm font-semibold ${choice.cctpSupported ? "text-white" : "text-gray-500"}`}>Circle CCTP v2</span>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>
+            {choice.cctpSupported ? "Native USDC burn & mint · no aggregator fee" : (choice.cctpNote || "USDC from Pharos only")}
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── swap route choice ─────────────────────────────────────────────────────
+
+const SWAP_ROUTE_META: Record<SwapRouteOption["provider"], { label: string; subtitle: string; accent: string }> = {
+  lifi:     { label: "Jumper (LI.FI)",   subtitle: "aggregator · best route",       accent: "99,102,241" },
+  faroswap: { label: "FaroSwap direct",  subtitle: "native DEX · no aggregator fee", accent: "16,185,129" },
+};
+
+function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose: (opt: SwapRouteOption) => void }) {
+  return (
+    <div className="mt-4">
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
+        Choose swap route
+      </p>
+      <div className="flex gap-2.5 flex-wrap">
+        {choice.options.map((opt) => {
+          const meta = SWAP_ROUTE_META[opt.provider];
+          return (
+            <button key={opt.provider} onClick={() => onChoose(opt)}
+              className="flex-1 min-w-[150px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer"
+              style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(${meta.accent},0.22)` }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = `rgba(${meta.accent},0.08)`;
+                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.42)`;
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.22)`;
+                (e.currentTarget as HTMLButtonElement).style.transform = "";
+              }}>
+              <span className="text-sm font-semibold text-white">{meta.label}</span>
+              <span className="text-xs font-data" style={{ color: `rgba(${meta.accent},0.9)` }}>receive ~{opt.receiveLabel}</span>
+              <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>{meta.subtitle}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -265,6 +350,10 @@ function TxButton({ pending, walletAddress, onSuccess, onError }: {
       let hash: string;
       if (pending.provider === "ccip" && pending.ccip) {
         hash = await sendTransaction({ to: pending.ccip.routerAddress, data: pending.ccip.callData, value: pending.ccip.feeAmount, from: walletAddress });
+      } else if (pending.provider === "cctp" && pending.cctpV2) {
+        hash = await sendTransaction({ to: pending.cctpV2.to, data: pending.cctpV2.data, value: "0x0", from: walletAddress });
+      } else if (pending.provider === "faroswap" && pending.faroswap) {
+        hash = await sendTransaction({ ...pending.faroswap.txRequest, from: walletAddress });
       } else if (pending.provider === "lifi" && pending.quote) {
         hash = await sendTransaction({ ...pending.quote.transactionRequest, from: walletAddress });
       } else {
@@ -506,11 +595,12 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoice }: {
+function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoice, onSwapChoice }: {
   msg: Message; walletAddress: string;
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
-  onProviderChoice: (id: string, intent: ParsedIntent, provider: "lifi" | "ccip") => void;
+  onProviderChoice: (id: string, intent: ParsedIntent, provider: "lifi" | "ccip" | "cctp") => void;
+  onSwapChoice: (id: string, opt: SwapRouteOption) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -675,8 +765,19 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
                 </div>
               )}
 
+              {!isUser && msg.sources && msg.sources.length > 0 && (
+                <p className="mt-2.5 pt-2 text-[10px] font-medium"
+                  style={{ borderTop: "1px solid rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.45)" }}>
+                  📚 Fonte: {msg.sources.join(" · ")}
+                </p>
+              )}
+
               {msg.providerChoice && walletAddress && (
                 <ProviderChoiceButtons choice={msg.providerChoice} onChoose={(provider) => onProviderChoice(msg.id, msg.providerChoice!.intent, provider)} />
+              )}
+
+              {msg.swapChoice && walletAddress && (
+                <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
               )}
 
               {msg.pending && walletAddress && (
@@ -803,7 +904,7 @@ export default function ChatPage() {
     }
   }
 
-  async function buildLifiPending(intent: ParsedIntent): Promise<{ pending: PendingTx; summary: string }> {
+  async function buildLifiPending(intent: ParsedIntent): Promise<{ pending: PendingTx; summary: string; receiveLabel: string }> {
     const quote = await buildSwapBridge(intent, walletAddress);
     const receiveAmount = formatReceiveAmount(quote);
     const fromChain = intent.fromChain ?? "Pharos";
@@ -820,13 +921,51 @@ export default function ChatPage() {
     const summary = isSwap
       ? `You'll receive approximately **${receiveAmount} ${intent.toToken}** via LI.FI.`
       : `You'll receive approximately **${receiveAmount}** on **${intent.toChain}** via LI.FI.`;
+    return { pending, summary, receiveLabel: receiveAmount };
+  }
+
+  async function buildFaroswapPending(intent: ParsedIntent): Promise<{ pending: PendingTx; summary: string; receiveLabel: string }> {
+    const result = await buildFaroSwapSwap(intent, walletAddress);
+    const pending: PendingTx = {
+      provider: "faroswap",
+      faroswap: result,
+      intent,
+      description: result.description,
+      needsApproval: result.needsApproval,
+      approvalData: result.approvalData,
+    };
+    const summary =
+      `You'll receive approximately **${result.expectedOut.toFixed(4)} ${result.outSymbol}** via FaroSwap direct (0.01% pool, min ${result.minOut.toFixed(4)} after 1% slippage).` +
+      (result.needsApproval ? "\n\nToken approval needed first — two wallet confirmations." : "");
+    return { pending, summary, receiveLabel: `${result.expectedOut.toFixed(4)} ${result.outSymbol}` };
+  }
+
+  async function buildCctpPending(intent: ParsedIntent): Promise<{ pending: PendingTx; summary: string }> {
+    const cctpData = await buildCctpTransaction(intent, walletAddress);
+    const pending: PendingTx = {
+      provider: "cctp",
+      cctpV2: cctpData,
+      intent,
+      description: cctpData.description,
+      needsApproval: cctpData.needsApproval,
+      approvalData: cctpData.approvalData,
+    };
+    const summary =
+      `Bridge via **Circle CCTP v2**: ${intent.amount} USDC Pharos → ${intent.toChain}\n` +
+      `Native burn & mint — you receive native USDC, fee capped at 0.1% (typically ~0.01%). ` +
+      `Fast transfer: delivery is automatic, usually under a minute.` +
+      (cctpData.needsApproval ? "\n\nUSDC approval needed first — two wallet confirmations." : "");
     return { pending, summary };
   }
 
-  async function handleProviderChoice(id: string, intent: ParsedIntent, provider: "lifi" | "ccip") {
-    updateMessage(id, { providerChoice: undefined, text: `Building ${provider === "ccip" ? "Chainlink CCIP" : "Jumper (LI.FI)"} transaction…`, isLoading: true });
+  async function handleProviderChoice(id: string, intent: ParsedIntent, provider: "lifi" | "ccip" | "cctp") {
+    const providerLabel = provider === "ccip" ? "Chainlink CCIP" : provider === "cctp" ? "Circle CCTP v2" : "Jumper (LI.FI)";
+    updateMessage(id, { providerChoice: undefined, text: `Building ${providerLabel} transaction…`, isLoading: true });
     try {
-      if (provider === "ccip") {
+      if (provider === "cctp") {
+        const { pending, summary } = await buildCctpPending(intent);
+        updateMessage(id, { isLoading: false, text: summary, pending });
+      } else if (provider === "ccip") {
         const tokenAddress = resolveTokenAddressForChain(intent.fromToken, intent.fromChain ?? "Pharos");
         void tokenAddress; // token resolved for future approval checks
         const ccipData = await buildCcipTransaction(intent, walletAddress);
@@ -876,23 +1015,38 @@ export default function ChatPage() {
 
       if (groqResult) {
         const complete = isCompleteIntent(groqResult);
+        const ragSources = groqResult.foundInKnowledge ? groqResult.sources : undefined;
 
         if (!complete) {
           const effectiveQuery = groqResult.searchQuery || (groqResult.needsSearch ? text : null);
 
-          if (!groqResult.action && groqResult.needsDocs && groqResult.docsTarget && groqResult.docsQuery) {
+          if (!groqResult.action && groqResult.needsPrice) {
+            updateMessage(thinkingId, { isLoading: false, isSearching: true });
+            try {
+              const price = await getTokenPrice(groqResult.needsPrice);
+              const block = formatPriceBlock(groqResult.needsPrice, price);
+              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply + "\n\n" + block });
+            } catch (priceErr) {
+              const msg = priceErr instanceof Error ? priceErr.message : String(priceErr);
+              console.warn("[pharos:price] fetch failed —", msg);
+              updateMessage(thinkingId, {
+                isSearching: false,
+                text: groqResult.reply + "\n\n_Não consegui obter o preço agora / couldn't fetch the live price right now — tente em coingecko.com._",
+              });
+            }
+          } else if (!groqResult.action && groqResult.needsDocs && groqResult.docsTarget && groqResult.docsQuery) {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
             try {
               const dr = await queryDocs(groqResult.docsTarget, groqResult.docsQuery);
               if (dr) {
                 const ctx = formatDocsContext(dr);
                 const grounded = await parseWithGroq(history, getPrefsContext(), txContext, undefined, ctx);
-                updateMessage(thinkingId, { isSearching: false, text: grounded.reply });
+                updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
               } else {
-                updateMessage(thinkingId, { isSearching: false, text: groqResult.reply });
+                updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
               }
             } catch {
-              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply });
+              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }
           } else if (!groqResult.action && groqResult.needsSearch && effectiveQuery) {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
@@ -901,15 +1055,15 @@ export default function ChatPage() {
               if (sr) {
                 const ctx = formatSearchContext(sr);
                 const grounded = await parseWithGroq(history, getPrefsContext(), txContext, ctx);
-                updateMessage(thinkingId, { isSearching: false, text: grounded.reply });
+                updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
               } else {
-                updateMessage(thinkingId, { isSearching: false, text: groqResult.reply });
+                updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
               }
             } catch {
-              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply });
+              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }
           } else {
-            updateMessage(thinkingId, { isLoading: false, text: groqResult.reply });
+            updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
           }
           setIsSending(false);
           inputRef.current?.focus();
@@ -974,16 +1128,65 @@ export default function ChatPage() {
         // bridge
         if (intent.action === "bridge") {
           const ccipCheck = checkCcipSupport(intent);
+          const cctpCheck = checkCctpSupport(intent);
+          if (groqResult.bridgeVia === "cctp" && cctpCheck.supported) {
+            updateMessage(thinkingId, { text: safeReply + "\n\nBuilding Circle CCTP v2 transaction…" });
+            const { pending, summary } = await buildCctpPending(intent);
+            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, pending });
+            setIsSending(false);
+            inputRef.current?.focus();
+            return;
+          }
           updateMessage(thinkingId, {
             isLoading: false,
             text: safeReply,
-            providerChoice: { intent, ccipSupported: ccipCheck.supported, ccipNote: ccipCheck.reason },
+            providerChoice: {
+              intent,
+              ccipSupported: ccipCheck.supported, ccipNote: ccipCheck.reason,
+              cctpSupported: cctpCheck.supported, cctpNote: cctpCheck.reason,
+            },
           });
         } else {
-          // swap
-          updateMessage(thinkingId, { text: safeReply + "\n\nBuilding transaction with LI.FI…" });
-          const { pending, summary } = await buildLifiPending(intent);
-          updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, pending });
+          // swap — explicit provider goes direct; otherwise quote both routes
+          // in parallel and let the user compare (FaroSwap only covers PROS/WPROS↔USDC).
+          const pairOnFaroswap = faroswapSupportsPair(intent.fromToken, intent.toToken);
+          if (groqResult.swapVia === "faroswap" && pairOnFaroswap) {
+            updateMessage(thinkingId, { text: safeReply + "\n\nBuilding direct FaroSwap transaction…" });
+            const { pending, summary } = await buildFaroswapPending(intent);
+            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, pending });
+          } else if (groqResult.swapVia === "lifi" || !pairOnFaroswap) {
+            updateMessage(thinkingId, { text: safeReply + "\n\nBuilding transaction with LI.FI…" });
+            const { pending, summary } = await buildLifiPending(intent);
+            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, pending });
+          } else {
+            updateMessage(thinkingId, { text: safeReply + "\n\nFetching quotes from LI.FI and FaroSwap…" });
+            const [lifiRes, faroRes] = await Promise.allSettled([
+              buildLifiPending(intent),
+              buildFaroswapPending(intent),
+            ]);
+            const options: SwapRouteOption[] = [];
+            if (lifiRes.status === "fulfilled") options.push({ provider: "lifi", ...lifiRes.value });
+            else console.warn("[pharos:swap] LI.FI quote failed:", lifiRes.reason);
+            if (faroRes.status === "fulfilled") options.push({ provider: "faroswap", ...faroRes.value });
+            else console.warn("[pharos:swap] FaroSwap quote failed:", faroRes.reason);
+
+            if (options.length === 0) {
+              const msg = lifiRes.status === "rejected" && lifiRes.reason instanceof Error ? lifiRes.reason.message : "no route available";
+              updateMessage(thinkingId, { isLoading: false, isError: true, text: `Couldn't get a quote from either route: ${msg}` });
+            } else if (options.length === 1) {
+              const only = options[0];
+              const note = only.provider === "faroswap"
+                ? "LI.FI had no route, so I built this via **FaroSwap direct** instead.\n\n"
+                : "";
+              updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + note + only.summary, pending: only.pending });
+            } else {
+              updateMessage(thinkingId, {
+                isLoading: false,
+                text: safeReply + "\n\nI got quotes from both routes — compare and pick one:",
+                swapChoice: { options },
+              });
+            }
+          }
         }
         setIsSending(false);
         inputRef.current?.focus();
@@ -1004,10 +1207,15 @@ export default function ChatPage() {
       const intent = parseIntent(text);
       if (intent.action === "bridge") {
         const ccipCheck = checkCcipSupport(intent);
+        const cctpCheck = checkCctpSupport(intent);
         updateMessage(thinkingId, {
           isLoading: false,
           text: `Bridge ${intent.amount} ${intent.fromToken} from ${intent.fromChain ?? "Pharos"} → ${intent.toChain}. Choose your provider:`,
-          providerChoice: { intent, ccipSupported: ccipCheck.supported, ccipNote: ccipCheck.reason },
+          providerChoice: {
+            intent,
+            ccipSupported: ccipCheck.supported, ccipNote: ccipCheck.reason,
+            cctpSupported: cctpCheck.supported, cctpNote: cctpCheck.reason,
+          },
         });
       } else {
         updateMessage(thinkingId, { text: "Building transaction with LI.FI…" });
@@ -1042,6 +1250,14 @@ export default function ChatPage() {
       return { ...m, pending: undefined, liquidityPending: undefined, text: successText, txHash: hash };
     }));
     getBalance(walletAddress).then(setBalance);
+  }
+
+  function handleSwapChoice(id: string, opt: SwapRouteOption) {
+    setMessages((prev) => prev.map((m) => {
+      if (m.id !== id) return m;
+      const intro = m.text.split("\n\nI got quotes from both routes")[0];
+      return { ...m, swapChoice: undefined, text: intro + "\n\n" + opt.summary, pending: opt.pending };
+    }));
   }
 
   function handleTxError(id: string, err: string) {
@@ -1111,6 +1327,7 @@ export default function ChatPage() {
               onTxSuccess={handleTxSuccess}
               onTxError={handleTxError}
               onProviderChoice={handleProviderChoice}
+              onSwapChoice={handleSwapChoice}
             />
           ))}
           <div ref={bottomRef} />
