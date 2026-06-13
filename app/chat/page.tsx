@@ -218,67 +218,67 @@ function SearchingIndicator() {
 function ProviderChoiceButtons({ choice, onChoose }: { choice: ProviderChoice; onChoose: (p: "lifi" | "ccip" | "cctp") => void }) {
   return (
     <div className="mt-4">
-      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "oklch(0.78 0.16 220 / 0.6)" }}>
         Choose bridge provider
       </p>
       <div className="flex gap-2.5 flex-wrap">
         <button onClick={() => onChoose("lifi")}
-          className="flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(99,102,241,0.2)" }}
+          className="glass-panel flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200"
+          style={{ borderColor: "rgba(99,102,241,0.32)" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(99,102,241,0.08)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.4)";
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.6)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-deep), 0 0 24px rgba(99,102,241,0.25)";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.2)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.32)";
             (e.currentTarget as HTMLButtonElement).style.transform = "";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
           }}>
           <span className="text-sm font-semibold text-white">Jumper (LI.FI)</span>
-          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>Best route aggregator · multi-chain</span>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>Best route aggregator · multi-chain</span>
         </button>
 
         <button onClick={() => choice.ccipSupported && onChoose("ccip")}
           disabled={!choice.ccipSupported} title={choice.ccipNote}
-          className={`flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 ${!choice.ccipSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${choice.ccipSupported ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.05)"}` }}
+          className={`glass-panel flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200 ${!choice.ccipSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+          style={{ borderColor: choice.ccipSupported ? "rgba(245,158,11,0.32)" : "rgba(255,255,255,0.08)" }}
           onMouseEnter={(e) => {
             if (!choice.ccipSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.07)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.38)";
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.58)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-deep), 0 0 24px rgba(245,158,11,0.22)";
           }}
           onMouseLeave={(e) => {
             if (!choice.ccipSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.2)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.32)";
             (e.currentTarget as HTMLButtonElement).style.transform = "";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
           }}>
           <span className={`text-sm font-semibold ${choice.ccipSupported ? "text-white" : "text-gray-500"}`}>Chainlink CCIP</span>
-          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>
             {choice.ccipSupported ? "Secure cross-chain messaging" : (choice.ccipNote || "Unavailable for this route")}
           </span>
         </button>
 
         <button onClick={() => choice.cctpSupported && onChoose("cctp")}
           disabled={!choice.cctpSupported} title={choice.cctpNote}
-          className={`flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 ${!choice.cctpSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${choice.cctpSupported ? "rgba(16,185,129,0.22)" : "rgba(255,255,255,0.05)"}` }}
+          className={`glass-panel flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200 ${!choice.cctpSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+          style={{ borderColor: choice.cctpSupported ? "rgba(16,185,129,0.34)" : "rgba(255,255,255,0.08)" }}
           onMouseEnter={(e) => {
             if (!choice.cctpSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(16,185,129,0.07)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.4)";
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.6)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-deep), 0 0 24px rgba(16,185,129,0.25)";
           }}
           onMouseLeave={(e) => {
             if (!choice.cctpSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.22)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.34)";
             (e.currentTarget as HTMLButtonElement).style.transform = "";
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
           }}>
           <span className={`text-sm font-semibold ${choice.cctpSupported ? "text-white" : "text-gray-500"}`}>Circle CCTP v2</span>
-          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>
             {choice.cctpSupported ? "Native USDC burn & mint · no aggregator fee" : (choice.cctpNote || "USDC from Pharos only")}
           </span>
         </button>
@@ -297,7 +297,7 @@ const SWAP_ROUTE_META: Record<SwapRouteOption["provider"], { label: string; subt
 function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose: (opt: SwapRouteOption) => void }) {
   return (
     <div className="mt-4">
-      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "oklch(0.78 0.16 220 / 0.6)" }}>
         Choose swap route
       </p>
       <div className="flex gap-2.5 flex-wrap">
@@ -305,21 +305,21 @@ function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose:
           const meta = SWAP_ROUTE_META[opt.provider];
           return (
             <button key={opt.provider} onClick={() => onChoose(opt)}
-              className="flex-1 min-w-[150px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer"
-              style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(${meta.accent},0.22)` }}
+              className="glass-panel flex-1 min-w-[150px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200 cursor-pointer"
+              style={{ borderColor: `rgba(${meta.accent},0.3)` }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = `rgba(${meta.accent},0.08)`;
-                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.42)`;
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.6)`;
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = `var(--shadow-deep), 0 0 24px rgba(${meta.accent},0.25)`;
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
-                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.22)`;
+                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.3)`;
                 (e.currentTarget as HTMLButtonElement).style.transform = "";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
               }}>
               <span className="text-sm font-semibold text-white">{meta.label}</span>
-              <span className="text-xs font-data" style={{ color: `rgba(${meta.accent},0.9)` }}>receive ~{opt.receiveLabel}</span>
-              <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>{meta.subtitle}</span>
+              <span className="text-base font-data font-semibold" style={{ color: `rgb(${meta.accent})`, textShadow: `0 0 16px rgba(${meta.accent},0.5)` }}>receive ~{opt.receiveLabel}</span>
+              <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>{meta.subtitle}</span>
             </button>
           );
         })}
@@ -376,10 +376,10 @@ function TxButton({ pending, walletAddress, onSuccess, onError }: {
 
   return (
     <button onClick={handleSign} disabled={!isIdle}
-      className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
+      className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-white transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
       style={{
-        background: isDone ? "linear-gradient(135deg,#10b981,#34d399)" : "linear-gradient(135deg,#00d4ff 0%,#38bdf8 60%,#0ea5e9 100%)",
-        boxShadow: isIdle ? "0 4px 18px rgba(0,212,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25)" : "none",
+        background: isDone ? "linear-gradient(135deg, oklch(0.70 0.17 162), oklch(0.78 0.16 165))" : "linear-gradient(135deg, oklch(0.42 0.27 264) 0%, oklch(0.52 0.27 260) 55%, oklch(0.58 0.26 258) 100%)",
+        boxShadow: isIdle ? "0 8px 24px -6px oklch(0.58 0.26 258 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.22)" : "none",
       }}
       onMouseEnter={(e) => { if (!isIdle) return; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
@@ -405,9 +405,8 @@ function PositionCards({ positions }: { positions: V3Position[] }) {
         const sb = !hasLiq ? "rgba(100,116,139,0.1)" : inRange ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
         const sl = !hasLiq ? "Closed" : inRange ? "In Range" : "Out of Range";
         return (
-          <div key={String(p.tokenId)} className="rounded-2xl overflow-hidden"
-            style={{ background: "rgba(8,16,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(12px)" }}>
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(0,212,255,0.03)" }}>
+          <div key={String(p.tokenId)} className="glass-panel rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "oklch(0.55 0.22 260 / 0.18)", background: "oklch(0.58 0.26 258 / 0.06)" }}>
               <div className="flex items-center gap-2.5">
                 <div className="flex -space-x-1.5">
                   <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold z-10" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "1.5px solid rgba(6,13,31,0.9)" }}>W</div>
@@ -785,9 +784,9 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
               )}
 
               {msg.pending && walletAddress && (
-                <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
-                  <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
-                  <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.65)" }}>{msg.pending.description}</p>
+                <div className="glass-panel mt-4 px-3.5 py-3 rounded-2xl" style={{ borderColor: "oklch(0.58 0.26 258 / 0.3)" }}>
+                  <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "oklch(0.78 0.16 220 / 0.65)" }}>Ready to execute</p>
+                  <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.7)" }}>{msg.pending.description}</p>
                   <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} />
                 </div>
               )}
