@@ -125,6 +125,15 @@ function safeText(text: string): string {
   return text;
 }
 
+// Lightweight PT/EN guess from the most recent user message, used to localize
+// non-AI UI follow-ups (e.g. the post-transaction confirmation).
+function guessUserLang(msgs: Message[]): "pt" | "en" {
+  const lastUser = [...msgs].reverse().find((m) => m.role === "user")?.text ?? "";
+  return /[ãõáéíóúâêôçà]|\b(quero|fazer|fa[çc]a|troca|troc(ar|a)|ponte|liquidez|obrigad[oa]|valeu|rede|carteira|para|pra|voc[êe]|conectar|dúvida|opera[çc][ãa]o|mais)\b/i.test(lastUser)
+    ? "pt"
+    : "en";
+}
+
 function buildChatHistory(
   msgs: Message[]
 ): Array<{ role: "user" | "assistant"; content: string }> {
@@ -882,6 +891,13 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Auto-focus the input: on first load, and again whenever the agent finishes
+  // (isSending → false). Only fires on these transitions, so it never steals
+  // focus while the user is scrolling or interacting with a card/button.
+  useEffect(() => {
+    if (!isSending) inputRef.current?.focus();
+  }, [isSending]);
+
   useEffect(() => {
     if (!walletAddress) return;
     getBalance(walletAddress).then(setBalance);
@@ -1324,6 +1340,15 @@ export default function ChatPage() {
       return { ...m, pending: undefined, liquidityPending: undefined, text: successText, txHash: hash };
     }));
     getBalance(walletAddress).then(setBalance);
+
+    // Conversational follow-up after success (NOT a new transaction).
+    const lang = guessUserLang(messages);
+    addMessage({
+      role: "agent",
+      text: lang === "pt"
+        ? "✅ Transação confirmada com sucesso! Quer fazer mais alguma operação on-chain? Posso ajudar com swap, bridge, liquidez ou tirar dúvidas sobre a Pharos."
+        : "✅ Transaction confirmed successfully! Want to do another on-chain operation? I can help with a swap, bridge, liquidity, or any questions about Pharos.",
+    });
   }
 
   function handleSwapChoice(id: string, opt: SwapRouteOption) {

@@ -450,16 +450,22 @@ export async function parseWithGroq(
   searchContext?: string,
   docsContext?: string
 ): Promise<GroqResult> {
+  try {
   const lastUserMsg = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
 
   // RAG: inject only the top-K semantically relevant knowledge chunks instead of
-  // the full knowledge base. Falls back to the legacy keyword-matched knowledge
-  // (CORE + detailed section) if embedding retrieval fails.
+  // the full knowledge base. Degrades gracefully: empty/failed retrieval falls
+  // back to keyword-matched knowledge (CORE + detailed section), which always
+  // gives the model something accurate to ground on.
   let knowledgeCtx: string | undefined;
   try {
     const chunks = await retrieveKnowledge(lastUserMsg, 4);
-    knowledgeCtx = formatRagContext(chunks);
-    console.log("[pharos:rag] retrieved:", chunks.map((c) => `${c.id}(${c.score.toFixed(3)})`).join(", "));
+    if (chunks.length === 0) {
+      knowledgeCtx = CORE_KNOWLEDGE + getDetailedSection(lastUserMsg);
+    } else {
+      knowledgeCtx = formatRagContext(chunks);
+      console.log("[pharos:rag] retrieved:", chunks.map((c) => `${c.id}(${c.score.toFixed(3)})`).join(", "));
+    }
   } catch (err) {
     console.warn("[pharos:rag] retrieval failed, using keyword fallback —", err instanceof Error ? err.message : err);
     knowledgeCtx = CORE_KNOWLEDGE + getDetailedSection(lastUserMsg);
@@ -522,4 +528,10 @@ export async function parseWithGroq(
   parsed._provider = providerName;
 
   return parsed;
+  } catch (err) {
+    // Last-resort guard: nothing in this function should ever bubble up to the
+    // UI as a freeze. If something unexpected throws, return the helpful fallback.
+    console.warn("[pharos:ai] parseWithGroq unexpected error —", err instanceof Error ? err.message : err);
+    return FALLBACK;
+  }
 }
