@@ -226,6 +226,36 @@ body {
 
 .animate-logo-tilt { animation: logo-tilt 9s ease-in-out infinite; }
 
+/* ── Animated background (Lovable) ── */
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.9; transform: scale(1.06); }
+}
+
+@keyframes float-word {
+  0%   { opacity: 0; transform: translate3d(var(--tx, 0), 40px, 0) scale(0.9); }
+  20%  { opacity: var(--word-opacity, 0.35); }
+  80%  { opacity: var(--word-opacity, 0.35); }
+  100% { opacity: 0; transform: translate3d(var(--tx, 0), -80px, 0) scale(1.05); }
+}
+
+.animate-pulse-glow { animation: pulse-glow 6s ease-in-out infinite; }
+
+/* ── Intro brand reveal ── */
+
+@keyframes intro-orb-in {
+  0%   { opacity: 0; transform: scale(0.4) translateY(10px); filter: blur(14px); }
+  60%  { opacity: 1; transform: scale(1.06) translateY(0); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+
+@keyframes intro-title-in {
+  0%   { opacity: 0; letter-spacing: 0.5em; filter: blur(10px); }
+  60%  { opacity: 1; letter-spacing: 0.18em; filter: blur(0); }
+  100% { opacity: 1; letter-spacing: 0.16em; filter: blur(0); }
+}
+
 /* ── Glass panel (Lovable) ── */
 
 .glass-panel {

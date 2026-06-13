@@ -31,6 +31,8 @@ import { queryDocs, formatDocsContext } from "@/lib/docs";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
+import GlassBackground from "@/components/GlassBackground";
+import IntroOverlay from "@/components/IntroOverlay";
 
 // ─── types ─────────────────────────────────────────────────────────────────
 
@@ -1283,8 +1285,12 @@ export default function ChatPage() {
         background: "radial-gradient(ellipse at 50% -10%, oklch(0.36 0.28 264 / 0.45) 0%, oklch(0.18 0.18 264 / 0.35) 40%, transparent 62%), radial-gradient(ellipse at top, oklch(0.18 0.18 264) 0%, oklch(0.06 0.06 262) 70%)",
       }}>
 
-      {/* Wave background — subtle */}
+      {/* Intro brand reveal — once per session, purely visual */}
+      <IntroOverlay />
+
+      {/* Ambient + wave background — subtle, pointer-events-none */}
       <div className="absolute inset-0 pointer-events-none z-0">
+        <GlassBackground />
         <WaveBackground intensity="subtle" />
       </div>
 
