@@ -74,7 +74,59 @@ export async function switchToChain(chainName: string): Promise<void> {
   }
 }
 
-// ── connect ─────────────────────────────────────────────────────────────────
+// ── Pharos network enforcement ───────────────────────────────────────────────
+
+export const PHAROS_CHAIN_ID_HEX = "0x688"; // 1672
+
+export async function getCurrentChainId(): Promise<string | null> {
+  if (!isWalletAvailable()) return null;
+  try {
+    return (await window.ethereum!.request({ method: "eth_chainId" })) as string;
+  } catch {
+    return null;
+  }
+}
+
+export async function isOnPharos(): Promise<boolean> {
+  const id = await getCurrentChainId();
+  return !!id && id.toLowerCase() === PHAROS_CHAIN_ID_HEX;
+}
+
+// Prompt the wallet to switch to Pharos (adds it via 4902 path if missing).
+export async function ensurePharosNetwork(): Promise<void> {
+  await switchToChain("Pharos");
+}
+
+// ── connection persistence ───────────────────────────────────────────────────
+// EIP-1193 has no real "disconnect" — we remember the user's intent locally and
+// silently re-attach on reload only if the wallet still has us authorized.
+
+const CONNECTED_KEY = "pharos-wallet-connected";
+
+export function rememberConnection(): void {
+  try { localStorage.setItem(CONNECTED_KEY, "1"); } catch { /* ignore */ }
+}
+
+export function forgetConnection(): void {
+  try { localStorage.removeItem(CONNECTED_KEY); } catch { /* ignore */ }
+}
+
+export function wasConnected(): boolean {
+  try { return localStorage.getItem(CONNECTED_KEY) === "1"; } catch { return false; }
+}
+
+// Reconnect without prompting: returns the authorized address, or null.
+export async function silentReconnect(): Promise<string | null> {
+  if (!isWalletAvailable()) return null;
+  try {
+    const accounts = (await window.ethereum!.request({ method: "eth_accounts" })) as string[];
+    return accounts && accounts.length > 0 ? accounts[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── connect / disconnect ──────────────────────────────────────────────────────
 
 export async function connectWallet(): Promise<string> {
   const provider = requireProvider();
@@ -90,7 +142,15 @@ export async function connectWallet(): Promise<string> {
 
   console.log(`[pharos:wallet] connected: ${accounts[0]}`);
   await switchToChain("Pharos");
+  rememberConnection();
   return accounts[0];
+}
+
+// Local disconnect — forgets the persisted intent. The app drops its state;
+// the wallet itself keeps the site authorized until the user revokes it there.
+export function disconnectWallet(): void {
+  forgetConnection();
+  console.log("[pharos:wallet] disconnected (local)");
 }
 
 // ── balance ─────────────────────────────────────────────────────────────────

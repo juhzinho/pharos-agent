@@ -7,6 +7,9 @@ interface NavbarProps {
   balance?: string;
   isConnecting?: boolean;
   onConnect?: () => void;
+  onDisconnect?: () => void;
+  isWrongNetwork?: boolean;
+  onSwitchNetwork?: () => void;
   stats?: { totalCount: number; favoriteToken?: string | null; favoriteChain?: string | null } | null;
 }
 
@@ -35,7 +38,7 @@ function OrbLogo() {
   );
 }
 
-export default function Navbar({ walletAddress, balance, isConnecting, onConnect, stats }: NavbarProps) {
+export default function Navbar({ walletAddress, balance, isConnecting, onConnect, onDisconnect, isWrongNetwork, onSwitchNetwork, stats }: NavbarProps) {
   const pathname = usePathname();
 
   const navLinks = [
@@ -98,19 +101,47 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
         {/* Wallet / CTA */}
         <div className="flex items-center gap-2.5 shrink-0">
           {walletAddress ? (
-            <div className="p-px rounded-xl shrink-0"
-              style={{ background: "linear-gradient(135deg, rgba(0,212,255,0.35), rgba(56,189,248,0.12))" }}>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-                style={{ background: "rgba(4,10,24,0.97)" }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: "#34d399", boxShadow: "0 0 6px rgba(52,211,153,0.9)" }} />
-                <span className="text-xs font-data font-medium text-gray-300 tracking-[-0.01em]">
-                  {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
-                </span>
-                <span className="w-px h-3 shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
-                <span className="text-xs font-data font-semibold" style={{ color: "#00d4ff" }}>
-                  {balance} <span className="opacity-60">PROS</span>
-                </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {isWrongNetwork && onSwitchNetwork && (
+                <button onClick={onSwitchNetwork}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-white transition-transform duration-150 hover:scale-[1.03]"
+                  style={{ background: "linear-gradient(135deg, oklch(0.55 0.18 60), oklch(0.62 0.20 55))", boxShadow: "0 4px 14px -4px oklch(0.62 0.20 55 / 0.6)" }}
+                  title="Switch to Pharos network">
+                  <span>⚠</span> Switch to Pharos
+                </button>
+              )}
+              <div className="p-px rounded-xl"
+                style={{ background: isWrongNetwork ? "linear-gradient(135deg, rgba(245,158,11,0.4), rgba(245,158,11,0.12))" : "linear-gradient(135deg, rgba(0,212,255,0.35), rgba(56,189,248,0.12))" }}>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+                  style={{ background: "rgba(4,10,24,0.97)" }}>
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: isWrongNetwork ? "#fbbf24" : "#34d399", boxShadow: isWrongNetwork ? "0 0 6px rgba(251,191,36,0.9)" : "0 0 6px rgba(52,211,153,0.9)" }} />
+                  <span className="text-xs font-data font-medium text-gray-300 tracking-[-0.01em]">
+                    {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+                  </span>
+                  <span className="w-px h-3 shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  {isWrongNetwork ? (
+                    <span className="text-xs font-data font-semibold" style={{ color: "#fbbf24" }}>Wrong network</span>
+                  ) : (
+                    <span className="text-xs font-data font-semibold" style={{ color: "#00d4ff" }}>
+                      {balance} <span className="opacity-60">PROS</span>
+                    </span>
+                  )}
+                  {onDisconnect && (
+                    <>
+                      <span className="w-px h-3 shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
+                      <button onClick={onDisconnect} title="Disconnect wallet" aria-label="Disconnect wallet"
+                        className="shrink-0 flex items-center justify-center transition-colors"
+                        style={{ color: "rgba(148,163,184,0.6)" }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgba(248,113,113,0.95)")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.6)")}>
+                        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11l3-3-3-3M13.5 8H6" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ) : onConnect ? (

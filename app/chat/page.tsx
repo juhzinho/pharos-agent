@@ -23,6 +23,12 @@ import {
   switchToChain,
   isWalletAvailable,
   getWalletName,
+  silentReconnect,
+  wasConnected,
+  disconnectWallet,
+  getCurrentChainId,
+  ensurePharosNetwork,
+  PHAROS_CHAIN_ID_HEX,
 } from "@/lib/wallet";
 import { TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/lib/memory";
@@ -33,8 +39,6 @@ import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 import GlassBackground from "@/components/GlassBackground";
 import IntroOverlay from "@/components/IntroOverlay";
-import ThreadSidebar from "@/components/ThreadSidebar";
-import { ensureActiveThread, updateActiveTitle } from "@/components/threadStore";
 
 // ─── types ─────────────────────────────────────────────────────────────────
 
@@ -854,6 +858,9 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+  const [chainId, setChainId] = useState<string | null>(null);
+
+  const isWrongNetwork = !!walletAddress && !!chainId && chainId.toLowerCase() !== PHAROS_CHAIN_ID_HEX;
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -875,22 +882,53 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Sidebar (visual-only): ensure a thread exists for this session. Metadata only.
-  useEffect(() => { ensureActiveThread(); }, []);
-
-  // Sidebar (visual-only): read-only observer — auto-title the active thread from
-  // the first user message. Reads `messages`; never mutates them or any tx state.
-  useEffect(() => {
-    const firstUser = messages.find((m) => m.role === "user" && m.text);
-    if (firstUser) updateActiveTitle(firstUser.text);
-  }, [messages]);
-
   useEffect(() => {
     if (!walletAddress) return;
     getBalance(walletAddress).then(setBalance);
     const iv = setInterval(() => getBalance(walletAddress).then(setBalance), 15000);
     return () => clearInterval(iv);
   }, [walletAddress]);
+
+  // Persist connection across reloads: if the user connected before and the
+  // wallet still authorizes us, silently re-attach (no prompt) and read the chain.
+  useEffect(() => {
+    if (!isWalletAvailable() || !wasConnected()) return;
+    let cancelled = false;
+    (async () => {
+      const addr = await silentReconnect();
+      if (cancelled || !addr) return;
+      setWalletAddress(addr);
+      getBalance(addr).then(setBalance);
+      setChainId(await getCurrentChainId());
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // React to wallet account/chain changes so the UI stays in sync and the user
+  // stays connected until they explicitly disconnect.
+  useEffect(() => {
+    if (!isWalletAvailable()) return;
+    const eth = window.ethereum!;
+    const onAccounts = (...args: unknown[]) => {
+      const accounts = args[0] as string[];
+      if (!accounts || accounts.length === 0) {
+        disconnectWallet();
+        setWalletAddress("");
+        setBalance("0");
+        setChainId(null);
+      } else {
+        setWalletAddress(accounts[0]);
+        getBalance(accounts[0]).then(setBalance);
+      }
+    };
+    const onChain = (...args: unknown[]) => setChainId(args[0] as string);
+    eth.on("accountsChanged", onAccounts);
+    eth.on("chainChanged", onChain);
+    return () => {
+      eth.removeListener("accountsChanged", onAccounts);
+      eth.removeListener("chainChanged", onChain);
+    };
+  }, []);
 
   function addMessage(msg: Omit<Message, "id">): string {
     const id = Date.now().toString() + Math.random().toString(36).slice(2);
@@ -913,11 +951,30 @@ export default function ChatPage() {
       setWalletAddress(address);
       const bal = await getBalance(address);
       setBalance(bal);
+      setChainId(await getCurrentChainId());
       addMessage({ role: "agent", text: `Wallet connected: ${address}\n\nYou have ${bal} PROS. Ready to trade!` });
     } catch (err: unknown) {
       addMessage({ role: "agent", text: err instanceof Error ? err.message : "Failed to connect wallet.", isError: true });
     } finally {
       setIsConnecting(false);
+    }
+  }
+
+  function handleDisconnect() {
+    disconnectWallet();
+    setWalletAddress("");
+    setBalance("0");
+    setChainId(null);
+  }
+
+  async function handleSwitchNetwork() {
+    try {
+      await ensurePharosNetwork();
+      setChainId(await getCurrentChainId());
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRejected = /user rejected|user denied|rejected the request/i.test(msg);
+      addMessage({ role: "agent", text: isRejected ? "Você precisa aprovar a troca para a rede Pharos para continuar." : `Falha ao trocar de rede: ${msg}`, isError: true });
     }
   }
 
@@ -1292,7 +1349,7 @@ export default function ChatPage() {
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen relative"
+    <div className="flex flex-col h-screen"
       style={{
         background: "radial-gradient(ellipse at 50% -10%, oklch(0.36 0.28 264 / 0.45) 0%, oklch(0.18 0.18 264 / 0.35) 40%, transparent 62%), radial-gradient(ellipse at top, oklch(0.18 0.18 264) 0%, oklch(0.06 0.06 262) 70%)",
       }}>
@@ -1306,12 +1363,6 @@ export default function ChatPage() {
         <WaveBackground intensity="subtle" />
       </div>
 
-      {/* Visual thread sidebar — metadata only, no message/tx persistence */}
-      <ThreadSidebar />
-
-      {/* Chat column — unchanged content, shifted right of the sidebar */}
-      <div className="flex flex-col flex-1 min-w-0 relative z-10 h-screen">
-
       {/* Navbar */}
       <div className="relative z-30">
         <Navbar
@@ -1319,9 +1370,33 @@ export default function ChatPage() {
           balance={balance}
           isConnecting={isConnecting}
           onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          isWrongNetwork={isWrongNetwork}
+          onSwitchNetwork={handleSwitchNetwork}
           stats={stats}
         />
       </div>
+
+      {/* Wrong-network banner — blocks trading until on Pharos */}
+      {isWrongNetwork && (
+        <div className="relative z-20 px-4 pt-3">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 px-4 py-3 rounded-2xl"
+            style={{ background: "linear-gradient(135deg, oklch(0.30 0.14 60 / 0.5), oklch(0.16 0.10 40 / 0.4))", border: "1px solid oklch(0.70 0.17 60 / 0.4)", backdropFilter: "blur(20px)" }}>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-lg shrink-0">⚠️</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">Conecte-se à rede Pharos</p>
+                <p className="text-[11px]" style={{ color: "rgba(251,191,36,0.8)" }}>Sua carteira está em outra rede. Troque para a Pharos (Chain ID 1672) para negociar.</p>
+              </div>
+            </div>
+            <button onClick={handleSwitchNetwork}
+              className="shrink-0 px-4 py-2 rounded-xl font-semibold text-xs text-white transition-transform duration-150 hover:scale-[1.03]"
+              style={{ background: "linear-gradient(135deg, oklch(0.48 0.27 261), oklch(0.58 0.26 258))", boxShadow: "0 4px 16px -4px oklch(0.58 0.26 258 / 0.6)" }}>
+              Trocar para Pharos
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Chat area */}
       <main className="flex-1 overflow-y-auto relative z-10">
@@ -1457,8 +1532,6 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
-
-      </div>{/* end chat column */}
     </div>
   );
 }
