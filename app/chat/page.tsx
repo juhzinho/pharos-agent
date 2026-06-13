@@ -610,7 +610,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
       {!isUser && (
         <div className="shrink-0 mr-3 mt-1">
           <div className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{ background: "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.15), rgba(2,8,22,0.97))", border: "1px solid rgba(0,212,255,0.28)", boxShadow: "0 0 12px rgba(0,212,255,0.15)" }}>
+            style={{ background: "radial-gradient(circle at 35% 35%, oklch(0.58 0.26 258 / 0.4), oklch(0.08 0.08 262 / 0.97))", border: "1px solid oklch(0.58 0.26 258 / 0.45)", boxShadow: "0 0 18px oklch(0.58 0.26 258 / 0.35)" }}>
             <svg viewBox="0 0 28 28" className="w-full h-full" fill="none">
               <circle cx="14" cy="14" r="4" fill="rgba(0,212,255,0.85)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
               <circle cx="14" cy="14" r="9" stroke="rgba(0,212,255,0.15)" strokeWidth="0.7" />
@@ -628,23 +628,27 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
 
         <div className={`rounded-2xl text-sm leading-[1.65] ${isUser ? "rounded-br-sm" : "rounded-bl-sm"}`}
           style={isUser ? {
-            background: "linear-gradient(135deg, #00b8d9 0%, #00d4ff 45%, #38bdf8 100%)",
-            color: "rgba(0,8,20,0.9)",
+            background: "linear-gradient(135deg, oklch(0.36 0.28 264) 0%, oklch(0.48 0.27 261) 50%, oklch(0.58 0.26 258) 100%)",
+            color: "oklch(0.99 0.005 240)",
             fontWeight: 500,
-            padding: "11px 15px",
-            boxShadow: "0 4px 18px rgba(0,212,255,0.22), inset 0 1px 0 rgba(255,255,255,0.28)",
+            padding: "11px 16px",
+            border: "1px solid oklch(0.65 0.24 258 / 0.5)",
+            boxShadow: "0 8px 30px -6px oklch(0.36 0.28 264 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.18)",
           } : msg.isError ? {
-            background: "rgba(22,6,6,0.75)",
-            border: "1px solid rgba(239,68,68,0.18)",
-            color: "rgba(252,165,165,0.88)",
-            padding: "11px 15px",
+            background: "linear-gradient(135deg, oklch(0.22 0.12 25 / 0.6), oklch(0.13 0.08 20 / 0.4))",
+            border: "1px solid oklch(0.62 0.24 25 / 0.32)",
+            color: "oklch(0.82 0.13 25)",
+            padding: "12px 16px",
+            backdropFilter: "blur(24px) saturate(140%)",
+            WebkitBackdropFilter: "blur(24px) saturate(140%)",
           } : {
-            background: "rgba(10,18,40,0.78)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            color: "rgba(226,232,240,0.9)",
-            padding: "11px 15px",
-            backdropFilter: "blur(16px)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)",
+            background: "linear-gradient(135deg, oklch(0.16 0.12 264 / 0.55), oklch(0.10 0.10 262 / 0.35))",
+            border: "1px solid oklch(0.55 0.22 260 / 0.22)",
+            color: "rgba(226,232,240,0.92)",
+            padding: "12px 16px",
+            backdropFilter: "blur(24px) saturate(140%)",
+            WebkitBackdropFilter: "blur(24px) saturate(140%)",
+            boxShadow: "0 18px 50px -20px oklch(0.10 0.18 262 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.05)",
           }}>
 
           {msg.isLoading ? <TypingIndicator /> : msg.isSearching ? <SearchingIndicator /> : (
@@ -1302,18 +1306,20 @@ export default function ChatPage() {
 
           {/* Empty state — large suggestions */}
           {!hasMessages && (
-            <div className="flex flex-col items-center justify-center pt-8 pb-6 text-center">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-                style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.18)", boxShadow: "0 0 30px rgba(0,212,255,0.12)" }}>
-                <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="rgba(0,212,255,0.7)" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-                </svg>
+            <div className="flex flex-col items-center justify-center pt-16 pb-8 text-center">
+              <div className="animate-logo-tilt mb-6" style={{ transformStyle: "preserve-3d" }}>
+                <div className="glass-panel w-24 h-24 rounded-3xl flex items-center justify-center"
+                  style={{ boxShadow: "var(--shadow-glow)" }}>
+                  <svg viewBox="0 0 24 24" className="w-12 h-12" fill="none" stroke="oklch(0.78 0.16 220 / 0.9)" strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+                  </svg>
+                </div>
               </div>
-              <h2 className="font-display font-bold text-white text-xl mb-1.5 tracking-[-0.02em]"
+              <h2 className="font-display font-bold text-white text-3xl mb-2 tracking-[-0.02em]"
                 style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif" }}>
                 Ask me anything
               </h2>
-              <p className="text-sm mb-8" style={{ color: "rgba(148,163,184,0.5)" }}>
+              <p className="text-sm mb-8" style={{ color: "rgba(148,163,184,0.55)" }}>
                 Swap, bridge, liquidity, or any Pharos question
               </p>
             </div>
@@ -1337,11 +1343,11 @@ export default function ChatPage() {
       {/* Input bar */}
       <div className="relative z-20 px-4 pt-3 pb-4"
         style={{
-          background: "rgba(5,10,26,0.92)",
-          backdropFilter: "blur(28px)",
-          WebkitBackdropFilter: "blur(28px)",
-          borderTop: "1px solid rgba(0,212,255,0.12)",
-          boxShadow: "0 -1px 0 rgba(0,212,255,0.08), 0 -8px 32px rgba(0,0,0,0.5)",
+          background: "linear-gradient(180deg, oklch(0.10 0.10 262 / 0.6), oklch(0.07 0.07 262 / 0.92))",
+          backdropFilter: "blur(28px) saturate(140%)",
+          WebkitBackdropFilter: "blur(28px) saturate(140%)",
+          borderTop: "1px solid oklch(0.55 0.22 260 / 0.22)",
+          boxShadow: "0 -1px 0 oklch(0.58 0.26 258 / 0.1), 0 -8px 32px oklch(0.05 0.05 262 / 0.5)",
         }}>
         <div className="max-w-3xl mx-auto">
 
@@ -1350,16 +1356,16 @@ export default function ChatPage() {
             {SUGGESTIONS.map((s) => (
               <button key={s.text}
                 onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
-                style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.16)", color: "rgba(0,212,255,0.65)" }}
+                className="glass-panel flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
+                style={{ color: "oklch(0.86 0.06 240 / 0.85)" }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.12)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.95)";
-                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "oklch(0.78 0.16 220 / 0.5)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "oklch(0.85 0.14 220)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.04)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.05)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.65)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "";
+                  (e.currentTarget as HTMLButtonElement).style.color = "oklch(0.86 0.06 240 / 0.85)";
                   (e.currentTarget as HTMLButtonElement).style.transform = "";
                 }}>
                 {s.icon}
@@ -1379,24 +1385,20 @@ export default function ChatPage() {
                 placeholder="Ask me to swap, bridge, add liquidity, or anything about Pharos… (Shift+Enter for new line)"
                 disabled={isSending}
                 rows={1}
-                className="w-full px-4 py-3 rounded-2xl text-sm text-white outline-none transition-all duration-200 disabled:opacity-60 resize-none overflow-hidden"
+                className="glass-panel w-full px-4 py-3 rounded-2xl text-sm text-white outline-none transition-all duration-200 disabled:opacity-60 resize-none overflow-hidden"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  caretColor: "#00d4ff",
+                  caretColor: "oklch(0.78 0.16 220)",
                   fontFamily: "var(--font-inter)",
                   lineHeight: "1.55",
-                  minHeight: "46px",
+                  minHeight: "52px",
                   maxHeight: "160px",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(0,212,255,0.38)";
-                  e.currentTarget.style.background   = "rgba(0,212,255,0.035)";
-                  e.currentTarget.style.boxShadow    = "0 0 0 3px rgba(0,212,255,0.05)";
+                  e.currentTarget.style.borderColor = "oklch(0.58 0.26 258 / 0.55)";
+                  e.currentTarget.style.boxShadow    = "0 0 0 3px oklch(0.58 0.26 258 / 0.12), var(--shadow-glow)";
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                  e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
+                  e.currentTarget.style.borderColor = "";
                   e.currentTarget.style.boxShadow   = "";
                 }}
               />
@@ -1405,10 +1407,10 @@ export default function ChatPage() {
             <button
               onClick={handleSend}
               disabled={!input.trim() || isSending}
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-black transition-all duration-200 shrink-0"
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-white transition-all duration-200 shrink-0"
               style={{
-                background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
-                boxShadow: input.trim() && !isSending ? "0 4px 14px rgba(0,212,255,0.32)" : "none",
+                background: "linear-gradient(135deg, oklch(0.48 0.27 261), oklch(0.58 0.26 258))",
+                boxShadow: input.trim() && !isSending ? "0 6px 20px -4px oklch(0.58 0.26 258 / 0.55)" : "none",
                 opacity: !input.trim() || isSending ? 0.35 : 1,
               }}
               onMouseEnter={(e) => {

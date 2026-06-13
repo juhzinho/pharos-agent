@@ -217,6 +217,15 @@ body {
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* ── Logo tilt (Lovable hero) ── */
+
+@keyframes logo-tilt {
+  0%, 100% { transform: perspective(800px) rotateY(-8deg) rotateX(4deg); }
+  50%      { transform: perspective(800px) rotateY(8deg) rotateX(-2deg); }
+}
+
+.animate-logo-tilt { animation: logo-tilt 9s ease-in-out infinite; }
+
 /* ── Glass panel (Lovable) ── */
 
 .glass-panel {
