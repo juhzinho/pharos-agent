@@ -33,6 +33,8 @@ import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 import GlassBackground from "@/components/GlassBackground";
 import IntroOverlay from "@/components/IntroOverlay";
+import ThreadSidebar from "@/components/ThreadSidebar";
+import { ensureActiveThread, updateActiveTitle } from "@/components/threadStore";
 
 // ─── types ─────────────────────────────────────────────────────────────────
 
@@ -873,6 +875,16 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Sidebar (visual-only): ensure a thread exists for this session. Metadata only.
+  useEffect(() => { ensureActiveThread(); }, []);
+
+  // Sidebar (visual-only): read-only observer — auto-title the active thread from
+  // the first user message. Reads `messages`; never mutates them or any tx state.
+  useEffect(() => {
+    const firstUser = messages.find((m) => m.role === "user" && m.text);
+    if (firstUser) updateActiveTitle(firstUser.text);
+  }, [messages]);
+
   useEffect(() => {
     if (!walletAddress) return;
     getBalance(walletAddress).then(setBalance);
@@ -1280,7 +1292,7 @@ export default function ChatPage() {
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-screen"
+    <div className="flex h-screen relative"
       style={{
         background: "radial-gradient(ellipse at 50% -10%, oklch(0.36 0.28 264 / 0.45) 0%, oklch(0.18 0.18 264 / 0.35) 40%, transparent 62%), radial-gradient(ellipse at top, oklch(0.18 0.18 264) 0%, oklch(0.06 0.06 262) 70%)",
       }}>
@@ -1293,6 +1305,12 @@ export default function ChatPage() {
         <GlassBackground />
         <WaveBackground intensity="subtle" />
       </div>
+
+      {/* Visual thread sidebar — metadata only, no message/tx persistence */}
+      <ThreadSidebar />
+
+      {/* Chat column — unchanged content, shifted right of the sidebar */}
+      <div className="flex flex-col flex-1 min-w-0 relative z-10 h-screen">
 
       {/* Navbar */}
       <div className="relative z-30">
@@ -1439,6 +1457,8 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
+
+      </div>{/* end chat column */}
     </div>
   );
 }
