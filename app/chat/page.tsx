@@ -22,6 +22,7 @@ import {
   waitForTxSuccess,
   sendApproval,
   checkAllowance,
+  getErc20Balance,
   switchToChain,
   isWalletAvailable,
   getWalletName,
@@ -389,7 +390,11 @@ function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
       if (pending.needsApproval && pending.approvalData) {
         setStep("approving");
         const { tokenAddress, spender, amount } = pending.approvalData;
-        await sendApproval(tokenAddress, walletAddress, spender, amount);
+        const approvalHash = await sendApproval(tokenAddress, walletAddress, spender, amount);
+        // MUST wait for the approval to be mined before the main tx, or the
+        // contract's transferFrom runs against a stale (0) allowance and reverts.
+        const approved = await waitForTxSuccess(approvalHash);
+        if (!approved) throw new Error("Token approval failed or was reverted on-chain. Please try again.");
       }
       setStep("signing");
       let hash: string;
@@ -1054,6 +1059,14 @@ export default function ChatPage() {
     let needsApproval = false;
     let approvalData: ApprovalData | undefined;
     if (!isNative && approvalAddress && BigInt(fromAmount) > 0n) {
+      // Pre-flight: make sure the wallet actually holds enough of the source
+      // token, or transferFrom reverts on-chain with TransferFromFailed().
+      const bal = await getErc20Balance(fromTokenAddr, walletAddress);
+      if (bal < BigInt(fromAmount)) {
+        const dec = quote.action.fromToken.decimals;
+        const have = (Number(bal) / 10 ** dec).toFixed(dec === 6 ? 4 : 6);
+        throw new Error(`Insufficient ${intent.fromToken} balance — you have ${have} but this needs ${intent.amount}. Fund the wallet or try a smaller amount.`);
+      }
       const allowance = await checkAllowance(fromTokenAddr, walletAddress, approvalAddress);
       needsApproval = allowance < BigInt(fromAmount);
       if (needsApproval) {

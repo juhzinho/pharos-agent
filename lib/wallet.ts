@@ -190,6 +190,18 @@ export async function checkAllowance(
   return BigInt(result);
 }
 
+// ── ERC-20 balance ────────────────────────────────────────────────────────────
+
+export async function getErc20Balance(tokenAddress: string, owner: string): Promise<bigint> {
+  if (!isWalletAvailable()) return 0n;
+  const data = `0x70a08231${owner.slice(2).padStart(64, "0")}`;
+  const res = (await window.ethereum!.request({
+    method: "eth_call",
+    params: [{ to: tokenAddress, data }, "latest"],
+  })) as string;
+  return !res || res === "0x" ? 0n : BigInt(res);
+}
+
 // ── send transaction ─────────────────────────────────────────────────────────
 // Uses ethers BrowserProvider + signer so it works with Rabby, MetaMask,
 // Coinbase Wallet, Brave, OKX — any EIP-1193 provider.
