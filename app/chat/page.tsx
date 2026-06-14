@@ -12,7 +12,6 @@ import {
 } from "@/lib/liquidity";
 import { fetchUserPositions, formatPositionSummary, type V3Position } from "@/lib/positions";
 import { buildFaroSwapSwap, faroswapSupportsPair, type FaroSwapBuildResult } from "@/lib/faroswap";
-import { BrowserProvider } from "ethers";
 import { checkCcipSupport, buildCcipTransaction, type CcipTxData } from "@/lib/ccip";
 import { checkCctpSupport, buildCctpTransaction, type CctpTxData } from "@/lib/cctp";
 import {
@@ -32,10 +31,15 @@ import {
   getCurrentChainId,
   ensurePharosNetwork,
   PHAROS_CHAIN_ID_HEX,
+  discoverWallets,
+  getActiveProvider,
+  getBrowserProvider,
+  type WalletOption,
 } from "@/lib/wallet";
 import { TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/lib/memory";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
+import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -95,6 +99,7 @@ interface Message {
   positions?: V3Position[];
   providerChoice?: ProviderChoice;
   swapChoice?: SwapChoice;
+  walletChoice?: WalletOption[];
   txHash?: string;
   isLoading?: boolean;
   isSearching?: boolean;
@@ -201,7 +206,7 @@ function looksLikeSwapBridge(text: string): boolean {
 }
 
 function isCompleteIntent(r: GroqResult): boolean {
-  if (r.action === "view_positions") return true;
+  if (r.action === "view_positions" || r.action === "view_wallet") return true;
   if (r.action === "add_liquidity") {
     const hasAmount =
       (r.amount != null && r.amount > 0) ||
@@ -374,6 +379,40 @@ function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose:
   );
 }
 
+// ─── wallet choice (multi-wallet connect) ───────────────────────────────────
+
+function WalletChoiceButtons({ options, onChoose }: { options: WalletOption[]; onChoose: (opt: WalletOption) => void }) {
+  return (
+    <div className="mt-4">
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
+        Choose wallet
+      </p>
+      <div className="flex gap-2.5 flex-wrap">
+        {options.map((opt) => (
+          <button key={opt.id} onClick={() => onChoose(opt)}
+            className="flex-1 min-w-[130px] flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(0,212,255,0.2)" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.08)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.4)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.2)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "";
+            }}>
+            {opt.icon
+              ? <img src={opt.icon} alt="" className="w-6 h-6 rounded-md shrink-0" />
+              : <span className="w-6 h-6 rounded-md shrink-0" style={{ background: "rgba(0,212,255,0.12)" }} />}
+            <span className="text-sm font-semibold text-white">{opt.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── tx button ─────────────────────────────────────────────────────────────
 
 function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
@@ -536,7 +575,7 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
     try {
       setStep("switching");
       await switchToChain("Pharos");
-      const ethersProvider = new BrowserProvider(window.ethereum!);
+      const ethersProvider = getBrowserProvider();
       const signer = await ethersProvider.getSigner();
       if (result.needsApproval0) {
         setStep("approving_wpros");
@@ -659,13 +698,14 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice }: {
+function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice }: {
   msg: Message; walletAddress: string;
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
   onTxReverted: (id: string, hash: string) => void;
   onProviderChoice: (id: string, intent: ParsedIntent, provider: "lifi" | "ccip" | "cctp") => void;
   onSwapChoice: (id: string, opt: SwapRouteOption) => void;
+  onWalletChoice: (id: string, opt: WalletOption) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -845,6 +885,10 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
                 <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
               )}
 
+              {msg.walletChoice && !walletAddress && (
+                <WalletChoiceButtons options={msg.walletChoice} onChoose={(opt) => onWalletChoice(msg.id, opt)} />
+              )}
+
               {msg.pending && walletAddress && (
                 <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
                   <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
@@ -966,10 +1010,11 @@ export default function ChatPage() {
   }, []);
 
   // React to wallet account/chain changes so the UI stays in sync and the user
-  // stays connected until they explicitly disconnect.
+  // stays connected until they explicitly disconnect. Re-attaches when the
+  // active provider changes (after picking a wallet), via the walletAddress dep.
   useEffect(() => {
-    if (!isWalletAvailable()) return;
-    const eth = window.ethereum!;
+    const eth = getActiveProvider();
+    if (!eth || !eth.on || !eth.removeListener) return;
     const onAccounts = (...args: unknown[]) => {
       const accounts = args[0] as string[];
       if (!accounts || accounts.length === 0) {
@@ -986,10 +1031,10 @@ export default function ChatPage() {
     eth.on("accountsChanged", onAccounts);
     eth.on("chainChanged", onChain);
     return () => {
-      eth.removeListener("accountsChanged", onAccounts);
-      eth.removeListener("chainChanged", onChain);
+      eth.removeListener!("accountsChanged", onAccounts);
+      eth.removeListener!("chainChanged", onChain);
     };
-  }, []);
+  }, [walletAddress]);
 
   function addMessage(msg: Omit<Message, "id">): string {
     const id = Date.now().toString() + Math.random().toString(36).slice(2);
@@ -1002,18 +1047,44 @@ export default function ChatPage() {
   }
 
   async function handleConnect() {
-    if (!isWalletAvailable()) {
-      addMessage({ role: "agent", text: "No wallet detected. Please install Rabby, MetaMask, or another EIP-1193 browser wallet and refresh.", isError: true });
-      return;
-    }
     setIsConnecting(true);
     try {
-      const address = await connectWallet();
+      const wallets = await discoverWallets();
+      if (wallets.length === 0) {
+        addMessage({
+          role: "agent",
+          isError: true,
+          text: "No wallet detected. Install one and refresh:\n\n" +
+            "- [MetaMask](https://metamask.io/download)\n" +
+            "- [OKX Wallet](https://www.okx.com/web3)\n" +
+            "- [Rabby](https://rabby.io)\n" +
+            "- [Coinbase Wallet](https://www.coinbase.com/wallet)\n" +
+            "- [Trust Wallet](https://trustwallet.com)",
+        });
+        return;
+      }
+      if (wallets.length === 1) {
+        await connectTo(wallets[0]);
+        return;
+      }
+      // Multiple wallets → let the user pick.
+      addMessage({ role: "agent", text: "I found multiple wallets — which one do you want to connect?", walletChoice: wallets });
+    } catch (err: unknown) {
+      addMessage({ role: "agent", text: err instanceof Error ? err.message : "Failed to detect wallets.", isError: true });
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
+  async function connectTo(option: WalletOption) {
+    setIsConnecting(true);
+    try {
+      const address = await connectWallet(option.provider);
       setWalletAddress(address);
       const bal = await getBalance(address);
       setBalance(bal);
       setChainId(await getCurrentChainId());
-      addMessage({ role: "agent", text: `Wallet connected: ${address}\n\nYou have ${bal} PROS. Ready to trade!` });
+      addMessage({ role: "agent", text: `Connected ${option.name}: ${address}\n\nYou have ${bal} PROS. Ready to trade!` });
     } catch (err: unknown) {
       addMessage({ role: "agent", text: err instanceof Error ? err.message : "Failed to connect wallet.", isError: true });
     } finally {
@@ -1219,6 +1290,35 @@ export default function ChatPage() {
         }
 
         const safeReply = sanitizeGroqReply(groqResult.reply);
+
+        // view_wallet (read-only wallet analysis — needs the connected address)
+        if (groqResult.action === "view_wallet") {
+          if (!walletAddress) {
+            const lang = guessUserLang(messages);
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt"
+                ? "Para analisar sua carteira, conecte-a primeiro. Clique em 'Conectar' no topo. 🔗"
+                : "To analyze your wallet, connect it first — click 'Connect' at the top. 🔗",
+            });
+            setIsSending(false);
+            inputRef.current?.focus();
+            return;
+          }
+          updateMessage(thinkingId, { text: safeReply + "\n\nReading your Pharos balances…" });
+          try {
+            const analysis = await getWalletAnalysis(walletAddress);
+            const lang = guessUserLang(messages);
+            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + formatWalletAnalysis(analysis, lang) });
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            updateMessage(thinkingId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
         const intent    = groqToIntent(groqResult);
 
         // Gate: every on-chain action needs a connected wallet. Don't build a tx
@@ -1556,6 +1656,7 @@ export default function ChatPage() {
               onTxReverted={handleTxReverted}
               onProviderChoice={handleProviderChoice}
               onSwapChoice={handleSwapChoice}
+              onWalletChoice={(id, opt) => { void id; connectTo(opt); }}
             />
           ))}
           <div ref={bottomRef} />

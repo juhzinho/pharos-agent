@@ -95,6 +95,12 @@ const SOURCE_LABELS = {
   pharos_positioning:       "pharos.xyz — Positioning",
   pharos_metrics:           "pharos.xyz — Metrics & Backing",
   pharos_site:              "pharos.xyz — Site Map",
+  airdrop:                  "Pharos Airdrop",
+  campaigns:                "Pharos Campaigns",
+  pns:                      "Pharos Name Service",
+  agent_center:             "Pharos Agent Center",
+  research:                 "Pharos Research",
+  dapps_extra:              "Pharos Ecosystem dApps",
 };
 
 // ~300 tokens ≈ ~1200 chars. Split a long text on blank lines, then greedily

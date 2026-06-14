@@ -1,48 +1,107 @@
 import { BrowserProvider } from "ethers";
 import { CHAIN_WALLET_CONFIGS } from "./tokens";
 
+export interface EIP1193Provider {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: string, handler: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+  isMetaMask?: boolean;
+  isRabby?: boolean;
+  isCoinbaseWallet?: boolean;
+  isBraveWallet?: boolean;
+  isOKExWallet?: boolean;
+  isTrust?: boolean;
+  isTrustWallet?: boolean;
+}
+
 declare global {
   interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      on: (event: string, handler: (...args: unknown[]) => void) => void;
-      removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
-      isMetaMask?: boolean;
-      isRabby?: boolean;
-      isCoinbaseWallet?: boolean;
-      isBraveWallet?: boolean;
-      isOKExWallet?: boolean;
-    };
+    ethereum?: EIP1193Provider;
   }
 }
 
-// ── provider detection ──────────────────────────────────────────────────────
+// ── multi-wallet provider registry (EIP-6963 + injected) ─────────────────────
+
+export interface WalletOption {
+  id: string;       // rdns (or "injected")
+  name: string;
+  icon?: string;    // data URI from EIP-6963
+  rdns?: string;
+  provider: EIP1193Provider;
+}
+
+interface EIP6963Detail { info: { uuid: string; name: string; icon: string; rdns: string }; provider: EIP1193Provider }
+
+const discovered = new Map<string, WalletOption>(); // keyed by rdns
+let activeProvider: EIP1193Provider | null = null;
+
+if (typeof window !== "undefined") {
+  window.addEventListener("eip6963:announceProvider", (event: Event) => {
+    const detail = (event as CustomEvent<EIP6963Detail>).detail;
+    if (detail?.info?.rdns && detail.provider) {
+      discovered.set(detail.info.rdns, {
+        id: detail.info.rdns, name: detail.info.name, icon: detail.info.icon, rdns: detail.info.rdns, provider: detail.provider,
+      });
+    }
+  });
+}
+
+function getProvider(): EIP1193Provider | undefined {
+  if (activeProvider) return activeProvider;
+  return typeof window !== "undefined" ? window.ethereum : undefined;
+}
+
+// The currently-selected provider (for event listeners). Falls back to injected.
+export function getActiveProvider(): EIP1193Provider | undefined {
+  return getProvider();
+}
+
+export function setActiveProvider(p: EIP1193Provider): void {
+  activeProvider = p;
+}
 
 export function isWalletAvailable(): boolean {
-  return typeof window !== "undefined" && !!window.ethereum;
+  return !!getProvider() || discovered.size > 0;
 }
 
 // Keep old export name so any remaining imports don't break
 export const isMetaMaskAvailable = isWalletAvailable;
 
-export function getWalletName(): string {
-  if (!isWalletAvailable()) return "wallet";
-  const eth = window.ethereum!;
+export function getWalletName(p?: EIP1193Provider): string {
+  const eth = p ?? getProvider();
+  if (!eth) return "wallet";
   if (eth.isRabby) return "Rabby";
   if (eth.isCoinbaseWallet) return "Coinbase Wallet";
   if (eth.isBraveWallet) return "Brave Wallet";
   if (eth.isOKExWallet) return "OKX Wallet";
+  if (eth.isTrust || eth.isTrustWallet) return "Trust";
   if (eth.isMetaMask) return "MetaMask";
   return "wallet";
 }
 
-function requireProvider(): NonNullable<Window["ethereum"]> {
-  if (!isWalletAvailable()) {
-    throw new Error(
-      "No wallet found. Please install Rabby, MetaMask, or another EIP-1193 wallet and refresh."
-    );
+function requireProvider(): EIP1193Provider {
+  const p = getProvider();
+  if (!p) {
+    throw new Error("No wallet found. Install MetaMask, OKX Wallet, Rabby, Coinbase Wallet, or Trust and refresh.");
   }
-  return window.ethereum!;
+  return p;
+}
+
+// An ethers BrowserProvider wrapping the active EIP-1193 provider.
+export function getBrowserProvider(): BrowserProvider {
+  return new BrowserProvider(requireProvider() as ConstructorParameters<typeof BrowserProvider>[0]);
+}
+
+// Discover available wallets via EIP-6963; falls back to legacy window.ethereum.
+export async function discoverWallets(): Promise<WalletOption[]> {
+  if (typeof window === "undefined") return [];
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+  await new Promise((r) => setTimeout(r, 250));
+  const list = Array.from(discovered.values());
+  if (list.length === 0 && window.ethereum) {
+    list.push({ id: "injected", name: getWalletName(window.ethereum), provider: window.ethereum });
+  }
+  return list;
 }
 
 // ── chain switching ─────────────────────────────────────────────────────────
@@ -81,7 +140,7 @@ export const PHAROS_CHAIN_ID_HEX = "0x688"; // 1672
 export async function getCurrentChainId(): Promise<string | null> {
   if (!isWalletAvailable()) return null;
   try {
-    return (await window.ethereum!.request({ method: "eth_chainId" })) as string;
+    return (await requireProvider().request({ method: "eth_chainId" })) as string;
   } catch {
     return null;
   }
@@ -119,7 +178,7 @@ export function wasConnected(): boolean {
 export async function silentReconnect(): Promise<string | null> {
   if (!isWalletAvailable()) return null;
   try {
-    const accounts = (await window.ethereum!.request({ method: "eth_accounts" })) as string[];
+    const accounts = (await requireProvider().request({ method: "eth_accounts" })) as string[];
     return accounts && accounts.length > 0 ? accounts[0] : null;
   } catch {
     return null;
@@ -128,7 +187,8 @@ export async function silentReconnect(): Promise<string | null> {
 
 // ── connect / disconnect ──────────────────────────────────────────────────────
 
-export async function connectWallet(): Promise<string> {
+export async function connectWallet(chosen?: EIP1193Provider): Promise<string> {
+  if (chosen) setActiveProvider(chosen);
   const provider = requireProvider();
   console.log(`[pharos:wallet] connectWallet — detected: ${getWalletName()}`);
 
@@ -158,7 +218,7 @@ export function disconnectWallet(): void {
 export async function getBalance(address: string): Promise<string> {
   if (!isWalletAvailable()) return "0";
 
-  const hex = (await window.ethereum!.request({
+  const hex = (await requireProvider().request({
     method: "eth_getBalance",
     params: [address, "latest"],
   })) as string;
@@ -180,7 +240,7 @@ export async function checkAllowance(
   const spender = spenderAddress.slice(2).padStart(64, "0");
   const data = `0xdd62ed3e${owner}${spender}`;
 
-  const result = (await window.ethereum!.request({
+  const result = (await requireProvider().request({
     method: "eth_call",
     params: [{ to: tokenAddress, data }, "latest"],
   })) as string;
@@ -195,7 +255,7 @@ export async function checkAllowance(
 export async function getErc20Balance(tokenAddress: string, owner: string): Promise<bigint> {
   if (!isWalletAvailable()) return 0n;
   const data = `0x70a08231${owner.slice(2).padStart(64, "0")}`;
-  const res = (await window.ethereum!.request({
+  const res = (await requireProvider().request({
     method: "eth_call",
     params: [{ to: tokenAddress, data }, "latest"],
   })) as string;
@@ -234,7 +294,7 @@ export async function sendTransaction(tx: TxRequest): Promise<string> {
     gasLimit: tx.gasLimit,
   });
 
-  const ethersProvider = new BrowserProvider(window.ethereum!);
+  const ethersProvider = getBrowserProvider();
   const signer = await ethersProvider.getSigner();
   console.log(`[pharos:wallet] signer: ${signer.address}`);
 
@@ -257,7 +317,7 @@ export async function sendTransaction(tx: TxRequest): Promise<string> {
 export async function waitForTxSuccess(hash: string): Promise<boolean> {
   if (!isWalletAvailable()) return false;
   try {
-    const provider = new BrowserProvider(window.ethereum!);
+    const provider = getBrowserProvider();
     const receipt = await provider.waitForTransaction(hash, 1);
     console.log(`[pharos:wallet] receipt for ${hash.slice(0, 10)}… status=${receipt?.status}`);
     return !!receipt && receipt.status === 1;

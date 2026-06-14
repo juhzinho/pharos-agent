@@ -397,6 +397,38 @@ Official Pharos site map (pharos.xyz — for navigation & citations):
 • Developer Center (pharos.xyz/devhub) · RealFi Alliance (pharos.xyz/realfi-alliance) · Research (pharos.xyz/research) · Blog/News (pharos.xyz/resources) · Ecosystem (pharos.xyz/ecosystem) · Community (pharos.xyz/community).
 Other official domains: Testnet testnet.pharosnetwork.xyz · Careers career.pharosnetwork.xyz · Docs docs.pharosnetwork.xyz · Dev portal buildonpharos.com · GitHub github.com/PharosNetwork · Ecosystem hub port.pharos.xyz.
 `,
+
+  // ════════ Campaigns, airdrop, identity, programs ════════
+  airdrop: `
+PROS airdrop & claim: ~6% of the PROS supply is allocated to the community airdrop (part of the 21% Ecosystem+Community bucket). Eligibility comes from testnet/mainnet activity, campaign points, and ecosystem participation.
+Where to check/claim: the official Pharos Port (port.pharos.xyz) campaigns/rewards area and pharos.xyz — claims and snapshots are announced via x.com/pharos_network and the blog (pharos.xyz/resources).
+SECURITY: only ever claim from official Pharos domains. The agent never asks for seed phrases/keys; any "airdrop" site requesting them is a scam. For exact eligibility/claim status, check the official site (it changes over time).
+`,
+  campaigns: `
+Pharos campaigns & points: Pharos runs activity campaigns that reward users with points/rewards for on-chain actions (swaps, liquidity, bridging, using ecosystem dapps) — managed through Pharos Port (port.pharos.xyz).
+Named/seasonal campaigns the community references include "World Cup", "TopNod", and "Alpha Summer" — promotional seasons with quests, leaderboards and reward pools. Details and active quests change frequently.
+For current campaigns, eligibility and how to participate, check port.pharos.xyz/ecosystem and x.com/pharos_network (search live for the latest if asked about an ongoing one).
+`,
+  pns: `
+PNS — Pharos Name Service: human-readable names for Pharos addresses (e.g. a "yourname.pharos"-style identity), similar to ENS on Ethereum. It maps a memorable name to a wallet address so you can send/receive and be identified without raw 0x… hex.
+Use cases: simpler payments, on-chain identity/profile, and integration across Pharos dapps and agents. Register/manage names via the PNS app in the Pharos ecosystem (see port.pharos.xyz/ecosystem for the current link).
+`,
+  agent_center: `
+Pharos Agent Center (pharos.xyz/agent-center): the hub to explore and install "Skills" for on-chain agents on Pharos. It builds on the official pharos-skill-engine toolkit (github.com/PharosNetwork) — cast/forge-based Skills with networks.json + tokens.json configs.
+The vision: composable AI agents that can read state and propose/execute on-chain actions on Pharos. This Pharos Agent is aligned with that direction (RAG knowledge + swap/bridge/liquidity skills, non-custodial). Developers can publish Skills; users can discover them in the Agent Center.
+`,
+  research: `
+Pharos Research (pharos.xyz/research): the official research hub publishing deep dives on RealFi, RWA tokenization, the Pharos architecture (parallel execution, AsyncBFT, SPNs), and ecosystem analysis. Pair it with docs.pharosnetwork.xyz for technical specs and pharos.xyz/resources for blog/news.
+For specific or recent reports, point users to pharos.xyz/research (and search live if they ask about a particular paper/topic).
+`,
+  dapps_extra: `
+More Pharos ecosystem dapps (categories; check port.pharos.xyz/ecosystem for live details/links):
+• TermMax: fixed-rate, fixed-term lending/yield using ERC-4626-style vaults — predictable rates vs floating money markets.
+• Ember pAlpha vault: Ember's actively-managed USDC ERC-4626 yield vault (0xe47e9ba4ea2320a6ed87246d02fd5c38485ed7d1) — the team allocates across Pharos DeFi for risk-adjusted yield.
+• Kun: a stablecoin/yield protocol in the Pharos ecosystem (CDP/stable-asset style). Verify current mechanics on its app.
+• Pizza Zone / PROS Pixel: community / GameFi-style apps (mini-games, points, social/NFT mechanics) — fun engagement that often ties into campaigns.
+New dapps launch frequently; for anything not in this directory, search and point to port.pharos.xyz/ecosystem rather than guessing specifics.
+`,
 };
 
 // Keyword → section mapping. Only the first 2 matches are used per query to cap token usage.
@@ -458,6 +490,14 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["borderless", "digital financial city", "inclusive financial", "institutional-grade", "accessible to all", "instant payment", "cross-border", "use cases", "positioning"], section: "pharos_positioning" },
   { keys: ["hack vc", "faction vc", "ant digital", "ant group", "1.5 billion", "rwa exchange", "wallet addresses", "174m", "community followers", "backing", "investors", "raised", "seed round"], section: "pharos_metrics" },
   { keys: ["agent center", "developer center", "devhub", "realfi alliance", "research center", "site map", "career", "testnet site", "pharos.xyz/"], section: "pharos_site" },
+
+  // ── Campaigns, airdrop, identity, programs ──
+  { keys: ["airdrop", "claim", "snapshot", "eligib", "elegív", "elegiv", "reivindicar"], section: "airdrop" },
+  { keys: ["campaign", "campanha", "world cup", "topnod", "alpha summer", "quest", "points", "pontos", "leaderboard", "rewards", "recompensa"], section: "campaigns" },
+  { keys: ["pns", "name service", "pharos name", "nome pharos", ".pharos", "domain", "domínio", "ens"], section: "pns" },
+  { keys: ["agent center", "install skill", "skills", "on-chain agent", "ai agent", "agentes"], section: "agent_center" },
+  { keys: ["research", "pesquisa", "deep dive", "whitepaper", "paper", "report"], section: "research" },
+  { keys: ["kun", "termmax", "term max", "palpha", "pizza zone", "pros pixel", "pixel", "gamefi", "fixed-rate", "fixed rate"], section: "dapps_extra" },
 ];
 
 export function getDetailedSection(userMessage: string): string {
