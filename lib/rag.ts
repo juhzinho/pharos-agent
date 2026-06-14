@@ -10,6 +10,7 @@ export interface RetrievedChunk {
   id: string;
   text: string;
   source: string;
+  url?: string;
   score: number;
 }
 
@@ -17,7 +18,7 @@ interface VectorIndex {
   provider: "openai" | "gemini";
   model: string;
   dimensions: number;
-  chunks: Array<{ id: string; text: string; source: string; embedding: number[] }>;
+  chunks: Array<{ id: string; text: string; source: string; url?: string; embedding: number[] }>;
 }
 
 const INDEX = vectorIndex as VectorIndex;
@@ -116,7 +117,7 @@ async function embedQuery(query: string): Promise<number[]> {
 export async function retrieveKnowledge(query: string, topK = 4): Promise<RetrievedChunk[]> {
   const qVec = await embedQuery(query);
   return INDEX.chunks
-    .map((c) => ({ id: c.id, text: c.text, source: c.source, score: dot(qVec, c.embedding) }))
+    .map((c) => ({ id: c.id, text: c.text, source: c.source, url: c.url, score: dot(qVec, c.embedding) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 }
@@ -128,7 +129,7 @@ export function formatRagContext(chunks: RetrievedChunk[]): string {
   return (
     "\n── RETRIEVED KNOWLEDGE (top matches from the Pharos knowledge base) ──────\n" +
     chunks
-      .map((c) => `[source: ${c.source}]\n${c.text.trim()}`)
+      .map((c) => `[source: ${c.source}${c.url ? ` — ${c.url}` : ""}]\n${c.text.trim()}`)
       .join("\n\n") +
     "\n── END RETRIEVED KNOWLEDGE ──────\n"
   );

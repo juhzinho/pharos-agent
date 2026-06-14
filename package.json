@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "crawl:docs": "node scripts/crawl-docs.mjs",
     "build:knowledge": "node --experimental-strip-types scripts/build-knowledge.mjs",
     "start": "next start",
     "lint": "eslint"

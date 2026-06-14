@@ -143,7 +143,34 @@ for (const [key, body] of Object.entries(DETAILED_KNOWLEDGE)) {
   }
 }
 
-console.log(`Chunked knowledge into ${chunks.length} chunks.`);
+const curatedCount = chunks.length;
+console.log(`Curated (lib/knowledge.ts): ${curatedCount} chunks.`);
+
+// ── merge crawled docs (lib/crawled-docs.json) with near-dup removal ─────────
+// Curated chunks are authoritative and always kept; crawled chunks are added
+// unless near-identical to something already included.
+function dedupKey(text) {
+  return text.toLowerCase().replace(/[#>*`_\-\s]+/g, " ").trim().slice(0, 160);
+}
+const seen = new Set(chunks.map((c) => dedupKey(c.text)));
+
+let crawledAdded = 0, crawledDup = 0;
+try {
+  const crawled = JSON.parse(readFileSync(path.join(ROOT, "lib", "crawled-docs.json"), "utf8"));
+  for (const c of crawled) {
+    if (!c?.text || c.text.length < 40) continue;
+    const k = dedupKey(c.text);
+    if (seen.has(k)) { crawledDup++; continue; }
+    seen.add(k);
+    chunks.push({ id: c.id, text: c.text, source: c.source || c.title || "Pharos Docs", url: c.url });
+    crawledAdded++;
+  }
+  console.log(`Crawled (lib/crawled-docs.json): +${crawledAdded} added, ${crawledDup} near-dups skipped.`);
+} catch {
+  console.warn("No lib/crawled-docs.json found — run scripts/crawl-docs.mjs first. Embedding curated only.");
+}
+
+console.log(`Total: ${chunks.length} chunks (curated ${curatedCount} + crawled ${crawledAdded}).`);
 
 // ── embedding providers ─────────────────────────────────────────────────────
 
@@ -192,27 +219,95 @@ function normalize(v) {
   return v.map((x) => Math.round((x / norm) * 1e6) / 1e6);
 }
 
-let result = null;
-const errors = [];
-if (OPENAI_KEY) {
-  try { result = await embedOpenAI(chunks.map((c) => c.text)); }
-  catch (e) { errors.push(`OpenAI: ${e.message}`); console.warn(`OpenAI embeddings failed (${e.message}) — trying Gemini`); }
-}
-if (!result && GEMINI_KEY) {
-  try { result = await embedGemini(chunks.map((c) => c.text)); }
-  catch (e) { errors.push(`Gemini: ${e.message}`); }
-}
-if (!result) {
-  console.error("All embedding providers failed:\n  " + errors.join("\n  "));
-  process.exit(1);
-}
+// Embed in batches. Each item counts against the provider's rate limit (Gemini
+// free tier = 100 embed requests/min), so we keep batches ≤90 and wait ~62s
+// between them, with a 429/quota retry that respects the suggested backoff.
+const BATCH = 80;
+const INTER_BATCH_MS = 62_000;
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
-const out = chunks.map((c, i) => ({ ...c, embedding: normalize(result.vectors[i]) }));
+async function embedBatchWithRetry(embedFn, slice, tries = 4) {
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    try {
+      return await embedFn(slice);
+    } catch (e) {
+      const msg = String(e.message ?? e);
+      const isRate = /quota|rate.?limit|\b429\b|exceeded/i.test(msg);
+      if (!isRate || attempt === tries) throw e;
+      const secs = Number(msg.match(/retry in ([\d.]+)s/i)?.[1]) || 60;
+      console.warn(`  rate-limited — waiting ${Math.ceil(secs) + 3}s then retrying batch (attempt ${attempt}/${tries})…`);
+      await sleep((Math.ceil(secs) + 3) * 1000);
+    }
+  }
+  throw new Error("unreachable");
+}
 
 const outPath = path.join(ROOT, "lib", "knowledge-vectors.json");
-writeFileSync(
-  outPath,
-  JSON.stringify({ provider: result.provider, model: result.model, dimensions: EMBEDDING_DIM, chunks: out })
-);
-console.log(`Embedded with ${result.provider}/${result.model}.`);
-console.log(`Wrote ${out.length} embedded chunks → lib/knowledge-vectors.json`);
+
+// ── incremental cache: reuse embeddings already computed in a prior run ──────
+// Embedding APIs are rate/quota limited, so we never re-embed text we've already
+// embedded. The existing vectors file is the cache (keyed by normalized text).
+const cache = new Map(); // dedupKey(text) → embedding
+let cacheModel = null, cacheProvider = null;
+try {
+  const prev = JSON.parse(readFileSync(outPath, "utf8"));
+  if (prev?.dimensions === EMBEDDING_DIM) {
+    cacheModel = prev.model; cacheProvider = prev.provider;
+    for (const c of prev.chunks ?? []) if (c.embedding) cache.set(dedupKey(c.text), c.embedding);
+  }
+} catch { /* no prior file */ }
+console.log(`Embedding cache: ${cache.size} reusable vectors from previous build.`);
+
+const toEmbed = chunks.filter((c) => !cache.has(dedupKey(c.text)));
+console.log(`Need to embed ${toEmbed.length} new chunks (${chunks.length - toEmbed.length} reused from cache).`);
+
+// Embed the missing ones in throttled batches, persisting after EACH batch so a
+// quota cutoff never loses progress and the next run resumes.
+const newVecs = new Map(); // dedupKey → embedding
+let provider = cacheProvider, model = cacheModel;
+
+function persist() {
+  const out = [];
+  for (const c of chunks) {
+    const k = dedupKey(c.text);
+    const embedding = cache.get(k) ?? newVecs.get(k);
+    if (!embedding) continue; // not yet embedded — include on a later run
+    out.push({ id: c.id, text: c.text, source: c.source, ...(c.url ? { url: c.url } : {}), embedding });
+  }
+  writeFileSync(outPath, JSON.stringify({ provider: provider ?? "gemini", model: model ?? "gemini-embedding-001", dimensions: EMBEDDING_DIM, chunks: out }));
+  return out.length;
+}
+
+async function embedMissing(embedFn, tries) {
+  for (let i = 0; i < toEmbed.length; i += BATCH) {
+    const slice = toEmbed.slice(i, i + BATCH);
+    const r = await embedBatchWithRetry(embedFn, slice.map((c) => c.text), tries);
+    provider = r.provider; model = r.model;
+    slice.forEach((c, j) => newVecs.set(dedupKey(c.text), normalize(r.vectors[j])));
+    const written = persist(); // save progress after every batch
+    console.log(`  embedded ${Math.min(i + BATCH, toEmbed.length)}/${toEmbed.length} new · file now has ${written} chunks`);
+    if (i + BATCH < toEmbed.length) await sleep(INTER_BATCH_MS);
+  }
+}
+
+if (toEmbed.length === 0) {
+  const n = persist();
+  console.log(`All chunks already cached. Wrote ${n} chunks → lib/knowledge-vectors.json`);
+} else {
+  const errors = [];
+  let done = false;
+  if (OPENAI_KEY) {
+    try { await embedMissing(embedOpenAI, 1); done = true; }
+    catch (e) { errors.push(`OpenAI: ${e.message}`); console.warn(`OpenAI failed (${e.message}) — trying Gemini`); }
+  }
+  if (!done && GEMINI_KEY) {
+    try { await embedMissing(embedGemini, 5); done = true; }
+    catch (e) { errors.push(`Gemini: ${e.message}`); }
+  }
+  const written = persist();
+  if (done) {
+    console.log(`Embedded with ${provider}/${model}. Wrote ${written} chunks → lib/knowledge-vectors.json`);
+  } else {
+    console.warn(`Embedding stopped early (provider quota). Wrote ${written}/${chunks.length} chunks (partial). Re-run to embed the rest.\n  ${errors.join("\n  ")}`);
+  }
+}
