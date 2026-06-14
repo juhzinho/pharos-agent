@@ -29,16 +29,21 @@ cd pharos-agent
 npm install
 ```
 
-Create `.env.local` with your own API keys (never commit this file):
+Create `.env.local` with your own API keys (never commit this file).
+
+**These are server-side keys** — they are used only in API routes (`app/api/*`) and the
+AI cascade, which run on the server. **Do NOT prefix them with `NEXT_PUBLIC_`**: that would
+inline the secret into the browser bundle and leak it to every visitor. On Vercel, add
+these same names under Project → Settings → Environment Variables.
 
 ```
-NEXT_PUBLIC_GROQ_API_KEY=
-NEXT_PUBLIC_TAVILY_API_KEY=
-NEXT_PUBLIC_GITHUB_TOKEN=
-NEXT_PUBLIC_CEREBRAS_API_KEY=
-NEXT_PUBLIC_GEMINI_API_KEY=
-NEXT_PUBLIC_XAI_API_KEY=
-NEXT_PUBLIC_OPENAI_API_KEY=
+XAI_API_KEY=
+OPENAI_API_KEY=
+GITHUB_TOKEN=
+CEREBRAS_API_KEY=
+GEMINI_API_KEY=
+GROQ_API_KEY=
+TAVILY_API_KEY=
 ```
 
 ```bash

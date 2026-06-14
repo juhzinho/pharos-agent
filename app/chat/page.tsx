@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { parseIntent, type ParsedIntent } from "@/lib/parser";
-import { parseWithGroq, type GroqResult } from "@/lib/groq";
+import { type GroqResult } from "@/lib/groq";
 import { buildSwapBridge, formatReceiveAmount, resolveTokenAddressForChain, type QuoteResult } from "@/lib/lifi";
 // resolveTokenAddressForChain is used in handleProviderChoice
 import {
@@ -32,8 +32,6 @@ import {
 } from "@/lib/wallet";
 import { TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/lib/memory";
-import { webSearch, formatSearchContext } from "@/lib/search";
-import { queryDocs, formatDocsContext } from "@/lib/docs";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
@@ -123,6 +121,36 @@ function safeText(text: string): string {
     } catch { }
   }
   return text;
+}
+
+// Calls the server-side AI endpoint. All secret keys (AI cascade, embeddings,
+// Tavily) stay on the server — the browser only sees the JSON result. Returns
+// null on any failure so handleSend can fall back to the local parser.
+type AgentResult = GroqResult & { grounded?: boolean };
+async function callAgent(payload: {
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  prefsContext?: string;
+  txContext?: string;
+  search?: string;
+  docs?: { target: string; query: string };
+}): Promise<AgentResult | null> {
+  try {
+    const res = await fetch("/api/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      console.warn("[pharos:agent] HTTP", res.status);
+      return null;
+    }
+    const data = await res.json();
+    if (!data || data.error || typeof data.reply !== "string") return null;
+    return data as AgentResult;
+  } catch (err) {
+    console.warn("[pharos:agent] fetch failed:", err);
+    return null;
+  }
 }
 
 // Lightweight PT/EN guess from the most recent user message, used to localize
@@ -1095,13 +1123,12 @@ export default function ChatPage() {
       const txContext = lastTxHash
         ? `sessionTx=signed,txHashPrefix=${lastTxHash.slice(0, 10)}`
         : "sessionTx=none";
+      const prefsContext = getPrefsContext();
 
-      let groqResult: GroqResult | null = null;
-      try {
-        groqResult = await parseWithGroq(history, getPrefsContext(), txContext);
-      } catch (groqErr) {
-        console.warn("[pharos:groq] failed, falling back to local parser:", groqErr);
-      }
+      // Intent parsing + web search + deep docs all run SERVER-SIDE via /api/agent
+      // so API keys never reach the browser. Price (CoinGecko) and all tx-building
+      // (LI.FI/FaroSwap/CCIP/CCTP/RPC) use public endpoints and stay client-side.
+      const groqResult = await callAgent({ history, prefsContext, txContext });
 
       if (groqResult) {
         const complete = isCompleteIntent(groqResult);
@@ -1126,30 +1153,18 @@ export default function ChatPage() {
             }
           } else if (!groqResult.action && groqResult.needsDocs && groqResult.docsTarget && groqResult.docsQuery) {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
-            try {
-              const dr = await queryDocs(groqResult.docsTarget, groqResult.docsQuery);
-              if (dr) {
-                const ctx = formatDocsContext(dr);
-                const grounded = await parseWithGroq(history, getPrefsContext(), txContext, undefined, ctx);
-                updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
-              } else {
-                updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
-              }
-            } catch {
+            const grounded = await callAgent({ history, prefsContext, txContext, docs: { target: groqResult.docsTarget, query: groqResult.docsQuery } });
+            if (grounded && grounded.grounded) {
+              updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
+            } else {
               updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }
           } else if (!groqResult.action && groqResult.needsSearch && effectiveQuery) {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
-            try {
-              const sr = await webSearch(effectiveQuery);
-              if (sr) {
-                const ctx = formatSearchContext(sr);
-                const grounded = await parseWithGroq(history, getPrefsContext(), txContext, ctx);
-                updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
-              } else {
-                updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
-              }
-            } catch {
+            const grounded = await callAgent({ history, prefsContext, txContext, search: effectiveQuery });
+            if (grounded && grounded.grounded) {
+              updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
+            } else {
               updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }
           } else {

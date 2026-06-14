@@ -13,14 +13,14 @@ export function getClientIp(req: Request): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-export function checkRateLimit(req: Request): { allowed: boolean; retryAfterSec: number } {
+export function checkRateLimit(req: Request, maxPerMinute: number = MAX_REQUESTS): { allowed: boolean; retryAfterSec: number } {
   const ip = getClientIp(req);
   const now = Date.now();
   const windowStart = now - WINDOW_MS;
 
   const timestamps = (hits.get(ip) ?? []).filter((t) => t > windowStart);
 
-  if (timestamps.length >= MAX_REQUESTS) {
+  if (timestamps.length >= maxPerMinute) {
     const retryAfterSec = Math.ceil((timestamps[0] + WINDOW_MS - now) / 1000);
     hits.set(ip, timestamps);
     return { allowed: false, retryAfterSec: Math.max(1, retryAfterSec) };

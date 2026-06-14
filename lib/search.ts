@@ -10,11 +10,11 @@ export interface SearchResponse {
 }
 
 export async function webSearch(query: string): Promise<SearchResponse | null> {
-  const apiKey = process.env.TAVILY_API_KEY || process.env.NEXT_PUBLIC_TAVILY_API_KEY;
-  console.log("[pharos:tavily] key present:", !!apiKey, "| prefix:", apiKey?.slice(0, 12) ?? "undefined");
+  const apiKey = process.env.TAVILY_API_KEY;
+  console.log("[pharos:tavily] key present:", !!apiKey);
 
   if (!apiKey) {
-    console.warn("[pharos:tavily] NEXT_PUBLIC_TAVILY_API_KEY is not set");
+    console.warn("[pharos:tavily] TAVILY_API_KEY is not set");
     return null;
   }
 

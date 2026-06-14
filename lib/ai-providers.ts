@@ -36,8 +36,8 @@ async function fetchWithTimeout(
 const GROK_MODELS = ["grok-4-latest", "grok-3-latest", "grok-beta"] as const;
 
 async function callGrok(messages: ChatMessage[], systemPrompt: string): Promise<string> {
-  // Server-side (API routes) uses the non-public key; the browser build only sees NEXT_PUBLIC_*.
-  const apiKey = process.env.XAI_API_KEY || process.env.NEXT_PUBLIC_XAI_API_KEY;
+  // Server-side only — this module runs inside API routes, never the browser bundle.
+  const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) throw new Error("XAI_API_KEY not configured");
 
   for (const model of GROK_MODELS) {
@@ -120,7 +120,7 @@ async function callGrok(messages: ChatMessage[], systemPrompt: string): Promise<
 // ── Provider 2: OpenAI (gpt-4o-mini) ─────────────────────────────────────
 
 async function callOpenAI(messages: ChatMessage[], systemPrompt: string): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
   const res = await fetchWithTimeout(
@@ -154,7 +154,7 @@ async function callOpenAI(messages: ChatMessage[], systemPrompt: string): Promis
 // ── Provider 3: GitHub Models (GPT-4o) ────────────────────────────────────
 
 async function callGitHub(messages: ChatMessage[], systemPrompt: string): Promise<string> {
-  const token = process.env.GITHUB_TOKEN || process.env.NEXT_PUBLIC_GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN;
   if (!token) throw new Error("GITHUB_TOKEN not configured");
 
   const res = await fetchWithTimeout(
@@ -190,7 +190,7 @@ async function callGitHub(messages: ChatMessage[], systemPrompt: string): Promis
 const CEREBRAS_MODELS = ["llama3.3-70b", "llama3.1-70b"] as const;
 
 async function callCerebras(messages: ChatMessage[], systemPrompt: string): Promise<string> {
-  const apiKey = process.env.CEREBRAS_API_KEY || process.env.NEXT_PUBLIC_CEREBRAS_API_KEY;
+  const apiKey = process.env.CEREBRAS_API_KEY;
   if (!apiKey) throw new Error("CEREBRAS_API_KEY not configured");
 
   for (const model of CEREBRAS_MODELS) {
@@ -253,7 +253,7 @@ function toGeminiContents(
 }
 
 async function callGemini(messages: ChatMessage[], systemPrompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
 
   const res = await fetchWithTimeout(
@@ -282,7 +282,7 @@ async function callGemini(messages: ChatMessage[], systemPrompt: string): Promis
 // ── Provider 6: Groq (llama-3.3-70b-versatile) ───────────────────────────
 
 async function callGroq(messages: ChatMessage[], systemPrompt: string): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY || process.env.NEXT_PUBLIC_GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || apiKey === "PASTE_GROQ_KEY_HERE") throw new Error("GROQ_API_KEY not configured");
 
   const res = await fetchWithTimeout(

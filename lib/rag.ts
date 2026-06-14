@@ -28,10 +28,10 @@ const queryCache = new Map<string, number[]>();
 const QUERY_CACHE_MAX = 50;
 
 function openaiKey(): string | undefined {
-  return process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  return process.env.OPENAI_API_KEY;
 }
 function geminiKey(): string | undefined {
-  return process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  return process.env.GEMINI_API_KEY;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
