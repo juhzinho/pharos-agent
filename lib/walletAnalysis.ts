@@ -63,20 +63,14 @@ async function priceOf(symbol: string): Promise<number | null> {
 export async function getWalletAnalysis(address: string): Promise<WalletAnalysis> {
   const entries = Object.entries(TOKENS) as Array<[string, { address: string; decimals: number }]>;
 
-  const raws = await Promise.all(
-    entries.map(([sym, t]) =>
-      sym === "PROS" || t.address.toLowerCase() === NATIVE_ADDR
-        ? nativeBalance(address)
-        : erc20Balance(t.address, address)
-    )
-  );
-
   const holdings: TokenHolding[] = [];
   let totalUsd = 0;
 
-  for (let i = 0; i < entries.length; i++) {
-    const [symbol, t] = entries[i];
-    const raw = raws[i];
+  // Read balances SEQUENTIALLY — the public Pharos RPC rate-limits bursts, so a
+  // parallel Promise.all can fail mid-way. Sequential is reliable for ~7 tokens.
+  for (const [symbol, t] of entries) {
+    const isNative = symbol === "PROS" || t.address.toLowerCase() === NATIVE_ADDR;
+    const raw = isNative ? await nativeBalance(address) : await erc20Balance(t.address, address);
     if (raw === 0n) continue;
     const balance = Number(raw) / 10 ** t.decimals;
     const price = await priceOf(symbol);

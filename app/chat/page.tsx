@@ -1293,22 +1293,26 @@ export default function ChatPage() {
 
         // view_wallet (read-only wallet analysis — needs the connected address)
         if (groqResult.action === "view_wallet") {
-          if (!walletAddress) {
-            const lang = guessUserLang(messages);
+          const lang = guessUserLang(messages);
+          // Address priority: an explicit 0x… address in THIS message wins (public
+          // read, no connection needed); otherwise the connected wallet. Read fresh
+          // from the raw message each time — never a cached/previous address.
+          const typedAddress = text.match(/0x[a-fA-F0-9]{40}/)?.[0] ?? null;
+          const target = typedAddress ?? (walletAddress || null);
+          if (!target) {
             updateMessage(thinkingId, {
               isLoading: false,
               text: lang === "pt"
-                ? "Para analisar sua carteira, conecte-a primeiro. Clique em 'Conectar' no topo. 🔗"
-                : "To analyze your wallet, connect it first — click 'Connect' at the top. 🔗",
+                ? "Para analisar uma carteira, conecte a sua (botão 'Conectar' no topo) ou me passe um endereço 0x… 🔗"
+                : "To analyze a wallet, connect yours ('Connect' at the top) or paste a 0x… address. 🔗",
             });
             setIsSending(false);
             inputRef.current?.focus();
             return;
           }
-          updateMessage(thinkingId, { text: safeReply + "\n\nReading your Pharos balances…" });
+          updateMessage(thinkingId, { text: safeReply + "\n\nReading Pharos balances…" });
           try {
-            const analysis = await getWalletAnalysis(walletAddress);
-            const lang = guessUserLang(messages);
+            const analysis = await getWalletAnalysis(target);
             updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + formatWalletAnalysis(analysis, lang) });
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
