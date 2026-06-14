@@ -88,6 +88,13 @@ const SOURCE_LABELS = {
   wallets_keys:             "Crypto Fundamentals — Wallets & Keys",
   cross_chain_messaging:    "Crypto Fundamentals — Cross-chain",
   realfi_vision:            "Pharos RealFi",
+  // Official pharos.xyz homepage
+  pharos_tech:              "pharos.xyz — Tech Specs",
+  pharos_compliance:        "pharos.xyz — Compliance",
+  pharos_spn:               "pharos.xyz — SPN",
+  pharos_positioning:       "pharos.xyz — Positioning",
+  pharos_metrics:           "pharos.xyz — Metrics & Backing",
+  pharos_site:              "pharos.xyz — Site Map",
 };
 
 // ~300 tokens ≈ ~1200 chars. Split a long text on blank lines, then greedily

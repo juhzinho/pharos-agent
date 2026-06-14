@@ -5,7 +5,7 @@ export const CORE_KNOWLEDGE = `
 === PHAROS CORE KNOWLEDGE ===
 
 NETWORK: Chain ID 1672 | RPC https://rpc.pharos.xyz | Explorer pharosscan.xyz
-MAINNET: "Pacific Ocean" launched April 28, 2026 | 30,000 TPS | Sub-second finality | $52M funded
+MAINNET: "Pacific Ocean" launched April 28, 2026 | 30,000 TPS, 2 Gigagas/s, block <1s | Dual VM (EVM + WASM) | AsyncBFT + speculative parallel execution → sub-second finality | Founded by ex-Ant Group leadership | ~$52M raised ($8M seed: Hack VC, Faction VC)
 TOKENS: PROS (native gas+governance) | WPROS: 0x52c48d4213107b20bc583832b0d951fb9ca8f0b0 (18 dec) | USDC: 0xc879c018db60520f4355c26ed1a6d572cdac1815 (6 dec)
 DOCS: docs.pharosnetwork.xyz | pharos.xyz | port.pharos.xyz/ecosystem | x.com/pharos_network | buildonpharos.com (dev portal) | github.com/PharosNetwork (official org)
 
@@ -364,6 +364,39 @@ RealFi on Pharos — how it ties together: Pharos is a Layer-1 built to bring re
 The stack in practice: RWAs are tokenized (R25, Centrifuge, Ember, Asseto) → used as collateral or yield (Zona lending, Faroo stPROS, AquaFlux tri-token) → traded/provided as liquidity (FaroSwap) → moved across chains (CCIP, CCTP, LayerZero/Stargate) → all settled on a parallel-execution EVM L1 with sub-second finality.
 Why a purpose-built chain: general L1s aren't optimized for institutional RWA settlement (throughput, finality, compliance, oracle reliability). Pharos targets exactly that — "infrastructure bridging traditional financial assets and on-chain liquidity."
 `,
+
+  // ════════ Official pharos.xyz homepage facts ════════
+  pharos_tech: `
+Pharos official technical specs (pharos.xyz):
+Performance: 30,000 TPS, 2 Gigagas/second throughput, block time under 1 second, designed to scale toward 1 billion concurrent users.
+Dual VM: Pharos runs BOTH the EVM and a WASM (WebAssembly) VM — it is NOT EVM-only — so developers can build with Solidity or WASM-based languages.
+Consensus: AsyncBFT combined with speculative parallel execution, delivering sub-second deterministic finality.
+Storage engine: a Delta-Encoded Multi-Version Merkle Tree plus a Log-Structured Versioned Page Store, cutting storage overhead by ~80%, with multi-stage pipelining for CPU/IO efficiency.
+Founded by former Ant Group leadership.
+`,
+  pharos_compliance: `
+Pharos "compliance by design" (pharos.xyz): KYC/AML is built into the PROTOCOL layer via zero-knowledge modules — zk-KYC, programmable AML, and digital identity native to the chain. Privacy is preserved (zk proofs validate eligibility without exposing user data), so Pharos stays compliance-ready for regulated institutions while remaining open and composable.
+This underpins the RealFi thesis: tokenized real-world assets and institutional capital need native, programmable compliance rather than bolted-on, off-chain KYC.
+`,
+  pharos_spn: `
+SPN — Special Processing Networks (pharos.xyz): application-specific networks within the Pharos system, each with its OWN execution engine, validator set, restaking-based incentives, and governance. SPNs are tightly integrated with the Pharos mainnet yet operate independently (similar to app-specific chains/rollups), so demanding apps get tailored performance.
+Native cross-SPN AND cross-chain communication runs with ATOMIC execution — a transaction spanning multiple SPNs/chains either fully succeeds or fully reverts. Restaking aligns each SPN's security with the mainnet.
+`,
+  pharos_positioning: `
+Pharos official positioning (pharos.xyz): "RealFi, Accessible to All — Inclusive Financial Layer 1 for Real Value and Institutional-Grade Assets." It frames itself as a "Borderless Digital Financial City" where tokenized assets flow like commerce and stablecoins settle like currency.
+Core use cases: tokenized financial products; instant payments (cross-border settlement in under 1 second); compliant finance (zk-KYC/AML); infrastructure assets (energy, commodities, real estate); and stablecoins backed by verified RWA collateral.
+`,
+  pharos_metrics: `
+Pharos metrics & backing (pharos.xyz official): an $8M seed round led by Hack VC and Faction VC alongside global investors. (Earlier/other sources also cite a $44M Series A, for roughly $52M total raised.)
+Traction figures highlighted on the site: 174M wallet addresses, 3B cumulative testnet users, and 1.5M community followers.
+Strategic partner: Ant Digital Technologies — together incubating an approximately $1.5 BILLION RWA exchange pipeline. Pharos was founded by former Ant Group leadership.
+`,
+  pharos_site: `
+Official Pharos site map (pharos.xyz — for navigation & citations):
+• Agent Center (pharos.xyz/agent-center) — explore & install Skills for on-chain agents.
+• Developer Center (pharos.xyz/devhub) · RealFi Alliance (pharos.xyz/realfi-alliance) · Research (pharos.xyz/research) · Blog/News (pharos.xyz/resources) · Ecosystem (pharos.xyz/ecosystem) · Community (pharos.xyz/community).
+Other official domains: Testnet testnet.pharosnetwork.xyz · Careers career.pharosnetwork.xyz · Docs docs.pharosnetwork.xyz · Dev portal buildonpharos.com · GitHub github.com/PharosNetwork · Ecosystem hub port.pharos.xyz.
+`,
 };
 
 // Keyword → section mapping. Only the first 2 matches are used per query to cap token usage.
@@ -417,6 +450,14 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["wallet", "carteira", "private key", "chave privada", "seed phrase", "frase semente", "non-custodial", "metamask", "rabby"], section: "wallets_keys" },
   { keys: ["cross-chain", "cross chain", "bridge", "ponte", "layerzero", "layer zero", "oft", "cross-chain messaging"], section: "cross_chain_messaging" },
   { keys: ["realfi vision", "real world finance", "how does pharos", "por que pharos", "why pharos", "pharos vision", "pharos thesis"], section: "realfi_vision" },
+
+  // ── Official pharos.xyz facts ──
+  { keys: ["gigagas", "2 gigagas", "dual vm", "wasm", "webassembly", "asyncbft", "async bft", "speculative", "merkle tree", "page store", "storage overhead", "block time", "tps", "throughput", "1 billion users", "specs", "especificaç"], section: "pharos_tech" },
+  { keys: ["zk-kyc", "zk kyc", "compliance by design", "programmable aml", "digital id", "digital identity", "compliance layer", "compliant chain"], section: "pharos_compliance" },
+  { keys: ["spn", "special processing network", "appchain", "app-specific network", "cross-spn", "atomic execution"], section: "pharos_spn" },
+  { keys: ["borderless", "digital financial city", "inclusive financial", "institutional-grade", "accessible to all", "instant payment", "cross-border", "use cases", "positioning"], section: "pharos_positioning" },
+  { keys: ["hack vc", "faction vc", "ant digital", "ant group", "1.5 billion", "rwa exchange", "wallet addresses", "174m", "community followers", "backing", "investors", "raised", "seed round"], section: "pharos_metrics" },
+  { keys: ["agent center", "developer center", "devhub", "realfi alliance", "research center", "site map", "career", "testnet site", "pharos.xyz/"], section: "pharos_site" },
 ];
 
 export function getDetailedSection(userMessage: string): string {
