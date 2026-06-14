@@ -1173,6 +1173,22 @@ export default function ChatPage() {
         const safeReply = sanitizeGroqReply(groqResult.reply);
         const intent    = groqToIntent(groqResult);
 
+        // Gate: every on-chain action needs a connected wallet. Don't build a tx
+        // (or fetch positions) without one — ask the user to connect first.
+        const needsWallet = intent.action === "swap" || intent.action === "bridge" || intent.action === "add_liquidity" || intent.action === "view_positions";
+        if (needsWallet && !walletAddress) {
+          const lang = guessUserLang(messages);
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: lang === "pt"
+              ? "Para fazer essa operação, conecte sua carteira primeiro. Clique em 'Conectar' no topo. 🔗"
+              : "To do that, connect your wallet first — click 'Connect' at the top. 🔗",
+          });
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
         // view_positions
         if (intent.action === "view_positions") {
           updateMessage(thinkingId, { text: safeReply + "\n\nFetching your FaroSwap V3 positions…" });
@@ -1305,6 +1321,21 @@ export default function ChatPage() {
       }
 
       const intent = parseIntent(text);
+
+      // Same wallet gate for the local-parser fallback path.
+      if (!walletAddress) {
+        const lang = guessUserLang(messages);
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: lang === "pt"
+            ? "Para fazer essa operação, conecte sua carteira primeiro. Clique em 'Conectar' no topo. 🔗"
+            : "To do that, connect your wallet first — click 'Connect' at the top. 🔗",
+        });
+        setIsSending(false);
+        inputRef.current?.focus();
+        return;
+      }
+
       if (intent.action === "bridge") {
         const ccipCheck = checkCcipSupport(intent);
         const cctpCheck = checkCctpSupport(intent);

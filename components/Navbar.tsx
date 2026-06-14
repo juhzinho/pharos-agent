@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import PriceTicker from "@/components/PriceTicker";
 
 interface NavbarProps {
   walletAddress?: string;
@@ -100,6 +101,7 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
 
         {/* Wallet / CTA */}
         <div className="flex items-center gap-2.5 shrink-0">
+          <PriceTicker />
           {walletAddress ? (
             <div className="flex items-center gap-2 shrink-0">
               {isWrongNetwork && onSwitchNetwork && (
