@@ -42,9 +42,9 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
   const pathname = usePathname();
 
   const navLinks = [
-    { label: "Chat",     href: "/chat"          },
-    { label: "About",    href: "/about"         },
-    { label: "Features", href: "/about#features" },
+    { label: "Chat",     href: "/chat"      },
+    { label: "About",    href: "/#about"    },
+    { label: "Features", href: "/#features" },
   ];
 
   return (
@@ -104,8 +104,8 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
             <div className="flex items-center gap-2 shrink-0">
               {isWrongNetwork && onSwitchNetwork && (
                 <button onClick={onSwitchNetwork}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-white transition-transform duration-150 hover:scale-[1.03]"
-                  style={{ background: "linear-gradient(135deg, oklch(0.55 0.18 60), oklch(0.62 0.20 55))", boxShadow: "0 4px 14px -4px oklch(0.62 0.20 55 / 0.6)" }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-black transition-all duration-150 hover:scale-[1.03]"
+                  style={{ background: "linear-gradient(135deg, #f59e0b, #fbbf24)", boxShadow: "0 4px 14px rgba(245,158,11,0.35)" }}
                   title="Switch to Pharos network">
                   <span>⚠</span> Switch to Pharos
                 </button>

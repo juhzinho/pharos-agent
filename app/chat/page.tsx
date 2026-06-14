@@ -35,8 +35,6 @@ import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
-import GlassBackground from "@/components/GlassBackground";
-import IntroOverlay from "@/components/IntroOverlay";
 
 // ─── types ─────────────────────────────────────────────────────────────────
 
@@ -263,67 +261,67 @@ function SearchingIndicator() {
 function ProviderChoiceButtons({ choice, onChoose }: { choice: ProviderChoice; onChoose: (p: "lifi" | "ccip" | "cctp") => void }) {
   return (
     <div className="mt-4">
-      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "oklch(0.78 0.16 220 / 0.6)" }}>
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
         Choose bridge provider
       </p>
       <div className="flex gap-2.5 flex-wrap">
         <button onClick={() => onChoose("lifi")}
-          className="glass-panel flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200"
-          style={{ borderColor: "rgba(99,102,241,0.32)" }}
+          className="flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(99,102,241,0.2)" }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.6)";
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-deep), 0 0 24px rgba(99,102,241,0.25)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(99,102,241,0.08)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.4)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.32)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.2)";
             (e.currentTarget as HTMLButtonElement).style.transform = "";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
           }}>
           <span className="text-sm font-semibold text-white">Jumper (LI.FI)</span>
-          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>Best route aggregator · multi-chain</span>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>Best route aggregator · multi-chain</span>
         </button>
 
         <button onClick={() => choice.ccipSupported && onChoose("ccip")}
           disabled={!choice.ccipSupported} title={choice.ccipNote}
-          className={`glass-panel flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200 ${!choice.ccipSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-          style={{ borderColor: choice.ccipSupported ? "rgba(245,158,11,0.32)" : "rgba(255,255,255,0.08)" }}
+          className={`flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 ${!choice.ccipSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${choice.ccipSupported ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.05)"}` }}
           onMouseEnter={(e) => {
             if (!choice.ccipSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.58)";
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-deep), 0 0 24px rgba(245,158,11,0.22)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.07)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.38)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
           }}
           onMouseLeave={(e) => {
             if (!choice.ccipSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.32)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(245,158,11,0.2)";
             (e.currentTarget as HTMLButtonElement).style.transform = "";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
           }}>
           <span className={`text-sm font-semibold ${choice.ccipSupported ? "text-white" : "text-gray-500"}`}>Chainlink CCIP</span>
-          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>
             {choice.ccipSupported ? "Secure cross-chain messaging" : (choice.ccipNote || "Unavailable for this route")}
           </span>
         </button>
 
         <button onClick={() => choice.cctpSupported && onChoose("cctp")}
           disabled={!choice.cctpSupported} title={choice.cctpNote}
-          className={`glass-panel flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200 ${!choice.cctpSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-          style={{ borderColor: choice.cctpSupported ? "rgba(16,185,129,0.34)" : "rgba(255,255,255,0.08)" }}
+          className={`flex-1 min-w-[130px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 ${!choice.cctpSupported ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${choice.cctpSupported ? "rgba(16,185,129,0.22)" : "rgba(255,255,255,0.05)"}` }}
           onMouseEnter={(e) => {
             if (!choice.cctpSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.6)";
-            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--shadow-deep), 0 0 24px rgba(16,185,129,0.25)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(16,185,129,0.07)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.4)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
           }}
           onMouseLeave={(e) => {
             if (!choice.cctpSupported) return;
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.34)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(16,185,129,0.22)";
             (e.currentTarget as HTMLButtonElement).style.transform = "";
-            (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
           }}>
           <span className={`text-sm font-semibold ${choice.cctpSupported ? "text-white" : "text-gray-500"}`}>Circle CCTP v2</span>
-          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>
+          <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>
             {choice.cctpSupported ? "Native USDC burn & mint · no aggregator fee" : (choice.cctpNote || "USDC from Pharos only")}
           </span>
         </button>
@@ -342,7 +340,7 @@ const SWAP_ROUTE_META: Record<SwapRouteOption["provider"], { label: string; subt
 function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose: (opt: SwapRouteOption) => void }) {
   return (
     <div className="mt-4">
-      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "oklch(0.78 0.16 220 / 0.6)" }}>
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
         Choose swap route
       </p>
       <div className="flex gap-2.5 flex-wrap">
@@ -350,21 +348,21 @@ function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose:
           const meta = SWAP_ROUTE_META[opt.provider];
           return (
             <button key={opt.provider} onClick={() => onChoose(opt)}
-              className="glass-panel flex-1 min-w-[150px] flex flex-col gap-1.5 px-3.5 py-3 rounded-2xl text-left transition-all duration-200 cursor-pointer"
-              style={{ borderColor: `rgba(${meta.accent},0.3)` }}
+              className="flex-1 min-w-[150px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer"
+              style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(${meta.accent},0.22)` }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.6)`;
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = `var(--shadow-deep), 0 0 24px rgba(${meta.accent},0.25)`;
+                (e.currentTarget as HTMLButtonElement).style.background = `rgba(${meta.accent},0.08)`;
+                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.42)`;
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.3)`;
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = `rgba(${meta.accent},0.22)`;
                 (e.currentTarget as HTMLButtonElement).style.transform = "";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "";
               }}>
               <span className="text-sm font-semibold text-white">{meta.label}</span>
-              <span className="text-base font-data font-semibold" style={{ color: `rgb(${meta.accent})`, textShadow: `0 0 16px rgba(${meta.accent},0.5)` }}>receive ~{opt.receiveLabel}</span>
-              <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>{meta.subtitle}</span>
+              <span className="text-sm font-data font-semibold" style={{ color: `rgb(${meta.accent})` }}>receive ~{opt.receiveLabel}</span>
+              <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>{meta.subtitle}</span>
             </button>
           );
         })}
@@ -421,10 +419,10 @@ function TxButton({ pending, walletAddress, onSuccess, onError }: {
 
   return (
     <button onClick={handleSign} disabled={!isIdle}
-      className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-white transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
+      className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
       style={{
-        background: isDone ? "linear-gradient(135deg, oklch(0.70 0.17 162), oklch(0.78 0.16 165))" : "linear-gradient(135deg, oklch(0.42 0.27 264) 0%, oklch(0.52 0.27 260) 55%, oklch(0.58 0.26 258) 100%)",
-        boxShadow: isIdle ? "0 8px 24px -6px oklch(0.58 0.26 258 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.22)" : "none",
+        background: isDone ? "linear-gradient(135deg,#10b981,#34d399)" : "linear-gradient(135deg,#00d4ff 0%,#38bdf8 60%,#0ea5e9 100%)",
+        boxShadow: isIdle ? "0 4px 18px rgba(0,212,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25)" : "none",
       }}
       onMouseEnter={(e) => { if (!isIdle) return; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
@@ -450,8 +448,9 @@ function PositionCards({ positions }: { positions: V3Position[] }) {
         const sb = !hasLiq ? "rgba(100,116,139,0.1)" : inRange ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
         const sl = !hasLiq ? "Closed" : inRange ? "In Range" : "Out of Range";
         return (
-          <div key={String(p.tokenId)} className="glass-panel rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "oklch(0.55 0.22 260 / 0.18)", background: "oklch(0.58 0.26 258 / 0.06)" }}>
+          <div key={String(p.tokenId)} className="rounded-2xl overflow-hidden"
+            style={{ background: "rgba(8,16,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(12px)" }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(0,212,255,0.03)" }}>
               <div className="flex items-center gap-2.5">
                 <div className="flex -space-x-1.5">
                   <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold z-10" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "1.5px solid rgba(6,13,31,0.9)" }}>W</div>
@@ -654,7 +653,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
       {!isUser && (
         <div className="shrink-0 mr-3 mt-1">
           <div className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{ background: "radial-gradient(circle at 35% 35%, oklch(0.58 0.26 258 / 0.4), oklch(0.08 0.08 262 / 0.97))", border: "1px solid oklch(0.58 0.26 258 / 0.45)", boxShadow: "0 0 18px oklch(0.58 0.26 258 / 0.35)" }}>
+            style={{ background: "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.15), rgba(2,8,22,0.97))", border: "1px solid rgba(0,212,255,0.28)", boxShadow: "0 0 12px rgba(0,212,255,0.15)" }}>
             <svg viewBox="0 0 28 28" className="w-full h-full" fill="none">
               <circle cx="14" cy="14" r="4" fill="rgba(0,212,255,0.85)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
               <circle cx="14" cy="14" r="9" stroke="rgba(0,212,255,0.15)" strokeWidth="0.7" />
@@ -672,27 +671,23 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
 
         <div className={`rounded-2xl text-sm leading-[1.65] ${isUser ? "rounded-br-sm" : "rounded-bl-sm"}`}
           style={isUser ? {
-            background: "linear-gradient(135deg, oklch(0.36 0.28 264) 0%, oklch(0.48 0.27 261) 50%, oklch(0.58 0.26 258) 100%)",
-            color: "oklch(0.99 0.005 240)",
+            background: "linear-gradient(135deg, #00b8d9 0%, #00d4ff 45%, #38bdf8 100%)",
+            color: "rgba(0,8,20,0.9)",
             fontWeight: 500,
-            padding: "11px 16px",
-            border: "1px solid oklch(0.65 0.24 258 / 0.5)",
-            boxShadow: "0 8px 30px -6px oklch(0.36 0.28 264 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.18)",
+            padding: "11px 15px",
+            boxShadow: "0 4px 18px rgba(0,212,255,0.22), inset 0 1px 0 rgba(255,255,255,0.28)",
           } : msg.isError ? {
-            background: "linear-gradient(135deg, oklch(0.22 0.12 25 / 0.6), oklch(0.13 0.08 20 / 0.4))",
-            border: "1px solid oklch(0.62 0.24 25 / 0.32)",
-            color: "oklch(0.82 0.13 25)",
-            padding: "12px 16px",
-            backdropFilter: "blur(24px) saturate(140%)",
-            WebkitBackdropFilter: "blur(24px) saturate(140%)",
+            background: "rgba(22,6,6,0.75)",
+            border: "1px solid rgba(239,68,68,0.18)",
+            color: "rgba(252,165,165,0.88)",
+            padding: "11px 15px",
           } : {
-            background: "linear-gradient(135deg, oklch(0.16 0.12 264 / 0.55), oklch(0.10 0.10 262 / 0.35))",
-            border: "1px solid oklch(0.55 0.22 260 / 0.22)",
-            color: "rgba(226,232,240,0.92)",
-            padding: "12px 16px",
-            backdropFilter: "blur(24px) saturate(140%)",
-            WebkitBackdropFilter: "blur(24px) saturate(140%)",
-            boxShadow: "0 18px 50px -20px oklch(0.10 0.18 262 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.05)",
+            background: "rgba(10,18,40,0.78)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            color: "rgba(226,232,240,0.9)",
+            padding: "11px 15px",
+            backdropFilter: "blur(16px)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)",
           }}>
 
           {msg.isLoading ? <TypingIndicator /> : msg.isSearching ? <SearchingIndicator /> : (
@@ -829,8 +824,8 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
               )}
 
               {msg.pending && walletAddress && (
-                <div className="glass-panel mt-4 px-3.5 py-3 rounded-2xl" style={{ borderColor: "oklch(0.58 0.26 258 / 0.3)" }}>
-                  <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "oklch(0.78 0.16 220 / 0.65)" }}>Ready to execute</p>
+                <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
+                  <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
                   <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.7)" }}>{msg.pending.description}</p>
                   <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} />
                 </div>
@@ -1391,15 +1386,11 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen"
       style={{
-        background: "radial-gradient(ellipse at 50% -10%, oklch(0.36 0.28 264 / 0.45) 0%, oklch(0.18 0.18 264 / 0.35) 40%, transparent 62%), radial-gradient(ellipse at top, oklch(0.18 0.18 264) 0%, oklch(0.06 0.06 262) 70%)",
+        background: "radial-gradient(ellipse at 50% -10%, rgba(0,70,150,0.5) 0%, rgba(0,30,80,0.18) 40%, transparent 60%), linear-gradient(170deg, #060c1e 0%, #050a1a 55%, #030710 100%)",
       }}>
 
-      {/* Intro brand reveal — once per session, purely visual */}
-      <IntroOverlay />
-
-      {/* Ambient + wave background — subtle, pointer-events-none */}
+      {/* Wave background — subtle */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <GlassBackground />
         <WaveBackground intensity="subtle" />
       </div>
 
@@ -1420,8 +1411,8 @@ export default function ChatPage() {
       {/* Wrong-network banner — blocks trading until on Pharos */}
       {isWrongNetwork && (
         <div className="relative z-20 px-4 pt-3">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 px-4 py-3 rounded-2xl"
-            style={{ background: "linear-gradient(135deg, oklch(0.30 0.14 60 / 0.5), oklch(0.16 0.10 40 / 0.4))", border: "1px solid oklch(0.70 0.17 60 / 0.4)", backdropFilter: "blur(20px)" }}>
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
+            style={{ background: "rgba(20,14,2,0.7)", border: "1px solid rgba(245,158,11,0.25)", backdropFilter: "blur(16px)" }}>
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="text-lg shrink-0">⚠️</span>
               <div className="min-w-0">
@@ -1430,8 +1421,8 @@ export default function ChatPage() {
               </div>
             </div>
             <button onClick={handleSwitchNetwork}
-              className="shrink-0 px-4 py-2 rounded-xl font-semibold text-xs text-white transition-transform duration-150 hover:scale-[1.03]"
-              style={{ background: "linear-gradient(135deg, oklch(0.48 0.27 261), oklch(0.58 0.26 258))", boxShadow: "0 4px 16px -4px oklch(0.58 0.26 258 / 0.6)" }}>
+              className="shrink-0 px-4 py-2 rounded-xl font-semibold text-xs text-black transition-all duration-200 hover:scale-[1.03]"
+              style={{ background: "linear-gradient(135deg, #00d4ff, #38bdf8)", boxShadow: "0 4px 14px rgba(0,212,255,0.3)" }}>
               Trocar para Pharos
             </button>
           </div>
@@ -1444,20 +1435,18 @@ export default function ChatPage() {
 
           {/* Empty state — large suggestions */}
           {!hasMessages && (
-            <div className="flex flex-col items-center justify-center pt-16 pb-8 text-center">
-              <div className="animate-logo-tilt mb-6" style={{ transformStyle: "preserve-3d" }}>
-                <div className="glass-panel w-24 h-24 rounded-3xl flex items-center justify-center"
-                  style={{ boxShadow: "var(--shadow-glow)" }}>
-                  <svg viewBox="0 0 24 24" className="w-12 h-12" fill="none" stroke="oklch(0.78 0.16 220 / 0.9)" strokeWidth="1.5" strokeLinecap="round">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-                  </svg>
-                </div>
+            <div className="flex flex-col items-center justify-center pt-8 pb-6 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.18)", boxShadow: "0 0 30px rgba(0,212,255,0.12)" }}>
+                <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="rgba(0,212,255,0.7)" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+                </svg>
               </div>
-              <h2 className="font-display font-bold text-white text-3xl mb-2 tracking-[-0.02em]"
+              <h2 className="font-display font-bold text-white text-xl mb-1.5 tracking-[-0.02em]"
                 style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif" }}>
                 Ask me anything
               </h2>
-              <p className="text-sm mb-8" style={{ color: "rgba(148,163,184,0.55)" }}>
+              <p className="text-sm mb-8" style={{ color: "rgba(148,163,184,0.5)" }}>
                 Swap, bridge, liquidity, or any Pharos question
               </p>
             </div>
@@ -1481,11 +1470,11 @@ export default function ChatPage() {
       {/* Input bar */}
       <div className="relative z-20 px-4 pt-3 pb-4"
         style={{
-          background: "linear-gradient(180deg, oklch(0.10 0.10 262 / 0.6), oklch(0.07 0.07 262 / 0.92))",
-          backdropFilter: "blur(28px) saturate(140%)",
-          WebkitBackdropFilter: "blur(28px) saturate(140%)",
-          borderTop: "1px solid oklch(0.55 0.22 260 / 0.22)",
-          boxShadow: "0 -1px 0 oklch(0.58 0.26 258 / 0.1), 0 -8px 32px oklch(0.05 0.05 262 / 0.5)",
+          background: "rgba(5,10,26,0.92)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
+          borderTop: "1px solid rgba(0,212,255,0.12)",
+          boxShadow: "0 -1px 0 rgba(0,212,255,0.08), 0 -8px 32px rgba(0,0,0,0.5)",
         }}>
         <div className="max-w-3xl mx-auto">
 
@@ -1494,16 +1483,16 @@ export default function ChatPage() {
             {SUGGESTIONS.map((s) => (
               <button key={s.text}
                 onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
-                className="glass-panel flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
-                style={{ color: "oklch(0.86 0.06 240 / 0.85)" }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
+                style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.16)", color: "rgba(0,212,255,0.65)" }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "oklch(0.78 0.16 220 / 0.5)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "oklch(0.85 0.14 220)";
-                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.04)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.12)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.95)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "";
-                  (e.currentTarget as HTMLButtonElement).style.color = "oklch(0.86 0.06 240 / 0.85)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.05)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.65)";
                   (e.currentTarget as HTMLButtonElement).style.transform = "";
                 }}>
                 {s.icon}
@@ -1523,20 +1512,24 @@ export default function ChatPage() {
                 placeholder="Ask me to swap, bridge, add liquidity, or anything about Pharos… (Shift+Enter for new line)"
                 disabled={isSending}
                 rows={1}
-                className="glass-panel w-full px-4 py-3 rounded-2xl text-sm text-white outline-none transition-all duration-200 disabled:opacity-60 resize-none overflow-hidden"
+                className="w-full px-4 py-3 rounded-2xl text-sm text-white outline-none transition-all duration-200 disabled:opacity-60 resize-none overflow-hidden"
                 style={{
-                  caretColor: "oklch(0.78 0.16 220)",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  caretColor: "#00d4ff",
                   fontFamily: "var(--font-inter)",
                   lineHeight: "1.55",
-                  minHeight: "52px",
+                  minHeight: "46px",
                   maxHeight: "160px",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "oklch(0.58 0.26 258 / 0.55)";
-                  e.currentTarget.style.boxShadow    = "0 0 0 3px oklch(0.58 0.26 258 / 0.12), var(--shadow-glow)";
+                  e.currentTarget.style.borderColor = "rgba(0,212,255,0.38)";
+                  e.currentTarget.style.background   = "rgba(0,212,255,0.035)";
+                  e.currentTarget.style.boxShadow    = "0 0 0 3px rgba(0,212,255,0.05)";
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
                   e.currentTarget.style.boxShadow   = "";
                 }}
               />
@@ -1545,10 +1538,10 @@ export default function ChatPage() {
             <button
               onClick={handleSend}
               disabled={!input.trim() || isSending}
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-white transition-all duration-200 shrink-0"
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-black transition-all duration-200 shrink-0"
               style={{
-                background: "linear-gradient(135deg, oklch(0.48 0.27 261), oklch(0.58 0.26 258))",
-                boxShadow: input.trim() && !isSending ? "0 6px 20px -4px oklch(0.58 0.26 258 / 0.55)" : "none",
+                background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
+                boxShadow: input.trim() && !isSending ? "0 4px 14px rgba(0,212,255,0.32)" : "none",
                 opacity: !input.trim() || isSending ? 0.35 : 1,
               }}
               onMouseEnter={(e) => {
