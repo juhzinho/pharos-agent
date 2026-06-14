@@ -15,12 +15,17 @@ export interface QuoteResult {
     toAmountMin: string;
     executionDuration: number;
     feeCosts?: { name: string; amount: string; token: { symbol: string } }[];
+    // The LI.FI Diamond/contract the source ERC-20 must be approved to.
+    // Absent for native-token sources (no approval needed).
+    approvalAddress?: string;
+    fromAmount?: string;
   };
   action: {
-    fromToken: { symbol: string; decimals: number };
+    fromToken: { address: string; symbol: string; decimals: number };
     toToken: { symbol: string; decimals: number };
     fromChainId: number;
     toChainId: number;
+    fromAmount?: string;
   };
   tool: string;
 }

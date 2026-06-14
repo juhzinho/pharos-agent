@@ -239,6 +239,22 @@ export async function sendTransaction(tx: TxRequest): Promise<string> {
   return txResponse.hash;
 }
 
+// Wait for a tx to be mined and report whether it SUCCEEDED on-chain.
+// Returns true only when receipt.status === 1; false if it reverted (status 0)
+// or the receipt couldn't be obtained. Never declare success without this.
+export async function waitForTxSuccess(hash: string): Promise<boolean> {
+  if (!isWalletAvailable()) return false;
+  try {
+    const provider = new BrowserProvider(window.ethereum!);
+    const receipt = await provider.waitForTransaction(hash, 1);
+    console.log(`[pharos:wallet] receipt for ${hash.slice(0, 10)}… status=${receipt?.status}`);
+    return !!receipt && receipt.status === 1;
+  } catch (err) {
+    console.warn("[pharos:wallet] waitForTxSuccess error:", err);
+    return false;
+  }
+}
+
 // ── approve ERC-20 ──────────────────────────────────────────────────────────
 
 function buildApprovalData(spenderAddress: string, amount: string): string {

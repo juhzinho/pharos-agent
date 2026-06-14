@@ -19,7 +19,9 @@ import {
   connectWallet,
   getBalance,
   sendTransaction,
+  waitForTxSuccess,
   sendApproval,
+  checkAllowance,
   switchToChain,
   isWalletAvailable,
   getWalletName,
@@ -373,10 +375,10 @@ function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose:
 
 // ─── tx button ─────────────────────────────────────────────────────────────
 
-function TxButton({ pending, walletAddress, onSuccess, onError }: {
-  pending: PendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void;
+function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
+  pending: PendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void; onReverted: (hash: string) => void;
 }) {
-  const [step, setStep] = useState<"idle"|"switching"|"approving"|"signing"|"done">("idle");
+  const [step, setStep] = useState<"idle"|"switching"|"approving"|"signing"|"confirming"|"done">("idle");
   const fromChain = pending.intent.fromChain ?? "Pharos";
 
   async function handleSign() {
@@ -402,8 +404,16 @@ function TxButton({ pending, walletAddress, onSuccess, onError }: {
       } else {
         throw new Error("Invalid transaction data");
       }
-      setStep("done");
-      onSuccess(hash);
+      // Wait for the receipt and verify it actually succeeded on-chain.
+      setStep("confirming");
+      const ok = await waitForTxSuccess(hash);
+      if (ok) {
+        setStep("done");
+        onSuccess(hash);
+      } else {
+        setStep("idle");
+        onReverted(hash);
+      }
     } catch (err: unknown) {
       setStep("idle");
       const msg = err instanceof Error ? err.message : String(err);
@@ -413,7 +423,7 @@ function TxButton({ pending, walletAddress, onSuccess, onError }: {
   }
 
   const walletLabel = getWalletName();
-  const stepLabels = { idle: pending.needsApproval ? "Approve & Sign" : "Sign & Execute", switching: `Switching to ${fromChain}…`, approving: "Approving token…", signing: `Waiting for ${walletLabel}…`, done: "Done!" };
+  const stepLabels = { idle: pending.needsApproval ? "Approve & Sign" : "Sign & Execute", switching: `Switching to ${fromChain}…`, approving: "Approving token…", signing: `Waiting for ${walletLabel}…`, confirming: "Confirming on-chain…", done: "Done!" };
   const isIdle = step === "idle";
   const isDone = step === "done";
 
@@ -498,8 +508,8 @@ function PositionCards({ positions }: { positions: V3Position[] }) {
 
 // ─── liquidity tx button ───────────────────────────────────────────────────
 
-function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError }: {
-  liquidityPending: LiquidityPendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void;
+function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError, onReverted }: {
+  liquidityPending: LiquidityPendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void; onReverted: (hash: string) => void;
 }) {
   type Step = "idle"|"switching"|"approving_wpros"|"confirming_wpros"|"approving_usdc"|"confirming_usdc"|"minting"|"done";
   const [step, setStep] = useState<Step>("idle");
@@ -539,8 +549,14 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
       }
       setStep("minting");
       const mintTx = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.mintCalldata, value: 0n });
-      setStep("done");
-      onSuccess(mintTx.hash);
+      const receipt = await mintTx.wait(1);
+      if (receipt && receipt.status === 1) {
+        setStep("done");
+        onSuccess(mintTx.hash);
+      } else {
+        setStep("idle");
+        onReverted(mintTx.hash);
+      }
     } catch (err: unknown) {
       setStep("idle");
       const msg = err instanceof Error ? err.message : String(err);
@@ -587,8 +603,8 @@ function RangeBar({ currentPrice, minPrice, maxPrice }: { currentPrice: number; 
   );
 }
 
-function LiquidityPanel({ liquidityPending, walletAddress, onSuccess, onError }: {
-  liquidityPending: LiquidityPendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void;
+function LiquidityPanel({ liquidityPending, walletAddress, onSuccess, onError, onReverted }: {
+  liquidityPending: LiquidityPendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void; onReverted: (hash: string) => void;
 }) {
   const r = liquidityPending.result;
   const feeLabel = FEE_TIERS[r.feeTier as FeeTier]?.label ?? `${r.feeTier}`;
@@ -624,7 +640,7 @@ function LiquidityPanel({ liquidityPending, walletAddress, onSuccess, onError }:
         )}
       </div>
       <div className="px-4 pb-4">
-        <LiquidityTxButton liquidityPending={liquidityPending} walletAddress={walletAddress} onSuccess={onSuccess} onError={onError} />
+        <LiquidityTxButton liquidityPending={liquidityPending} walletAddress={walletAddress} onSuccess={onSuccess} onError={onError} onReverted={onReverted} />
       </div>
     </div>
   );
@@ -638,10 +654,11 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoice, onSwapChoice }: {
+function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice }: {
   msg: Message; walletAddress: string;
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
+  onTxReverted: (id: string, hash: string) => void;
   onProviderChoice: (id: string, intent: ParsedIntent, provider: "lifi" | "ccip" | "cctp") => void;
   onSwapChoice: (id: string, opt: SwapRouteOption) => void;
 }) {
@@ -827,12 +844,12 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onProviderChoi
                 <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
                   <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
                   <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.7)" }}>{msg.pending.description}</p>
-                  <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} />
+                  <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
                 </div>
               )}
 
               {msg.liquidityPending && walletAddress && (
-                <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} />
+                <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
               )}
 
               {msg.positions && <PositionCards positions={msg.positions} />}
@@ -1026,10 +1043,28 @@ export default function ChatPage() {
       ? `Swap ${intent.amount} ${intent.fromToken} → ~${receiveAmount} on ${fromChain}`
       : `Bridge ${intent.amount} ${intent.fromToken} → ~${receiveAmount} on ${intent.toChain}`;
 
+    // ERC-20 sources must be approved to the LI.FI Diamond first, or the bridge
+    // reverts with TransferFromFailed(). Native tokens (PROS/ETH) need no approval.
+    const NATIVE_ADDRS = ["0x0000000000000000000000000000000000000000", "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"];
+    const fromTokenAddr = quote.action.fromToken.address;
+    const approvalAddress = quote.estimate.approvalAddress;
+    const fromAmount = quote.action.fromAmount ?? quote.estimate.fromAmount ?? "0";
+    const isNative = !fromTokenAddr || NATIVE_ADDRS.includes(fromTokenAddr.toLowerCase());
+
+    let needsApproval = false;
+    let approvalData: ApprovalData | undefined;
+    if (!isNative && approvalAddress && BigInt(fromAmount) > 0n) {
+      const allowance = await checkAllowance(fromTokenAddr, walletAddress, approvalAddress);
+      needsApproval = allowance < BigInt(fromAmount);
+      if (needsApproval) {
+        approvalData = { tokenAddress: fromTokenAddr, spender: approvalAddress, amount: fromAmount };
+      }
+    }
+
     const pending: PendingTx = {
       provider: "lifi", quote, intent, description,
-      needsApproval: false,
-      approvalData: undefined,
+      needsApproval,
+      approvalData,
     };
     const summary = isSwap
       ? `You'll receive approximately **${receiveAmount} ${intent.toToken}** via LI.FI.`
@@ -1405,6 +1440,21 @@ export default function ChatPage() {
     void id;
   }
 
+  // Tx mined but REVERTED on-chain (receipt.status === 0). Replace the pending
+  // card with an honest failure + Pharosscan link. NOT a success.
+  function handleTxReverted(id: string, hash: string) {
+    const lang = guessUserLang(messages);
+    const link = `https://www.pharosscan.xyz/tx/${hash}`;
+    updateMessage(id, {
+      pending: undefined,
+      liquidityPending: undefined,
+      isError: true,
+      text: lang === "pt"
+        ? `❌ A transação falhou (revertida on-chain). Veja no [Pharosscan](${link}). Quer tentar de novo?`
+        : `❌ The transaction failed (reverted on-chain). View on [Pharosscan](${link}). Want to try again?`,
+    });
+  }
+
   // ── auto-resize textarea ─────────────────────────────────────────────────
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
@@ -1490,6 +1540,7 @@ export default function ChatPage() {
               walletAddress={walletAddress}
               onTxSuccess={handleTxSuccess}
               onTxError={handleTxError}
+              onTxReverted={handleTxReverted}
               onProviderChoice={handleProviderChoice}
               onSwapChoice={handleSwapChoice}
             />
