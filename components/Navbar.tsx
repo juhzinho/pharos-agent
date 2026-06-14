@@ -42,9 +42,9 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
   const pathname = usePathname();
 
   const navLinks = [
-    { label: "Chat",     href: "/chat"      },
-    { label: "About",    href: "/#about"    },
-    { label: "Features", href: "/#features" },
+    { label: "Chat",     href: "/chat"          },
+    { label: "About",    href: "/about"         },
+    { label: "Features", href: "/about#features" },
   ];
 
   return (
