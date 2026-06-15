@@ -23,6 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Pharos Agent — AI DeFi Copilot",
   description: "Swap and bridge tokens on Pharos Network via natural language",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

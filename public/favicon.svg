@@ -1,0 +1,36 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bodyGrad" cx="35%" cy="35%">
+      <stop offset="0%" style="stop-color:#5ba3d0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a5a99;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Body -->
+  <circle cx="50" cy="45" r="28" fill="url(#bodyGrad)"/>
+  
+  <!-- Hat -->
+  <rect x="40" y="12" width="20" height="8" fill="#2c3e50" rx="2"/>
+  <polygon points="35,20 65,20 60,28 40,28" fill="#34495e"/>
+  
+  <!-- Eyes -->
+  <circle cx="42" cy="40" r="5" fill="white"/>
+  <circle cx="58" cy="40" r="5" fill="white"/>
+  <circle cx="42" cy="40" r="3" fill="black"/>
+  <circle cx="58" cy="40" r="3" fill="black"/>
+  <circle cx="43" cy="38" r="1.5" fill="white"/>
+  <circle cx="59" cy="38" r="1.5" fill="white"/>
+  
+  <!-- Smile -->
+  <path d="M 45 55 Q 50 58 55 55" stroke="#2c3e50" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Tentacles -->
+  <path d="M 32 70 Q 28 85 30 95" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 42 72 Q 40 88 42 98" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 50 73 Q 50 90 50 100" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 58 72 Q 60 88 58 98" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 68 70 Q 72 85 70 95" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  
+  <!-- Shine effect -->
+  <ellipse cx="38" cy="32" rx="8" ry="10" fill="white" opacity="0.2"/>
+</svg>
