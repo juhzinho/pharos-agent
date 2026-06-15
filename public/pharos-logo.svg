@@ -1,28 +1,36 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="shadowGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:white;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#e0e0e0;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="shadowGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f0f0f0;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#c0c0c0;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="shadowGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#e8e8e8;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
-    </linearGradient>
+    <radialGradient id="bodyGrad" cx="35%" cy="35%">
+      <stop offset="0%" style="stop-color:#5ba3d0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a5a99;stop-opacity:1" />
+    </radialGradient>
   </defs>
   
-  <!-- Bottom step (larger) -->
-  <path d="M 8 72 L 68 72 L 78 58 L 18 58 Z" fill="url(#shadowGrad1)"/>
-  <path d="M 68 72 L 78 58 L 78 62 L 68 76 Z" fill="#b0b0b0" opacity="0.6"/>
+  <!-- Body -->
+  <circle cx="50" cy="45" r="28" fill="url(#bodyGrad)"/>
   
-  <!-- Middle step -->
-  <path d="M 22 54 L 72 54 L 82 40 L 32 40 Z" fill="url(#shadowGrad2)"/>
-  <path d="M 72 54 L 82 40 L 82 44 L 72 58 Z" fill="#909090" opacity="0.5"/>
+  <!-- Hat -->
+  <rect x="40" y="12" width="20" height="8" fill="#2c3e50" rx="2"/>
+  <polygon points="35,20 65,20 60,28 40,28" fill="#34495e"/>
   
-  <!-- Top step (smaller) -->
-  <path d="M 36 36 L 76 36 L 86 22 L 46 22 Z" fill="url(#shadowGrad3)"/>
-  <path d="M 76 36 L 86 22 L 86 26 L 76 40 Z" fill="#707070" opacity="0.4"/>
+  <!-- Eyes -->
+  <circle cx="42" cy="40" r="5" fill="white"/>
+  <circle cx="58" cy="40" r="5" fill="white"/>
+  <circle cx="42" cy="40" r="3" fill="black"/>
+  <circle cx="58" cy="40" r="3" fill="black"/>
+  <circle cx="43" cy="38" r="1.5" fill="white"/>
+  <circle cx="59" cy="38" r="1.5" fill="white"/>
+  
+  <!-- Smile -->
+  <path d="M 45 55 Q 50 58 55 55" stroke="#2c3e50" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Tentacles -->
+  <path d="M 32 70 Q 28 85 30 95" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 42 72 Q 40 88 42 98" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 50 73 Q 50 90 50 100" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 58 72 Q 60 88 58 98" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 68 70 Q 72 85 70 95" stroke="#1a5a99" stroke-width="6" fill="none" stroke-linecap="round"/>
+  
+  <!-- Shine effect -->
+  <ellipse cx="38" cy="32" rx="8" ry="10" fill="white" opacity="0.2"/>
 </svg>
