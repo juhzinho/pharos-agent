@@ -259,6 +259,15 @@ try {
 console.log(`Embedding cache: ${cache.size} reusable vectors from previous build.`);
 
 const toEmbed = chunks.filter((c) => !cache.has(dedupKey(c.text)));
+// Embed-order priority so the highest-value sources go first and survive any
+// daily quota cap: curated → GitHub/blog/Bitget/research extras → dapp docs → rest.
+const priority = (c) => {
+  if (!c.url) return 0;                                           // curated
+  if (/^(gh-|blog-|bitget|gate|mexc|medium)/.test(String(c.id))) return 1; // new extra sources
+  if (/aquaflux|faroo|zona|bitverse/.test(c.url)) return 2;       // dapp docs
+  return 3;                                                       // pharos docs / SPA
+};
+toEmbed.sort((a, b) => priority(a) - priority(b));
 console.log(`Need to embed ${toEmbed.length} new chunks (${chunks.length - toEmbed.length} reused from cache).`);
 
 // Embed the missing ones in throttled batches, persisting after EACH batch so a
