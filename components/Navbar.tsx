@@ -16,25 +16,17 @@ interface NavbarProps {
 
 function OrbLogo() {
   return (
-    <div className="relative w-9 h-9 shrink-0 flex items-center justify-center">
-      <svg className="absolute inset-0 w-full h-full" style={{ animation: "ringRotate 7s linear infinite", transformOrigin: "center", transformBox: "fill-box" }} viewBox="0 0 36 36" fill="none">
-        <circle cx="18" cy="18" r="16" stroke="rgba(0,212,255,0.45)" strokeWidth="1.2" strokeDasharray="4 4" />
+    <div className="w-9 h-9 shrink-0 flex items-center justify-center">
+      <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="pharosGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style={{ stopColor: "#00d4ff", stopOpacity: 1 }} />
+            <stop offset="100%" style={{ stopColor: "#0080ff", stopOpacity: 1 }} />
+          </linearGradient>
+        </defs>
+        {/* Pharos Logo - Lightning/Arrow Symbol */}
+        <path d="M50 10 L70 40 L55 40 L75 75 L35 45 L50 45 Z" fill="url(#pharosGradient)" />
       </svg>
-      <svg className="absolute inset-0 w-full h-full" style={{ animation: "ringRotateCCW 4.5s linear infinite", transformOrigin: "center", transformBox: "fill-box" }} viewBox="0 0 36 36" fill="none">
-        <circle cx="18" cy="18" r="10" stroke="rgba(56,189,248,0.55)" strokeWidth="1" strokeDasharray="3 3" />
-      </svg>
-      <div className="w-7 h-7 rounded-[9px] flex items-center justify-center relative"
-        style={{
-          background: "linear-gradient(135deg, rgba(0,212,255,0.22) 0%, rgba(56,189,248,0.1) 100%)",
-          border: "1px solid rgba(0,212,255,0.45)",
-          boxShadow: "0 0 22px rgba(0,212,255,0.4), inset 0 0 12px rgba(0,212,255,0.1)",
-        }}>
-        <svg viewBox="0 0 18 18" className="w-3.5 h-3.5" fill="none">
-          <circle cx="9" cy="9" r="3" fill="#00d4ff"
-            style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
-          <circle cx="9" cy="9" r="6.5" stroke="#00d4ff" strokeWidth="0.7" opacity="0.35" />
-        </svg>
-      </div>
     </div>
   );
 }
