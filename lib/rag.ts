@@ -111,13 +111,42 @@ async function embedQuery(query: string): Promise<number[]> {
   return vec;
 }
 
+// Hybrid retrieval: pure cosine similarity under-ranks rare jargon/acronyms
+// ("DP4", "SALI", "Pharos Store") because 256-dim embeddings give novel tokens
+// weak vectors. We add a small lexical bonus for distinct query terms present in
+// a chunk, so exact term matches surface alongside the semantic matches.
+const STOPWORDS = new Set(
+  "the a an of to in is are was were be for and or what how why who when with on at by from as it its that this you your i we they them their".split(" ")
+);
+
+function queryTerms(query: string): string[] {
+  return [
+    ...new Set(
+      query
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 2 && !STOPWORDS.has(t))
+    ),
+  ];
+}
+
+const LEXICAL_WEIGHT = 0.13; // per distinct matched term
+const LEXICAL_CAP = 0.45; // bonus ceiling so semantic relevance still matters
+
 // Returns the topK most relevant knowledge chunks for the query.
 // Throws on embedding failure — callers should catch and fall back to the
 // keyword-based knowledge injection (see lib/groq.ts).
 export async function retrieveKnowledge(query: string, topK = 4): Promise<RetrievedChunk[]> {
   const qVec = await embedQuery(query);
+  const terms = queryTerms(query);
   return INDEX.chunks
-    .map((c) => ({ id: c.id, text: c.text, source: c.source, url: c.url, score: dot(qVec, c.embedding) }))
+    .map((c) => {
+      const cosine = dot(qVec, c.embedding);
+      const lower = c.text.toLowerCase();
+      const matched = terms.filter((t) => lower.includes(t)).length;
+      const lexical = Math.min(LEXICAL_WEIGHT * matched, LEXICAL_CAP);
+      return { id: c.id, text: c.text, source: c.source, url: c.url, score: cosine + lexical };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
 }

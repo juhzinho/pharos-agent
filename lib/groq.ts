@@ -488,7 +488,7 @@ export async function parseWithGroq(
   // gives the model something accurate to ground on.
   let knowledgeCtx: string | undefined;
   try {
-    const chunks = await retrieveKnowledge(lastUserMsg, 4);
+    const chunks = await retrieveKnowledge(lastUserMsg, 6);
     if (chunks.length === 0) {
       knowledgeCtx = CORE_KNOWLEDGE + getDetailedSection(lastUserMsg);
     } else {

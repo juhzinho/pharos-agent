@@ -32,6 +32,13 @@ const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_
 // (~70KB) with negligible retrieval-quality loss at this scale.
 const EMBEDDING_DIM = 256;
 
+// The single embedder used for the WHOLE index. OpenAI is primary when its key
+// is funded; Gemini is a clearly-separate fallback. The index and lib/rag.ts
+// queries MUST use the same model, so we never mix vector spaces.
+const INTENDED = OPENAI_KEY
+  ? { provider: "openai", model: "text-embedding-3-small" }
+  : { provider: "gemini", model: "gemini-embedding-001" };
+
 // ── load knowledge (knowledge.ts has no imports, so strip-types can load it) ─
 const { CORE_KNOWLEDGE, DETAILED_KNOWLEDGE } = await import(
   new URL("../lib/knowledge.ts", import.meta.url).href
@@ -222,7 +229,11 @@ function normalize(v) {
 // Embed in batches. Each item counts against the provider's rate limit (Gemini
 // free tier = 100 embed requests/min), so we keep batches ≤90 and wait ~62s
 // between them, with a 429/quota retry that respects the suggested backoff.
-const BATCH = 80;
+// OpenAI text-embedding-3-small free/tier-1 cap is 40,000 tokens/MIN. At ~250–300
+// tokens/chunk, a batch of 120 is ~30–36k tokens (one request stays under 40k),
+// and one batch per ~62s keeps the per-minute rate under 40k too.
+// Gemini free tier is 100 embeds/min (batch ≤100), with a ~62s gap.
+const BATCH = INTENDED.provider === "openai" ? 120 : 80;
 const INTER_BATCH_MS = 62_000;
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
@@ -232,7 +243,7 @@ async function embedBatchWithRetry(embedFn, slice, tries = 4) {
       return await embedFn(slice);
     } catch (e) {
       const msg = String(e.message ?? e);
-      const isRate = /quota|rate.?limit|\b429\b|exceeded/i.test(msg);
+      const isRate = /quota|rate.?limit|\b429\b|exceeded|tokens per min|TPM|request too large/i.test(msg);
       if (!isRate || attempt === tries) throw e;
       const secs = Number(msg.match(/retry in ([\d.]+)s/i)?.[1]) || 60;
       console.warn(`  rate-limited — waiting ${Math.ceil(secs) + 3}s then retrying batch (attempt ${attempt}/${tries})…`);
@@ -248,15 +259,20 @@ const outPath = path.join(ROOT, "lib", "knowledge-vectors.json");
 // Embedding APIs are rate/quota limited, so we never re-embed text we've already
 // embedded. The existing vectors file is the cache (keyed by normalized text).
 const cache = new Map(); // dedupKey(text) → embedding
-let cacheModel = null, cacheProvider = null;
+let cacheModel = INTENDED.model, cacheProvider = INTENDED.provider;
 try {
   const prev = JSON.parse(readFileSync(outPath, "utf8"));
-  if (prev?.dimensions === EMBEDDING_DIM) {
-    cacheModel = prev.model; cacheProvider = prev.provider;
+  // ONLY reuse cached vectors produced by the SAME provider+model+dims — mixing
+  // embedders (e.g. Gemini + OpenAI) breaks similarity search. Switching the
+  // embedder therefore forces a full clean re-embed of every chunk.
+  const sameSpace = prev?.dimensions === EMBEDDING_DIM && prev?.provider === INTENDED.provider && prev?.model === INTENDED.model;
+  if (sameSpace) {
     for (const c of prev.chunks ?? []) if (c.embedding) cache.set(dedupKey(c.text), c.embedding);
+  } else if (prev?.provider) {
+    console.log(`Embedder changed (${prev.provider}/${prev.model} → ${INTENDED.provider}/${INTENDED.model}) — re-embedding ALL chunks for a consistent vector space.`);
   }
 } catch { /* no prior file */ }
-console.log(`Embedding cache: ${cache.size} reusable vectors from previous build.`);
+console.log(`Target embedder: ${INTENDED.provider}/${INTENDED.model}. Reusable cached vectors: ${cache.size}.`);
 
 const toEmbed = chunks.filter((c) => !cache.has(dedupKey(c.text)));
 // Embed-order priority so the highest-value sources go first and survive any
