@@ -1,10 +1,28 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Bottom step -->
-  <path d="M 15 75 L 45 75 L 55 60 L 25 60 Z" fill="white"/>
+  <defs>
+    <linearGradient id="shadowGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:white;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e0e0e0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="shadowGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0f0f0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c0c0c0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="shadowGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8e8e8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Bottom step (larger) -->
+  <path d="M 8 72 L 68 72 L 78 58 L 18 58 Z" fill="url(#shadowGrad1)"/>
+  <path d="M 68 72 L 78 58 L 78 62 L 68 76 Z" fill="#b0b0b0" opacity="0.6"/>
   
   <!-- Middle step -->
-  <path d="M 35 55 L 65 55 L 75 40 L 45 40 Z" fill="white"/>
+  <path d="M 22 54 L 72 54 L 82 40 L 32 40 Z" fill="url(#shadowGrad2)"/>
+  <path d="M 72 54 L 82 40 L 82 44 L 72 58 Z" fill="#909090" opacity="0.5"/>
   
-  <!-- Top step -->
-  <path d="M 55 35 L 85 35 L 95 20 L 65 20 Z" fill="white"/>
+  <!-- Top step (smaller) -->
+  <path d="M 36 36 L 76 36 L 86 22 L 46 22 Z" fill="url(#shadowGrad3)"/>
+  <path d="M 76 36 L 86 22 L 86 26 L 76 40 Z" fill="#707070" opacity="0.4"/>
 </svg>
