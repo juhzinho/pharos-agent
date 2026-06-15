@@ -3,7 +3,7 @@ import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
 
 export interface GroqResult {
-  action: "swap" | "bridge" | "add_liquidity" | "view_positions" | "view_wallet" | null;
+  action: "swap" | "bridge" | "add_liquidity" | "view_positions" | "view_wallet" | "generate_script" | null;
   fromToken: string | null;
   toToken: string | null;
   amount: number | null;
@@ -35,6 +35,15 @@ export interface GroqResult {
   swapVia?: "lifi" | "faroswap" | null;
   // Bridge routing: null = show provider choice; "cctp" = direct Circle CCTP v2
   bridgeVia?: "lifi" | "ccip" | "cctp" | null;
+  // Script generation (BONUS for devs): action="generate_script". The app only
+  // returns the generated code as TEXT — it executes nothing and handles no keys.
+  scriptOperation?:
+    | "balance" | "read" | "write" | "transfer" | "deploy" | "airdrop" | "gas" | null;
+  scriptLanguage?: "javascript" | "typescript" | "python" | "foundry" | null;
+  scriptParams?: {
+    token?: string; to?: string; amount?: string; contract?: string;
+    signature?: string; args?: string; name?: string; symbol?: string; supply?: string;
+  } | null;
   // Which AI provider answered (for debugging)
   _provider?: string;
 }
@@ -161,6 +170,30 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  • The citation links (Fontes) will be appended automatically — focus on the content.\n" +
     "  • If live search returned X posts, report them with dates; if not, say you don't have real-time access and suggest visiting x.com/pharos_network directly.\n\n" +
 
+    "── SCRIPT GENERATION (BONUS for developers — action='generate_script') ──\n" +
+    "Most users just swap/bridge via chat, but DEVELOPERS may ask for ready-to-run code to use from\n" +
+    "their OWN terminal. When they do, set action='generate_script' and fill the script fields.\n" +
+    "This produces CODE AS TEXT only — the app executes nothing and never touches keys. The generated\n" +
+    "script reads PRIVATE_KEY from the developer's OWN environment (process.env), not from this app.\n" +
+    "Triggers (any language): 'gera um script', 'generate a script', 'me dá o código', 'show me the code',\n" +
+    "'cast command', 'comando cast', 'forge command', 'script para deploy', 'script de airdrop',\n" +
+    "'como faço via código', 'via terminal', 'how do I do this in code', 'write me a script', 'snippet'.\n" +
+    "Set these fields when action='generate_script':\n" +
+    "  • scriptOperation: one of 'balance' (balance check), 'read' (view call), 'write' (state-changing call),\n" +
+    "    'transfer' (send token), 'deploy' (ERC-20 deploy), 'airdrop' (batch transfer), 'gas' (gas estimate).\n" +
+    "    Infer it from the request; if truly unclear, ask ONE short question instead.\n" +
+    "  • scriptLanguage: 'javascript' (ethers v6), 'typescript' (viem), 'python' (web3.py), or 'foundry'\n" +
+    "    (cast/forge CLI — Pharos' official tooling). Infer from the request ('em python', 'with viem',\n" +
+    "    'cast'/'forge' → foundry, 'ethers' → javascript). If no language is stated, default to 'javascript'\n" +
+    "    but mention in reply they can ask for viem/web3.py/Foundry instead.\n" +
+    "  • scriptParams: only what the user gave — { token, to, amount, contract, signature, args, name, symbol, supply }.\n" +
+    "    Leave out anything not mentioned; the generator inserts safe placeholders.\n" +
+    "  reply: ONE short friendly sentence introducing the code (e.g. 'Here's a ready-to-run ethers v6 script' / \n" +
+    "    'Aqui está o comando cast'). Do NOT put the code in 'reply' — the app appends the code block itself.\n" +
+    "  For generate_script: foundInKnowledge=false, sources=[], needsSearch=false, all tx fields null.\n" +
+    "  NOTE: this is for the dev's own terminal and is SEPARATE from the app's real in-wallet execution.\n" +
+    "  If the user wants to actually DO a swap/bridge/liquidity in-app, use those actions, NOT generate_script.\n\n" +
+
     "── INTENT PARSING ──────────────────────────────────────────────────────\n" +
     "Use the conversation history ONLY to understand context (e.g. an amount that answers your previous question). " +
     "The ACTION you output must come from the user's CURRENT message — never carried over from a prior turn.\n\n" +
@@ -244,7 +277,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "REMINDER: Your ENTIRE response must be a single JSON object. No text before {. No text after }. No markdown fences. Only JSON.\n" +
     "Return ONLY valid JSON — no markdown, no explanation:\n" +
     "{\n" +
-    '  "action": "swap"|"bridge"|"add_liquidity"|"view_positions"|"view_wallet"|null,\n' +
+    '  "action": "swap"|"bridge"|"add_liquidity"|"view_positions"|"view_wallet"|"generate_script"|null,\n' +
     '  "fromToken": "PROS"|null,\n' +
     '  "toToken": "USDC"|null,\n' +
     '  "amount": 0.5|null,\n' +
@@ -266,6 +299,9 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '  "needsPrice": "pros"|null,\n' +
     '  "swapVia": "lifi"|"faroswap"|null,\n' +
     '  "bridgeVia": "lifi"|"ccip"|"cctp"|null,\n' +
+    '  "scriptOperation": "balance"|"read"|"write"|"transfer"|"deploy"|"airdrop"|"gas"|null,\n' +
+    '  "scriptLanguage": "javascript"|"typescript"|"python"|"foundry"|null,\n' +
+    '  "scriptParams": {"token":"USDC","amount":"1.0","to":"0x..."}|null,\n' +
     '  "sources": ["Pharos Docs — R25"],\n' +
     '  "foundInKnowledge": true,\n' +
     '  "reply": "short friendly message in same language as user"\n' +
@@ -549,6 +585,19 @@ export async function parseWithGroq(
       : null;
   parsed.swapVia = parsed.swapVia === "faroswap" ? "faroswap" : parsed.swapVia === "lifi" ? "lifi" : null;
   parsed.bridgeVia = (["lifi", "ccip", "cctp"] as const).find((v) => v === parsed.bridgeVia) ?? null;
+  // Script generation fields (only meaningful when action='generate_script')
+  parsed.scriptOperation =
+    (["balance", "read", "write", "transfer", "deploy", "airdrop", "gas"] as const).find((v) => v === parsed.scriptOperation) ?? null;
+  parsed.scriptLanguage =
+    (["javascript", "typescript", "python", "foundry"] as const).find((v) => v === parsed.scriptLanguage) ?? null;
+  parsed.scriptParams =
+    parsed.scriptParams && typeof parsed.scriptParams === "object" && !Array.isArray(parsed.scriptParams)
+      ? parsed.scriptParams
+      : null;
+  if (parsed.action === "generate_script") {
+    if (!parsed.scriptOperation) parsed.scriptOperation = "balance";
+    if (!parsed.scriptLanguage) parsed.scriptLanguage = "javascript";
+  }
   parsed.foundInKnowledge = parsed.foundInKnowledge === true;
   parsed.sources = Array.isArray(parsed.sources)
     ? parsed.sources.filter((s): s is string => typeof s === "string" && s.length > 0).slice(0, 4)

@@ -40,6 +40,7 @@ import { TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/lib/memory";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
+import { generateScript, type ScriptOperation, type ScriptLanguage } from "@/lib/scriptgen";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -1245,6 +1246,47 @@ export default function ChatPage() {
       const groqResult = await callAgent({ history, prefsContext, txContext });
 
       if (groqResult) {
+        // generate_script (BONUS for devs): return ready-to-run code as TEXT.
+        // No wallet, no execution, no keys — the app only renders the snippet.
+        if (groqResult.action === "generate_script") {
+          const lang = guessUserLang(messages);
+          try {
+            const gen = generateScript({
+              operation: (groqResult.scriptOperation ?? "balance") as ScriptOperation,
+              language: (groqResult.scriptLanguage ?? "javascript") as ScriptLanguage,
+              params: groqResult.scriptParams ?? undefined,
+            });
+            // No transaction here, so skip the execution-claim sanitizer (it would
+            // wrongly swap a code intro for a "choose a provider" message).
+            const intro = (groqResult.reply || "").trim() ||
+              (lang === "pt" ? "Aqui está um script pronto pra rodar:" : "Here's a ready-to-run script:");
+            const runLabel = lang === "pt" ? "Como rodar" : "How to run";
+            const safetyNote =
+              lang === "pt"
+                ? "_Gerado como texto — o app não executa nada nem toca na sua chave. A chave fica só no seu terminal._"
+                : "_Generated as text — the app runs nothing and never touches your key. Your key stays in your own terminal._";
+            const body =
+              `${intro}\n\n` +
+              "```" + gen.lang + "\n" + gen.code + "```\n\n" +
+              `**${runLabel}:** ${gen.howToRun}\n\n` +
+              safetyNote;
+            updateMessage(thinkingId, { isLoading: false, text: body });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn("[pharos:scriptgen] failed —", msg);
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text:
+                lang === "pt"
+                  ? "Não consegui gerar o script agora. Me diga a operação (saldo, deploy, transfer, airdrop…) e a linguagem (ethers/viem/web3.py/Foundry)."
+                  : "Couldn't generate the script just now. Tell me the operation (balance, deploy, transfer, airdrop…) and language (ethers/viem/web3.py/Foundry).",
+            });
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
         const complete = isCompleteIntent(groqResult);
         const ragSources = groqResult.foundInKnowledge ? groqResult.sources : undefined;
 
