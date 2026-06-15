@@ -3,7 +3,7 @@ import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
 
 export interface GroqResult {
-  action: "swap" | "bridge" | "add_liquidity" | "view_positions" | "view_wallet" | "generate_script" | null;
+  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | null;
   fromToken: string | null;
   toToken: string | null;
   amount: number | null;
@@ -19,6 +19,9 @@ export interface GroqResult {
   minPrice?: number | null;
   maxPrice?: number | null;
   rangePercent?: number | null;
+  // Remove liquidity specific
+  positionId?: string | null;  // tokenId of the NFT to remove
+  removeLiquidityPercent?: number | null;  // 100 = full removal
   // Layer 2 — live web search (Tavily)
   needsSearch?: boolean;
   searchQuery?: string | null;
@@ -220,13 +223,14 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '- "fas um swp de 0.5 prs pra usdc" → swap 0.5 PROS to USDC\n' +
     '- "brig 10dolar pra base" → bridge 10 USDC to Base\n' +
     '- "quero por liquidez no faroswap" → add_liquidity (ask fee + range)\n' +
+    '- "remover liquidez" / "remove liquidity" / "tirar liquidez" / "sair da posição" / "withdraw liquidity" → remove_liquidity (show user positions, let them pick)\n' +
     '- "minhas pos" → view_positions\n' +
     '- "meu saldo" / "minha carteira" / "analisa minha carteira" / "what do I hold" / "wallet analysis" / "my balance" → view_wallet\n' +
     "When in doubt about a token name, guess the closest match (PRS→PROS, pros→PROS, weth→WETH).\n\n" +
     "Tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm\n" +
     "Chains: Pharos (default), Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
-    'Actions: "swap", "bridge", "add_liquidity", "view_positions", "view_wallet"\n' +
-    "Portuguese: para/pra/pro=to, de/da=from, ponte/manda/envia/transfere=bridge, troca/swap=swap, adicionar/fornecer liquidez=add_liquidity, ver/mostrar posições/liquidez=view_positions\n\n" +
+    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet"\n' +
+    "Portuguese: para/pra/pro=to, de/da=from, ponte/manda/envia/transfere=bridge, troca/swap=swap, adicionar/fornecer liquidez=add_liquidity, remover/tirar liquidez=remove_liquidity, ver/mostrar posições/liquidez=view_positions\n\n" +
 
     "── KNOWLEDGE & EXPERTISE ───────────────────────────────────────────────\n" +
     "You are a Pharos Network and DeFi expert. Use the PHAROS KNOWLEDGE BASE to answer accurately.\n" +
@@ -277,7 +281,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "REMINDER: Your ENTIRE response must be a single JSON object. No text before {. No text after }. No markdown fences. Only JSON.\n" +
     "Return ONLY valid JSON — no markdown, no explanation:\n" +
     "{\n" +
-    '  "action": "swap"|"bridge"|"add_liquidity"|"view_positions"|"view_wallet"|"generate_script"|null,\n' +
+    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|null,\n' +
     '  "fromToken": "PROS"|null,\n' +
     '  "toToken": "USDC"|null,\n' +
     '  "amount": 0.5|null,\n' +
@@ -370,6 +374,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "- SWAP tokens on Pharos (via LI.FI/Jumper by default, or direct FaroSwap pool for PROS/WPROS ↔ USDC)\n" +
     "- BRIDGE tokens between Pharos and: Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
     "- ADD LIQUIDITY to FaroSwap V3 WPROS/USDC pool (full-range, NFT position). User gets an LP NFT.\n" +
+    "- REMOVE LIQUIDITY from FaroSwap V3 WPROS/USDC pool. Show user their LP positions, let them pick one, and remove it completely or partially.\n" +
     "- VIEW POSITIONS: show the user's existing FaroSwap V3 LP positions (read-only, no tx needed).\n" +
     "- Bridge providers this app EXECUTES: THREE — 'Jumper (LI.FI)', 'Chainlink CCIP', and\n" +
     "  'Circle CCTP v2' (CCTP: USDC only, from Pharos to Ethereum/Base/Arbitrum/Optimism/Polygon,\n" +

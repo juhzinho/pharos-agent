@@ -354,3 +354,113 @@ export async function buildLiquidityTx(params: LiquidityParams): Promise<Liquidi
     rangePercent: params.rangePercent,
   };
 }
+
+// ── Remove liquidity builders ──────────────────────────────────────────────
+
+// selector = keccak256("decreaseLiquidity((uint256,uint128,uint256,uint256,uint256))")
+const DECREASE_LIQUIDITY_SEL = "0x0c49ccbe";
+
+function buildDecreaseCalldata(
+  tokenId: bigint,
+  liquidity: bigint,
+  amount0Min: bigint,
+  amount1Min: bigint,
+  deadline: bigint,
+): string {
+  return (
+    DECREASE_LIQUIDITY_SEL +
+    padUint256(tokenId) +
+    padUint256(liquidity) +
+    padUint256(amount0Min) +
+    padUint256(amount1Min) +
+    padUint256(deadline)
+  );
+}
+
+// selector = keccak256("collect((uint256,address,uint128,uint128))")
+const COLLECT_SEL = "0xfc735e99";
+
+function buildCollectCalldata(
+  tokenId: bigint,
+  recipient: string,
+  amount0Max: bigint,
+  amount1Max: bigint,
+): string {
+  return (
+    COLLECT_SEL +
+    padUint256(tokenId) +
+    padAddr(recipient) +
+    padUint256(amount0Max) +
+    padUint256(amount1Max)
+  );
+}
+
+export interface RemoveLiquidityBuildResult {
+  tokenId: bigint;
+  liquidity: bigint;
+  feeTier: FeeTier;
+  amount0WPROS: number;
+  amount1USDC: number;
+  feesWPROS: number;
+  feesUSDC: number;
+  decreaseCalldata: string;
+  collectCalldata: string;
+  description: string;
+}
+
+export async function buildRemoveLiquidityTx(
+  tokenId: bigint,
+  liquidity: bigint,
+  feeTier: FeeTier,
+  userAddress: string,
+  expectedAmount0: number,
+  expectedAmount1: number,
+  feesAmount0: number,
+  feesAmount1: number,
+): Promise<RemoveLiquidityBuildResult> {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
+
+  // With 1% slippage tolerance
+  const amount0Min = BigInt(Math.floor(expectedAmount0 * 1e18 * 0.99));
+  const amount1Min = BigInt(Math.floor(expectedAmount1 * 1e6 * 0.99));
+
+  const decreaseCalldata = buildDecreaseCalldata(
+    tokenId,
+    liquidity,
+    amount0Min,
+    amount1Min,
+    deadline,
+  );
+
+  // Collect all available tokens + fees
+  const amount0Max = BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n;
+  const amount1Max = BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n;
+
+  const collectCalldata = buildCollectCalldata(
+    tokenId,
+    userAddress,
+    amount0Max,
+    amount1Max,
+  );
+
+  const feeLabel = FEE_TIERS[feeTier].label;
+  const description =
+    `FaroSwap V3 · Remove liquidity · fee ${feeLabel}\n` +
+    `Token ID: ${tokenId.toString()}\n` +
+    `WPROS: ${expectedAmount0.toFixed(6)} (+ ${feesAmount0.toFixed(6)} fees)\n` +
+    `USDC: ${expectedAmount1.toFixed(6)} (+ ${feesAmount1.toFixed(6)} fees)`;
+
+  return {
+    tokenId,
+    liquidity,
+    feeTier,
+    amount0WPROS: expectedAmount0,
+    amount1USDC: expectedAmount1,
+    feesWPROS: feesAmount0,
+    feesUSDC: feesAmount1,
+    decreaseCalldata,
+    collectCalldata,
+    description,
+  };
+}
+

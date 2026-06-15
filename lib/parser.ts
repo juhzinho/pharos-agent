@@ -1,5 +1,5 @@
 export interface ParsedIntent {
-  action: "swap" | "bridge" | "add_liquidity" | "view_positions";
+  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions";
   fromToken: string;
   toToken: string;
   amount: number;
@@ -12,6 +12,9 @@ export interface ParsedIntent {
   minPrice?: number;
   maxPrice?: number;
   rangePercent?: number;
+  // Remove liquidity specific
+  positionId?: string;
+  removeLiquidityPercent?: number;
 }
 
 const KNOWN_TOKENS = ["WPROS", "PROS", "USDC", "WETH", "LINK", "PGOLD", "USDpm"];

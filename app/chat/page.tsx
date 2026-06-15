@@ -7,8 +7,8 @@ import { type GroqResult } from "@/lib/groq";
 import { buildSwapBridge, formatReceiveAmount, resolveTokenAddressForChain, type QuoteResult } from "@/lib/lifi";
 // resolveTokenAddressForChain is used in handleProviderChoice
 import {
-  buildLiquidityTx, buildApproveCalldata, FAROSWAP, FEE_TIERS,
-  type LiquidityBuildResult, type LiquidityParams, type FeeTier,
+  buildLiquidityTx, buildApproveCalldata, buildRemoveLiquidityTx, FAROSWAP, FEE_TIERS,
+  type LiquidityBuildResult, type LiquidityParams, type FeeTier, type RemoveLiquidityBuildResult,
 } from "@/lib/liquidity";
 import { fetchUserPositions, formatPositionSummary, type V3Position } from "@/lib/positions";
 import { buildFaroSwapSwap, faroswapSupportsPair, type FaroSwapBuildResult } from "@/lib/faroswap";
@@ -78,6 +78,16 @@ interface LiquidityPendingTx {
   result: LiquidityBuildResult;
 }
 
+interface RemoveLiquidityPendingTx {
+  result: RemoveLiquidityBuildResult;
+}
+
+interface AmountQueryState {
+  token: string;
+  balance: number;
+  chain: string;
+}
+
 // Swap route comparison: pre-built pending txs for each available provider,
 // shown side by side so the user can pick the better quote.
 interface SwapRouteOption {
@@ -97,10 +107,12 @@ interface Message {
   text: string;
   pending?: PendingTx;
   liquidityPending?: LiquidityPendingTx;
+  removeLiquidityPending?: RemoveLiquidityPendingTx;
   positions?: V3Position[];
   providerChoice?: ProviderChoice;
   swapChoice?: SwapChoice;
   walletChoice?: WalletOption[];
+  amountQuery?: AmountQueryState;  // For balance check before amount entry
   txHash?: string;
   isLoading?: boolean;
   isSearching?: boolean;
@@ -628,6 +640,83 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
   );
 }
 
+// ─── percentage quick-pick buttons ──────────────────────────────────────────
+
+function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (amount: number) => void }) {
+  const percentages = [
+    { label: "25%", pct: 0.25 },
+    { label: "50%", pct: 0.50 },
+    { label: "75%", pct: 0.75 },
+    { label: "100%", pct: 1.00 },
+  ];
+
+  return (
+    <div className="mt-4 flex gap-2 flex-wrap">
+      {percentages.map((p) => (
+        <button key={p.label} onClick={() => onSelect(balance * p.pct)}
+          className="flex-1 min-w-[80px] px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+          style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.85)" }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.15)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.45)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.08)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.25)";
+            (e.currentTarget as HTMLButtonElement).style.transform = "";
+          }}>
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── remove position selector ──────────────────────────────────────────────
+
+function RemovePositionSelector({ positions, onSelect }: { positions: V3Position[]; onSelect: (position: V3Position) => void }) {
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2" style={{ color: "rgba(0,212,255,0.45)" }}>
+        Select position to remove
+      </p>
+      <div className="flex flex-col gap-2">
+        {positions.map((pos) => {
+          const inRange = pos.inRange;
+          const statusColor = inRange ? "rgba(52,211,153,0.8)" : "rgba(251,191,36,0.8)";
+          const statusBg = inRange ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
+          return (
+            <button key={String(pos.tokenId)} onClick={() => onSelect(pos)}
+              className="flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-all duration-200"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(0,212,255,0.2)" }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.08)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.4)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.2)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "";
+              }}>
+              <div>
+                <p className="text-sm font-semibold text-white">NFT #{String(pos.tokenId)}</p>
+                <p className="text-[10px] mt-1 font-data" style={{ color: "rgba(148,163,184,0.6)" }}>
+                  {pos.amount0WPROS.toFixed(4)} WPROS + {pos.amount1USDC.toFixed(4)} USDC · {(pos.fee / 10000).toFixed(2)}% fee
+                </p>
+              </div>
+              <span className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0" style={{ color: statusColor, background: statusBg, border: `1px solid ${statusColor}66` }}>
+                {inRange ? "In Range" : "Out of Range"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── liquidity panel ───────────────────────────────────────────────────────
 
 function RangeBar({ currentPrice, minPrice, maxPrice }: { currentPrice: number; minPrice: number; maxPrice: number }) {
@@ -699,7 +788,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice }: {
+function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked }: {
   msg: Message; walletAddress: string;
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -707,6 +796,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
   onProviderChoice: (id: string, intent: ParsedIntent, provider: "lifi" | "ccip" | "cctp") => void;
   onSwapChoice: (id: string, opt: SwapRouteOption) => void;
   onWalletChoice: (id: string, opt: WalletOption) => void;
+  onAmountPicked: (amount: number, token: string) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -900,6 +990,37 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
 
               {msg.liquidityPending && walletAddress && (
                 <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
+              )}
+
+              {msg.removeLiquidityPending && walletAddress && (
+                <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.8)", border: "1px solid rgba(0,212,255,0.12)", backdropFilter: "blur(16px)" }}>
+                  <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(0,212,255,0.08)", background: "rgba(0,212,255,0.03)" }}>
+                    <p className="text-xs font-semibold text-white">Remove Liquidity</p>
+                  </div>
+                  <div className="px-4 py-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
+                      <span style={{ color: "rgba(100,116,139,0.75)" }}>Token ID</span>
+                      <span className="text-right text-gray-300">#{String(msg.removeLiquidityPending.result.tokenId)}</span>
+                      <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
+                      <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount0WPROS.toFixed(6)}</span>
+                      <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
+                      <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount1USDC.toFixed(6)}</span>
+                      {msg.removeLiquidityPending.result.feesWPROS > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>Fee WPROS</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span></>)}
+                      {msg.removeLiquidityPending.result.feesUSDC > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>Fee USDC</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span></>)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {msg.amountQuery && (
+                <div className="mt-4">
+                  <p className="text-sm" style={{ color: "rgba(215,225,240,0.88)" }}>
+                    You have <span className="font-semibold text-white">{msg.amountQuery.balance.toFixed(4)} {msg.amountQuery.token}</span> on {msg.amountQuery.chain}.
+                  </p>
+                  <PercentageButtons balance={msg.amountQuery.balance} onSelect={(amount) => {
+                    onAmountPicked(amount, msg.amountQuery!.token);
+                  }} />
+                </div>
               )}
 
               {msg.positions && <PositionCards positions={msg.positions} />}
@@ -1323,6 +1444,26 @@ export default function ChatPage() {
             } else {
               updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }
+          } else if ((groqResult.action === "swap" || groqResult.action === "bridge" || groqResult.action === "add_liquidity") && groqResult.needsAmount && walletAddress) {
+            // Balance check before asking for amount
+            try {
+              const fromToken = groqResult.fromToken || "PROS";
+              const analysis = await getWalletAnalysis(walletAddress);
+              const fromChain = groqResult.fromChain || "Pharos";
+              
+              // Find the token balance in holdings
+              const tokenHolding = analysis.holdings.find(h => h.symbol === fromToken);
+              const balance = tokenHolding?.balance ?? 0;
+              
+              updateMessage(thinkingId, {
+                isLoading: false,
+                text: groqResult.reply,
+                amountQuery: { token: fromToken, balance, chain: fromChain },
+              });
+            } catch (err) {
+              console.warn("[pharos:balance] failed to fetch balance:", err);
+              updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
+            }
           } else {
             updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
           }
@@ -1369,7 +1510,7 @@ export default function ChatPage() {
 
         // Gate: every on-chain action needs a connected wallet. Don't build a tx
         // (or fetch positions) without one — ask the user to connect first.
-        const needsWallet = intent.action === "swap" || intent.action === "bridge" || intent.action === "add_liquidity" || intent.action === "view_positions";
+        const needsWallet = intent.action === "swap" || intent.action === "bridge" || intent.action === "add_liquidity" || intent.action === "remove_liquidity" || intent.action === "view_positions";
         if (needsWallet && !walletAddress) {
           const lang = guessUserLang(messages);
           updateMessage(thinkingId, {
@@ -1390,6 +1531,34 @@ export default function ChatPage() {
             const positions = await fetchUserPositions(walletAddress);
             const summary   = formatPositionSummary(positions);
             updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, positions });
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            updateMessage(thinkingId, { isLoading: false, isError: true, text: `Failed to fetch positions: ${msg}` });
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // remove_liquidity
+        if (intent.action === "remove_liquidity") {
+          updateMessage(thinkingId, { text: safeReply + "\n\nFetching your FaroSwap V3 positions…" });
+          try {
+            const positions = await fetchUserPositions(walletAddress);
+            if (positions.length === 0) {
+              updateMessage(thinkingId, { isLoading: false, text: "You have no LP positions to remove yet." });
+            } else {
+              updateMessage(thinkingId, {
+                isLoading: false,
+                text: safeReply,
+              });
+              // Show a message with position selector for the user to pick which one to remove
+              addMessage({
+                role: "agent",
+                text: "Which position would you like to remove?",
+                positions,
+              });
+            }
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             updateMessage(thinkingId, { isLoading: false, isError: true, text: `Failed to fetch positions: ${msg}` });
@@ -1703,6 +1872,10 @@ export default function ChatPage() {
               onProviderChoice={handleProviderChoice}
               onSwapChoice={handleSwapChoice}
               onWalletChoice={(id, opt) => { void id; connectTo(opt); }}
+              onAmountPicked={(amount, token) => {
+                setInput(`${amount.toFixed(4)} ${token}`);
+                inputRef.current?.focus();
+              }}
             />
           ))}
           <div ref={bottomRef} />
