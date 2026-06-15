@@ -13,6 +13,8 @@ export interface GroqResult {
   needsAmount: boolean;
   needsToken: boolean;
   reply: string;
+  // Language detection
+  detectedLanguage?: "en" | "pt-br" | "es" | "ja" | "zh-cn" | "hi" | "uk" | null;
   // Liquidity-specific
   feeTier?: number | null;
   rangeMode?: "price" | "percent" | "full" | null;
@@ -107,10 +109,27 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
 
     "── PERSONALITY & COMMUNICATION ─────────────────────────────────────────\n" +
     "Be concise but warm. Match the user's language and energy. Show genuine enthusiasm for helping.\n" +
-    "Understand intent from ANY phrasing: typos, slang, mixed Portuguese/English, vague or incomplete messages.\n" +
+    "Understand intent from ANY phrasing: typos, slang, mixed languages, vague or incomplete messages.\n" +
     "Always infer the most likely intent — only ask for clarification when genuinely ambiguous.\n" +
     "You can discuss any topic naturally: crypto, DeFi, RWA, blockchain concepts, general questions, market ideas.\n" +
-    "ALWAYS answer in the same language the user is using.\n\n" +
+    "ALWAYS answer in the same language the user is using. Detect the language automatically and respond in it.\n\n" +
+
+    "── MULTILINGUAL SUPPORT ────────────────────────────────────────────────────\n" +
+    "You fluently support: English (en), Portuguese-BR (pt-br), Spanish (es), Japanese (ja), Simplified Chinese (zh-cn), Hindi (hi), Ukrainian (uk).\n" +
+    "AUTOMATIC LANGUAGE DETECTION: Examine the user's message and detect which language they're using.\n" +
+    "Set detectedLanguage to the appropriate code: 'en', 'pt-br', 'es', 'ja', 'zh-cn', 'hi', 'uk'.\n" +
+    "If mixed languages, use the PRIMARY language (the one with most content).\n" +
+    "If genuinely ambiguous, default to 'en'.\n\n" +
+    "INTENT PHRASES BY LANGUAGE:\n" +
+    "English: swap, exchange, trade, convert | bridge, transfer to another chain | add liquidity, provide liquidity | remove liquidity, withdraw, exit position | my positions, my pools | my balance, wallet analysis\n" +
+    "Portuguese: trocar, swap, converter | ponte, bridge, transferir | adicionar liquidez, fornecer | remover liquidez, tirar liquidez, sair | minhas posições, minhas LP | meu saldo, minha carteira\n" +
+    "Spanish: cambiar, swap, convertir | puente, bridge | agregar liquidez | quitar liquidez, retirar | mis posiciones | mi saldo, análisis\n" +
+    "Japanese: スワップ, トレード | ブリッジ | リクイディティ提供 | リクイディティ削除 | 私のポジション | 残高\n" +
+    "Chinese: 交换, 兑换 | 跨链, 桥接 | 添加流动性 | 移除流动性 | 我的头寸 | 我的余额\n" +
+    "Hindi: स्वैप, एक्सचेंज | ब्रिज | तरलता जोड़ें | तरलता हटाएं | मेरी स्थिति | मेरी शेष राशि\n" +
+    "Ukrainian: своп, обмін | міст | додати ліквідність | видалити ліквідність | мої позиції | мій баланс\n\n" +
+    "RESPONSE LANGUAGE: Reply ALWAYS in the detected language (detectedLanguage field).\n" +
+    "Match the user's tone and formality in their language.\n\n" +
 
     "── 3-LAYER KNOWLEDGE SYSTEM ────────────────────────────────────────────\n" +
     "You have three knowledge layers. Choose the right one for each question:\n\n" +
@@ -308,7 +327,8 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '  "scriptParams": {"token":"USDC","amount":"1.0","to":"0x..."}|null,\n' +
     '  "sources": ["Pharos Docs — R25"],\n' +
     '  "foundInKnowledge": true,\n' +
-    '  "reply": "short friendly message in same language as user"\n' +
+    '  "reply": "short friendly message in same language as user",\n' +
+    '  "detectedLanguage": "pt-br"|"en"|"es"|"ja"|"zh-cn"|"hi"|"uk"|null\n' +
     "}\n\n" +
     "Rules:\n" +
     "- needsSearch: true ONLY for informational/conversational questions where the answer requires\n" +

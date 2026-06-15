@@ -88,6 +88,20 @@ interface AmountQueryState {
   chain: string;
 }
 
+interface TokenChoiceState {
+  action: "swap" | "bridge";
+  fromChain: string;
+  toChain?: string;
+  commonPairs: Array<{ from: string; to: string; label: string }>;
+}
+
+interface ChainChoiceState {
+  action: "bridge";
+  fromChain: string;
+  fromToken: string;
+  availableChains: string[];
+}
+
 // Swap route comparison: pre-built pending txs for each available provider,
 // shown side by side so the user can pick the better quote.
 interface SwapRouteOption {
@@ -113,6 +127,8 @@ interface Message {
   swapChoice?: SwapChoice;
   walletChoice?: WalletOption[];
   amountQuery?: AmountQueryState;  // For balance check before amount entry
+  tokenChoice?: TokenChoiceState;  // For choosing swap/bridge tokens
+  chainChoice?: ChainChoiceState;  // For choosing bridge destination
   txHash?: string;
   isLoading?: boolean;
   isSearching?: boolean;

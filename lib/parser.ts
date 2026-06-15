@@ -15,6 +15,8 @@ export interface ParsedIntent {
   // Remove liquidity specific
   positionId?: string;
   removeLiquidityPercent?: number;
+  // Language detection
+  detectedLanguage?: "en" | "pt-br" | "es" | "ja" | "zh-cn" | "hi" | "uk";
 }
 
 const KNOWN_TOKENS = ["WPROS", "PROS", "USDC", "WETH", "LINK", "PGOLD", "USDpm"];
