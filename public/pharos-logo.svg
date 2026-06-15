@@ -1,0 +1,10 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bottom step -->
+  <path d="M 15 75 L 45 75 L 55 60 L 25 60 Z" fill="white"/>
+  
+  <!-- Middle step -->
+  <path d="M 35 55 L 65 55 L 75 40 L 45 40 Z" fill="white"/>
+  
+  <!-- Top step -->
+  <path d="M 55 35 L 85 35 L 95 20 L 65 20 Z" fill="white"/>
+</svg>

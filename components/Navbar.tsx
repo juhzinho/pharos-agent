@@ -17,16 +17,7 @@ interface NavbarProps {
 function OrbLogo() {
   return (
     <div className="w-9 h-9 shrink-0 flex items-center justify-center">
-      <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="pharosGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style={{ stopColor: "#00d4ff", stopOpacity: 1 }} />
-            <stop offset="100%" style={{ stopColor: "#0080ff", stopOpacity: 1 }} />
-          </linearGradient>
-        </defs>
-        {/* Pharos Logo - Lightning/Arrow Symbol */}
-        <path d="M50 10 L70 40 L55 40 L75 75 L35 45 L50 45 Z" fill="url(#pharosGradient)" />
-      </svg>
+      <img src="/pharos-logo.svg" alt="Pharos" className="w-full h-full" />
     </div>
   );
 }
