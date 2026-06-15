@@ -1,9 +1,11 @@
 // Public Skill API — discovery endpoint.
 // GET → skill metadata so external agents can discover this agent's capabilities.
 
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitResponse, checkSameOrigin, forbiddenResponse } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
+  // Same-origin only: keep discovery metadata for our own site.
+  if (!checkSameOrigin(req)) return forbiddenResponse();
   const rl = checkRateLimit(req);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 

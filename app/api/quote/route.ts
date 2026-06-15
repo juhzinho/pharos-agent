@@ -4,7 +4,7 @@
 
 import { buildSwapBridge } from "@/lib/lifi";
 import type { ParsedIntent } from "@/lib/parser";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitResponse, checkSameOrigin, forbiddenResponse } from "@/lib/rate-limit";
 
 // Placeholder sender for anonymous quotes — LI.FI requires a fromAddress to
 // build the route, but the quote is informational only.
@@ -14,6 +14,8 @@ const SUPPORTED_TOKENS = ["PROS", "WPROS", "USDC", "WETH", "LINK", "PGOLD", "USD
 const SUPPORTED_CHAINS = ["Pharos", "Ethereum", "Base", "Arbitrum", "Polygon", "Optimism"];
 
 export async function POST(req: Request) {
+  // Same-origin only: this route spends server-side resources.
+  if (!checkSameOrigin(req)) return forbiddenResponse();
   const rl = checkRateLimit(req);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 

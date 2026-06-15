@@ -2,9 +2,11 @@
 // GET /api/price?token=pros → { token, priceUsd, marketCap, change24h, volume24h, source, timestamp }
 
 import { getTokenPrice, resolveCoinGeckoId, supportedPriceTokens } from "@/lib/prices";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitResponse, checkSameOrigin, forbiddenResponse } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
+  // Same-origin only: this route spends server-side resources.
+  if (!checkSameOrigin(req)) return forbiddenResponse();
   const rl = checkRateLimit(req);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 

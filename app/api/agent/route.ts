@@ -11,7 +11,7 @@
 import { parseWithGroq, type GroqResult } from "@/lib/groq";
 import { webSearch, formatSearchContext } from "@/lib/search";
 import { queryDocs, formatDocsContext } from "@/lib/docs";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { checkRateLimit, rateLimitResponse, checkSameOrigin, forbiddenResponse } from "@/lib/rate-limit";
 
 type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -24,7 +24,9 @@ interface AgentBody {
 }
 
 export async function POST(req: Request) {
-  const rl = checkRateLimit(req, 30);
+  // Same-origin only: this route spends server-side AI credits.
+  if (!checkSameOrigin(req)) return forbiddenResponse();
+  const rl = checkRateLimit(req, 15);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 
   let body: AgentBody;
