@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { parseIntent, type ParsedIntent } from "@/lib/parser";
 import { type GroqResult } from "@/lib/groq";
 import { buildSwapBridge, formatReceiveAmount, resolveTokenAddressForChain, type QuoteResult } from "@/lib/lifi";
@@ -759,7 +760,11 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
 
       if (!isCollectOnly) {
         setStep("decreasing");
-        const tx1 = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.decreaseCalldata, value: 0n });
+        // Manual gasLimit bypasses estimateGas which can fail on FaroSwap's modified NPM
+        const tx1 = await signer.sendTransaction({
+          to: FAROSWAP.NPM, data: result.decreaseCalldata, value: 0n,
+          gasLimit: 350000n,
+        });
         setStep("confirming_decrease");
         const receipt1 = await tx1.wait(1);
         if (!receipt1 || receipt1.status !== 1) {
@@ -770,7 +775,12 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
       }
 
       setStep("collecting");
-      const tx2 = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.collectCalldata, value: 0n });
+      // Manual gasLimit bypasses estimateGas — FaroSwap NPM's collect can fail during
+      // gas estimation even when the actual tx would succeed
+      const tx2 = await signer.sendTransaction({
+        to: FAROSWAP.NPM, data: result.collectCalldata, value: 0n,
+        gasLimit: 350000n,
+      });
       const receipt2 = await tx2.wait(1);
       if (receipt2 && receipt2.status === 1) {
         setStep("done");
@@ -783,7 +793,17 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
       setStep("idle");
       const msg = err instanceof Error ? err.message : String(err);
       const isRejected = /user rejected|user denied|rejected the request/i.test(msg);
-      onError(isRejected ? "Transaction rejected by user." : msg);
+      if (isRejected) {
+        onError("Transaction rejected by user.");
+      } else if (/require\(false\)|execution reverted/i.test(msg)) {
+        onError(
+          isCollectOnly
+            ? "Não foi possível coletar fees desta posição. Tente diretamente no FaroSwap: https://faroswap.xyz"
+            : "Falha ao remover liquidez. Verifique a posição no Pharosscan e tente no FaroSwap diretamente."
+        );
+      } else {
+        onError(msg);
+      }
     }
   }
 
@@ -1106,292 +1126,263 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
   const isUser = msg.role === "user";
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-6 msg-enter`}>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-5 msg-enter`}>
+
       {/* Agent avatar */}
       {!isUser && (
-        <div className="shrink-0 mr-3 mt-0.5">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center"
+        <div className="shrink-0 mr-3 mt-1">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center relative"
             style={{
-              background: "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.18), rgba(2,8,22,0.97))",
-              border: "1px solid rgba(0,212,255,0.25)",
-              boxShadow: "0 0 14px rgba(0,212,255,0.12)",
+              background: "radial-gradient(circle at 35% 30%, rgba(0,212,255,0.22), rgba(2,8,22,1))",
+              border: "1.5px solid rgba(0,212,255,0.3)",
+              boxShadow: "0 0 18px rgba(0,212,255,0.18), 0 0 6px rgba(0,212,255,0.12)",
             }}>
-            <svg viewBox="0 0 28 28" className="w-full h-full" fill="none">
-              <circle cx="14" cy="14" r="4" fill="rgba(0,212,255,0.9)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
-              <circle cx="14" cy="14" r="9" stroke="rgba(0,212,255,0.13)" strokeWidth="0.7" />
+            <svg viewBox="0 0 32 32" className="w-full h-full" fill="none">
+              <circle cx="16" cy="16" r="4.5" fill="rgba(0,212,255,0.95)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
+              <circle cx="16" cy="16" r="10" stroke="rgba(0,212,255,0.18)" strokeWidth="0.8" />
+              <circle cx="16" cy="16" r="14.5" stroke="rgba(0,212,255,0.07)" strokeWidth="0.6" />
             </svg>
           </div>
         </div>
       )}
 
-      <div className={`${isUser ? "max-w-[75%]" : "max-w-[86%] w-full"}`}>
-        {/* Role label */}
-        <p className={`text-[10px] font-medium mb-1.5 ${isUser ? "text-right" : "text-left"}`}
-          style={{ color: isUser ? "rgba(0,212,255,0.4)" : "rgba(148,163,184,0.3)" }}>
-          {isUser ? "You" : "Pharos Agent"}
-        </p>
+      <div className={`${isUser ? "max-w-[78%]" : "max-w-[88%] w-full"}`}>
 
-        <div className={`rounded-2xl text-sm leading-[1.7] ${isUser ? "rounded-br-md" : "rounded-bl-md"}`}
-          style={isUser ? {
-            background: "linear-gradient(135deg, #009ec2 0%, #00c8f0 45%, #38bdf8 100%)",
-            color: "rgba(0,8,20,0.92)",
-            fontWeight: 500,
-            padding: "11px 16px",
-            boxShadow: "0 4px 20px rgba(0,212,255,0.2), inset 0 1px 0 rgba(255,255,255,0.25)",
-          } : msg.isError ? {
-            background: "rgba(20,6,6,0.75)",
-            border: "1px solid rgba(239,68,68,0.16)",
-            color: "rgba(252,165,165,0.88)",
-            padding: "12px 16px",
-          } : {
-            background: "rgba(10,18,42,0.8)",
-            border: "1px solid rgba(255,255,255,0.065)",
-            color: "rgba(226,232,240,0.92)",
-            padding: "12px 16px",
-            backdropFilter: "blur(16px)",
-            boxShadow: "0 2px 14px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.035)",
-          }}>
+        {/* User bubble */}
+        {isUser && (
+          <div>
+            <p className="text-[10px] font-medium mb-1.5 text-right" style={{ color: "rgba(148,163,184,0.35)" }}>You</p>
+            <div className="rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-[1.7] text-right ml-auto inline-block"
+              style={{
+                background: "linear-gradient(135deg, rgba(0,140,200,0.35) 0%, rgba(0,80,180,0.28) 100%)",
+                border: "1px solid rgba(0,212,255,0.25)",
+                color: "rgba(230,242,255,0.95)",
+                boxShadow: "0 2px 20px rgba(0,100,200,0.15), inset 0 1px 0 rgba(255,255,255,0.08)",
+                backdropFilter: "blur(8px)",
+              }}>
+              {msg.text}
+            </div>
+          </div>
+        )}
 
-          {msg.isLoading ? <TypingIndicator /> : msg.isSearching ? <SearchingIndicator /> : (
-            <>
-              {isUser ? (
-                <p className="whitespace-pre-wrap">{safeText(msg.text)}</p>
-              ) : (
-                <div className="prose-pharos">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => (
-                        <p className="mb-2 last:mb-0 text-sm leading-[1.7]" style={{ color: "rgba(215,225,240,0.88)" }}>{children}</p>
-                      ),
-                      strong: ({ children }) => {
-                        const txt = typeof children === "string" ? children : "";
-                        const isLabel = txt.trim().endsWith(":");
-                        return isLabel ? (
-                          <strong style={{
-                            display: "inline-block",
-                            textTransform: "uppercase",
-                            fontFamily: MD_FONT_DISPLAY,
-                            fontWeight: 800,
-                            fontSize: "0.78rem",
-                            letterSpacing: "0.07em",
-                            color: "#7dd3fc",
-                            textShadow: MD_SHADOW_HEADER,
-                          }}>{children}</strong>
-                        ) : (
-                          <strong style={{ fontWeight: 700, color: "rgba(255,255,255,0.97)", textShadow: MD_SHADOW_BOLD }}>{children}</strong>
-                        );
-                      },
-                      em: ({ children }) => (
-                        <em className="italic" style={{ color: "rgba(186,207,230,0.82)" }}>{children}</em>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="mb-2.5 mt-1 space-y-1 list-none pl-0">{children}</ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="mb-2.5 mt-1 pl-5 space-y-1 list-decimal" style={{ color: "rgba(215,225,240,0.88)" }}>{children}</ol>
-                      ),
-                      li: ({ children }) => (
-                        <li className="flex items-start gap-2 text-sm leading-[1.65]" style={{ color: "rgba(215,225,240,0.88)" }}>
-                          <span className="shrink-0 mt-[0.42em] w-[5px] h-[5px] rounded-full" style={{ background: "rgba(0,212,255,0.55)", boxShadow: "0 0 4px rgba(0,212,255,0.4)" }} />
-                          <span>{children}</span>
-                        </li>
-                      ),
-                      h1: ({ children }) => (
-                        <h1 style={{
-                          textTransform: "uppercase",
-                          fontFamily: MD_FONT_DISPLAY,
-                          fontWeight: 800,
-                          fontSize: "1rem",
-                          letterSpacing: "0.065em",
-                          color: "#7dd3fc",
-                          textShadow: MD_SHADOW_HEADER,
-                          marginBottom: "0.5rem",
-                          marginTop: "0.85rem",
-                        }}>{children}</h1>
-                      ),
-                      h2: ({ children }) => (
-                        <h2 style={{
-                          textTransform: "uppercase",
-                          fontFamily: MD_FONT_DISPLAY,
-                          fontWeight: 800,
-                          fontSize: "0.875rem",
-                          letterSpacing: "0.06em",
-                          color: "#7dd3fc",
-                          textShadow: MD_SHADOW_HEADER,
-                          marginBottom: "0.4rem",
-                          marginTop: "0.75rem",
-                        }}>{children}</h2>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 style={{
-                          textTransform: "uppercase",
-                          fontFamily: MD_FONT_DISPLAY,
-                          fontWeight: 700,
-                          fontSize: "0.8125rem",
-                          letterSpacing: "0.055em",
-                          color: "#93c5fd",
-                          textShadow: MD_SHADOW_HEADER,
-                          marginBottom: "0.3rem",
-                          marginTop: "0.6rem",
-                        }}>{children}</h3>
-                      ),
-                      code: ({ children }) => (
-                        <code className="px-1.5 py-0.5 rounded text-[11px] font-mono"
-                          style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.85)", border: "1px solid rgba(0,212,255,0.15)" }}>
-                          {children}
-                        </code>
-                      ),
-                      pre: ({ children }) => (
-                        <pre className="my-2 px-3 py-2.5 rounded-xl overflow-x-auto text-[11px] font-mono"
-                          style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(200,215,230,0.88)" }}>
-                          {children}
-                        </pre>
-                      ),
-                      a: ({ href, children }) => (
-                        <a href={href} target="_blank" rel="noopener noreferrer"
-                          className="underline underline-offset-2 transition-colors"
-                          style={{ color: "rgba(0,212,255,0.75)" }}
-                          onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,1)")}
-                          onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.75)")}>
-                          {children}
-                        </a>
-                      ),
-                      hr: () => <hr className="my-3" style={{ borderColor: "rgba(255,255,255,0.06)" }} />,
-                      blockquote: ({ children }) => (
-                        <blockquote className="pl-3 my-2 italic"
-                          style={{ borderLeft: "2px solid rgba(0,212,255,0.3)", color: "rgba(148,163,184,0.75)" }}>
-                          {children}
-                        </blockquote>
-                      ),
-                    }}
-                  >
-                    {safeText(msg.text)}
-                  </ReactMarkdown>
-                </div>
-              )}
+        {/* Agent bubble */}
+        {!isUser && (
+          <div>
+            <p className="text-[10px] font-medium mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(0,212,255,0.4)" }}>
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "rgba(0,212,255,0.6)" }} />
+              Pharos Agent
+            </p>
 
-              {!isUser && msg.sources && msg.sources.length > 0 && (
-                <div className="mt-3 pt-2.5 flex items-center gap-1.5 flex-wrap"
-                  style={{ borderTop: "1px solid rgba(0,212,255,0.08)" }}>
-                  <span style={{ color: "rgba(0,212,255,0.35)", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Sources</span>
-                  {msg.sources.map((s, i) => (
-                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                      style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.15)", color: "rgba(0,212,255,0.6)" }}>
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              )}
+            {/* Text content */}
+            {(msg.text || msg.isLoading) && (
+              <div className={`rounded-2xl rounded-bl-sm px-5 py-4 text-sm leading-[1.75] ${msg.isError ? "border border-red-500/25" : ""}`}
+                style={{
+                  background: msg.isError
+                    ? "rgba(239,68,68,0.07)"
+                    : "rgba(10,18,38,0.7)",
+                  border: msg.isError
+                    ? "1px solid rgba(239,68,68,0.2)"
+                    : "1px solid rgba(255,255,255,0.07)",
+                  backdropFilter: "blur(12px)",
+                  boxShadow: "0 2px 24px rgba(0,0,0,0.25)",
+                }}>
+                {msg.isLoading ? (
+                  <div className="flex items-center gap-3" style={{ color: "rgba(148,163,184,0.6)" }}>
+                    <Spinner />
+                    <span className="text-sm">{msg.text || "Thinking…"}</span>
+                  </div>
+                ) : (
+                  <div>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ children }) => (
+                          <p className="mb-2.5 last:mb-0 text-sm leading-[1.75]" style={{ color: "rgba(215,228,245,0.9)" }}>{children}</p>
+                        ),
+                        strong: ({ children }) => {
+                          const text = String(children);
+                          const isHead = /^[A-Z0-9 _\-&]{4,}$/.test(text);
+                          return isHead ? (
+                            <strong style={{
+                              display: "block", fontFamily: MD_FONT_DISPLAY, fontWeight: 800,
+                              fontSize: "0.7rem", letterSpacing: "0.09em",
+                              color: "rgba(0,212,255,0.85)", marginBottom: "0.35rem", marginTop: "0.5rem",
+                            }}>{children}</strong>
+                          ) : (
+                            <strong style={{ fontWeight: 700, color: "rgba(255,255,255,0.97)" }}>{children}</strong>
+                          );
+                        },
+                        em: ({ children }) => <em className="italic" style={{ color: "rgba(186,207,230,0.8)" }}>{children}</em>,
+                        ul: ({ children }) => <ul className="mb-2.5 mt-1 space-y-1 list-none pl-0">{children}</ul>,
+                        ol: ({ children }) => <ol className="mb-2.5 mt-1 pl-5 space-y-1 list-decimal" style={{ color: "rgba(215,228,245,0.88)" }}>{children}</ol>,
+                        li: ({ children }) => (
+                          <li className="flex items-start gap-2 text-sm leading-[1.65]" style={{ color: "rgba(215,228,245,0.88)" }}>
+                            <span className="shrink-0 mt-[0.46em] w-[5px] h-[5px] rounded-full" style={{ background: "rgba(0,212,255,0.55)" }} />
+                            <span>{children}</span>
+                          </li>
+                        ),
+                        h1: ({ children }) => <h1 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 800, fontSize: "0.95rem", letterSpacing: "0.06em", color: "#7dd3fc", marginBottom: "0.5rem", marginTop: "0.85rem" }}>{children}</h1>,
+                        h2: ({ children }) => <h2 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 800, fontSize: "0.825rem", letterSpacing: "0.055em", color: "#7dd3fc", marginBottom: "0.4rem", marginTop: "0.7rem" }}>{children}</h2>,
+                        h3: ({ children }) => <h3 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 700, fontSize: "0.775rem", letterSpacing: "0.05em", color: "#93c5fd", marginBottom: "0.3rem", marginTop: "0.6rem" }}>{children}</h3>,
+                        code: ({ children }) => (
+                          <code className="px-1.5 py-0.5 rounded text-[11px] font-mono" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.85)", border: "1px solid rgba(0,212,255,0.14)" }}>{children}</code>
+                        ),
+                        pre: ({ children }) => (
+                          <pre className="my-2 px-3 py-2.5 rounded-xl overflow-x-auto text-[11px] font-mono" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(200,215,230,0.88)" }}>{children}</pre>
+                        ),
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noopener noreferrer"
+                            className="underline underline-offset-2 transition-colors" style={{ color: "rgba(0,212,255,0.75)" }}
+                            onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,1)")}
+                            onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.75)")}>
+                            {children}
+                          </a>
+                        ),
+                        hr: () => <hr className="my-3" style={{ borderColor: "rgba(255,255,255,0.06)" }} />,
+                        blockquote: ({ children }) => (
+                          <blockquote className="pl-3 my-2 italic" style={{ borderLeft: "2px solid rgba(0,212,255,0.3)", color: "rgba(148,163,184,0.75)" }}>{children}</blockquote>
+                        ),
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-2">
+                            <table className="w-full text-xs border-collapse" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{children}</table>
+                          </div>
+                        ),
+                        th: ({ children }) => <th className="px-3 py-2 text-left font-semibold text-[10px] uppercase tracking-widest" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.7)", borderBottom: "1px solid rgba(0,212,255,0.15)" }}>{children}</th>,
+                        td: ({ children }) => <td className="px-3 py-2 text-sm" style={{ color: "rgba(215,228,245,0.8)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{children}</td>,
+                      }}
+                    >
+                      {safeText(msg.text ?? "")}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            )}
 
-              {msg.providerChoice && walletAddress && (
-                <ProviderChoiceButtons choice={msg.providerChoice} onChoose={(provider) => onProviderChoice(msg.id, msg.providerChoice!.intent, provider)} />
-              )}
+            {/* Sources */}
+            {!isUser && msg.sources && msg.sources.length > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(100,116,139,0.4)" }}>Sources</span>
+                {msg.sources.map((s, i) => (
+                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.12)", color: "rgba(0,212,255,0.5)" }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
 
-              {msg.swapChoice && walletAddress && (
-                <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
-              )}
+            {/* Action items - only on agent messages */}
+            {msg.providerChoice && walletAddress && (
+              <ProviderChoiceButtons choice={msg.providerChoice} onChoose={(provider) => onProviderChoice(msg.id, msg.providerChoice!.intent, provider)} />
+            )}
 
-              {/* Wallet choice moved to navbar dropdown */}
+            {msg.swapChoice && walletAddress && (
+              <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
+            )}
 
-              {msg.pending && walletAddress && (
-                <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
-                  <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
-                  <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.7)" }}>{msg.pending.description}</p>
-                  <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
-                </div>
-              )}
+            {msg.pending && walletAddress && (
+              <div className="mt-3 px-4 py-3 rounded-2xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.14)", backdropFilter: "blur(8px)" }}>
+                <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
+                <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.7)" }}>{msg.pending.description}</p>
+                <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
+              </div>
+            )}
 
-              {msg.liquidityPending && walletAddress && (
-                <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
-              )}
+            {msg.liquidityPending && walletAddress && (
+              <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
+            )}
 
-              {msg.removeLiquidityPending && walletAddress && (
-                <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.8)", border: "1px solid rgba(239,68,68,0.18)", backdropFilter: "blur(16px)" }}>
-                  <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(239,68,68,0.12)", background: "rgba(239,68,68,0.04)" }}>
-                    <p className="text-xs font-semibold text-white">
-                      {msg.removeLiquidityPending.result.collectOnly ? "Collect Fees" : "Remove Liquidity"}
+            {msg.removeLiquidityPending && walletAddress && (
+              <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.85)", border: "1px solid rgba(239,68,68,0.2)", backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(239,68,68,0.12)", background: "rgba(239,68,68,0.04)" }}>
+                  <div>
+                    <p className="text-xs font-bold text-white">
+                      {msg.removeLiquidityPending.result.collectOnly ? "⬆ Collect Fees" : "🔴 Remove Liquidity"}
                     </p>
-                    <p className="text-[11px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.5)" }}>NFT #{String(msg.removeLiquidityPending.result.tokenId)} · FaroSwap V3</p>
+                    <p className="text-[10px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.55)" }}>NFT #{String(msg.removeLiquidityPending.result.tokenId)} · FaroSwap V3</p>
                   </div>
-                  <div className="px-4 py-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
-                      <span style={{ color: "rgba(100,116,139,0.75)" }}>Token ID</span>
-                      <span className="text-right text-gray-300">#{String(msg.removeLiquidityPending.result.tokenId)}</span>
-                      {!msg.removeLiquidityPending.result.collectOnly && (<>
-                        <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
-                        <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount0WPROS.toFixed(6)}</span>
-                        <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
-                        <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount1USDC.toFixed(6)}</span>
-                      </>)}
-                      {msg.removeLiquidityPending.result.feesWPROS > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>{msg.removeLiquidityPending.result.collectOnly ? "WPROS fees" : "Fee WPROS"}</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span></>)}
-                      {msg.removeLiquidityPending.result.feesUSDC > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>{msg.removeLiquidityPending.result.collectOnly ? "USDC fees" : "Fee USDC"}</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span></>)}
+                  <span className="text-[10px] px-2 py-1 rounded-full font-medium" style={{ background: "rgba(239,68,68,0.1)", color: "rgba(239,68,68,0.7)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    {msg.removeLiquidityPending.result.feeTier / 10000}% pool
+                  </span>
+                </div>
+                <div className="px-4 py-3 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-data">
+                    {!msg.removeLiquidityPending.result.collectOnly && (<>
+                      <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity WPROS</span>
+                      <span className="text-right font-semibold text-gray-200">{msg.removeLiquidityPending.result.amount0WPROS.toFixed(6)}</span>
+                      <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity USDC</span>
+                      <span className="text-right font-semibold text-gray-200">{msg.removeLiquidityPending.result.amount1USDC.toFixed(6)}</span>
+                    </>)}
+                    {msg.removeLiquidityPending.result.feesWPROS > 0 && (<>
+                      <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees WPROS</span>
+                      <span className="text-right font-semibold text-amber-300">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span>
+                    </>)}
+                    {msg.removeLiquidityPending.result.feesUSDC > 0 && (<>
+                      <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees USDC</span>
+                      <span className="text-right font-semibold text-amber-300">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span>
+                    </>)}
+                  </div>
+                  {msg.removeLiquidityPending.result.collectOnly ? (
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                      <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">ℹ</span>
+                      <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Position is closed — only uncollected fees will be collected.</span>
                     </div>
-                    {!msg.removeLiquidityPending.result.collectOnly && (msg.removeLiquidityPending.result.feesWPROS > 0 || msg.removeLiquidityPending.result.feesUSDC > 0) && (
-                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
-                        <span style={{ color: "rgba(251,191,36,0.8)" }} className="mt-0.5 shrink-0 text-sm">★</span>
-                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.7)" }}>Uncollected fees will be included automatically.</span>
-                      </div>
-                    )}
-                    {msg.removeLiquidityPending.result.collectOnly && (
-                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
-                        <span style={{ color: "rgba(251,191,36,0.8)" }} className="mt-0.5 shrink-0 text-sm">★</span>
-                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.7)" }}>This position is closed. Only uncollected fees will be collected.</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="px-4 pb-4">
-                    <RemoveLiquidityTxButton
-                      removeLiquidityPending={msg.removeLiquidityPending}
-                      walletAddress={walletAddress}
-                      onSuccess={(hash) => onTxSuccess(msg.id, hash)}
-                      onError={(err) => onTxError(msg.id, err)}
-                      onReverted={(hash) => onTxReverted(msg.id, hash)}
-                    />
-                  </div>
+                  ) : (msg.removeLiquidityPending.result.feesWPROS > 0 || msg.removeLiquidityPending.result.feesUSDC > 0) && (
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                      <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">★</span>
+                      <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Uncollected fees included automatically.</span>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {msg.amountQuery && (
-                <div className="mt-4">
-                  <p className="text-sm" style={{ color: "rgba(215,225,240,0.88)" }}>
-                    You have <span className="font-semibold text-white">{msg.amountQuery.balance.toFixed(4)} {msg.amountQuery.token}</span> on {msg.amountQuery.chain}.
-                  </p>
-                  <PercentageButtons balance={msg.amountQuery.balance} onSelect={(amount) => {
-                    onAmountPicked(amount, msg.amountQuery!.token);
-                  }} />
+                <div className="px-4 pb-4">
+                  <RemoveLiquidityTxButton
+                    removeLiquidityPending={msg.removeLiquidityPending}
+                    walletAddress={walletAddress}
+                    onSuccess={(hash) => onTxSuccess(msg.id, hash)}
+                    onError={(err) => onTxError(msg.id, err)}
+                    onReverted={(hash) => onTxReverted(msg.id, hash)}
+                  />
                 </div>
-              )}
+              </div>
+            )}
 
-              {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} onRemove={(pos) => onPositionSelect(msg.id, pos)} />}
+            {msg.amountQuery && (
+              <div className="mt-3">
+                <p className="text-sm mb-2" style={{ color: "rgba(215,228,245,0.88)" }}>
+                  You have <span className="font-semibold text-white">{msg.amountQuery.balance.toFixed(4)} {msg.amountQuery.token}</span> on {msg.amountQuery.chain}.
+                </p>
+                <PercentageButtons balance={msg.amountQuery.balance} onSelect={(amount) => {
+                  onAmountPicked(amount, msg.amountQuery!.token);
+                }} />
+              </div>
+            )}
 
-              {msg.positions && msg.removeMode && (
-                <RemovePositionSelector
-                  positions={msg.positions}
-                  onSelect={(pos) => onPositionSelect(msg.id, pos)}
-                />
-              )}
+            {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} onRemove={(pos) => onPositionSelect(msg.id, pos)} />}
 
-              {msg.removePctPending && (
-                <RemovePctSelector
-                  position={msg.removePctPending.position}
-                  onSelect={(pct) => onPctSelect(msg.id, msg.removePctPending!.position, pct)}
-                />
-              )}
+            {msg.positions && msg.removeMode && (
+              <RemovePositionSelector positions={msg.positions} onSelect={(pos) => onPositionSelect(msg.id, pos)} />
+            )}
 
-              {msg.txHash && (
-                <a href={`https://www.pharosscan.xyz/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
-                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-200 text-xs font-medium"
-                  style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "rgba(52,211,153,0.88)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.13)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.08)"; }}>
-                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/></svg>
-                  <span>View on Pharosscan</span>
-                  <span className="font-data text-[10px] opacity-55">{msg.txHash.slice(0, 8)}…</span>
-                </a>
-              )}
-            </>
-          )}
-        </div>
+            {msg.removePctPending && (
+              <RemovePctSelector
+                position={msg.removePctPending.position}
+                onSelect={(pct) => onPctSelect(msg.id, msg.removePctPending!.position, pct)}
+              />
+            )}
+
+            {msg.txHash && (
+              <a href={`https://www.pharosscan.xyz/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-200 text-xs font-medium"
+                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "rgba(52,211,153,0.88)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.14)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.08)"; }}>
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/></svg>
+                <span>View on Pharosscan</span>
+                <span className="font-data text-[10px] opacity-55">{msg.txHash.slice(0, 8)}…</span>
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2329,32 +2320,36 @@ export default function ChatPage() {
       )}
 
       {/* Chat area */}
-      <main className="flex-1 overflow-y-auto relative z-10">
+      <main className="flex-1 overflow-y-auto relative z-10 scroll-smooth">
         <div className={`max-w-3xl mx-auto px-4 ${hasMessages ? "py-6" : "py-4 flex flex-col justify-center min-h-full"}`}>
 
-          {/* Empty state — ChatGPT-style welcome */}
+          {/* Empty state — welcome */}
           {!hasMessages && (
-            <div className="flex flex-col items-center justify-center pt-4 pb-8 text-center select-none">
-              {/* Logo orb */}
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 relative"
-                style={{
-                  background: "radial-gradient(circle at 35% 30%, rgba(0,212,255,0.18) 0%, rgba(2,8,22,0.97) 70%)",
-                  border: "1px solid rgba(0,212,255,0.22)",
-                  boxShadow: "0 0 40px rgba(0,212,255,0.14), 0 0 0 1px rgba(0,212,255,0.06)",
-                }}>
-                <svg viewBox="0 0 40 40" className="w-9 h-9" fill="none">
-                  <circle cx="20" cy="20" r="6" fill="rgba(0,212,255,0.9)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
-                  <circle cx="20" cy="20" r="13" stroke="rgba(0,212,255,0.18)" strokeWidth="1" />
-                  <circle cx="20" cy="20" r="18" stroke="rgba(0,212,255,0.07)" strokeWidth="1" />
-                </svg>
+            <div className="flex flex-col items-center justify-center pt-6 pb-10 text-center select-none">
+              {/* Logo orb with rings */}
+              <div className="relative mb-8">
+                <div className="w-20 h-20 rounded-3xl flex items-center justify-center relative z-10"
+                  style={{
+                    background: "radial-gradient(circle at 38% 28%, rgba(0,212,255,0.22) 0%, rgba(2,8,22,1) 70%)",
+                    border: "1.5px solid rgba(0,212,255,0.28)",
+                    boxShadow: "0 0 50px rgba(0,212,255,0.18), 0 0 0 1px rgba(0,212,255,0.08), 0 0 100px rgba(0,150,255,0.08)",
+                  }}>
+                  <svg viewBox="0 0 48 48" className="w-11 h-11" fill="none">
+                    <circle cx="24" cy="24" r="7" fill="rgba(0,212,255,0.95)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
+                    <circle cx="24" cy="24" r="15" stroke="rgba(0,212,255,0.2)" strokeWidth="1" />
+                    <circle cx="24" cy="24" r="22" stroke="rgba(0,212,255,0.08)" strokeWidth="1" />
+                  </svg>
+                </div>
+                {/* Glow rings */}
+                <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{ animation: "orbPulseEl 3s ease-in-out infinite", boxShadow: "0 0 40px rgba(0,212,255,0.12)" }} />
               </div>
 
-              <h2 className="font-display font-bold text-white mb-2 tracking-[-0.025em]"
-                style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", fontSize: "clamp(1.4rem, 3vw, 1.75rem)" }}>
-                How can I help you today?
+              <h2 className="font-bold text-white mb-3 tracking-[-0.03em]"
+                style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", fontSize: "clamp(1.6rem, 4vw, 2.1rem)", letterSpacing: "-0.03em" }}>
+                How can I help you?
               </h2>
-              <p className="text-sm mb-8 max-w-sm" style={{ color: "rgba(148,163,184,0.5)" }}>
-                Your AI DeFi copilot on Pharos Network — swap, bridge, liquidity, or any question
+              <p className="text-sm mb-10 max-w-md leading-relaxed" style={{ color: "rgba(148,163,184,0.55)" }}>
+                Your AI DeFi copilot for Pharos Network — swap, bridge, manage liquidity, or ask anything.
               </p>
 
               {/* Welcome cards grid */}
@@ -2365,34 +2360,34 @@ export default function ChatPage() {
                     onClick={() => { setInput(card.prompt); inputRef.current?.focus(); }}
                     className="text-left p-4 rounded-2xl transition-all duration-200 group"
                     style={{
-                      background: "rgba(10,18,40,0.6)",
+                      background: "rgba(8,16,36,0.65)",
                       border: "1px solid rgba(255,255,255,0.07)",
-                      backdropFilter: "blur(12px)",
-                      animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both`,
+                      backdropFilter: "blur(14px)",
+                      animation: `cardAppear 0.4s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both`,
                     }}
                     onMouseEnter={(e) => {
                       const el = e.currentTarget as HTMLButtonElement;
-                      el.style.border = `1px solid ${card.color}28`;
-                      el.style.boxShadow = `0 6px 24px ${card.color}10`;
+                      el.style.border = `1px solid ${card.color}30`;
+                      el.style.boxShadow = `0 8px 28px ${card.color}12`;
                       el.style.transform = "translateY(-2px)";
-                      el.style.background = "rgba(14,24,52,0.8)";
+                      el.style.background = "rgba(12,22,48,0.9)";
                     }}
                     onMouseLeave={(e) => {
                       const el = e.currentTarget as HTMLButtonElement;
                       el.style.border = "1px solid rgba(255,255,255,0.07)";
                       el.style.boxShadow = "";
                       el.style.transform = "";
-                      el.style.background = "rgba(10,18,40,0.6)";
+                      el.style.background = "rgba(8,16,36,0.65)";
                     }}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-colors duration-200"
-                        style={{ background: `${card.color}12`, border: `1px solid ${card.color}20`, color: card.color }}>
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ background: `${card.color}12`, border: `1px solid ${card.color}22`, color: card.color }}>
                         {card.icon}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-sm text-white mb-0.5 tracking-[-0.01em]">{card.title}</p>
-                        <p className="text-xs leading-relaxed" style={{ color: "rgba(148,163,184,0.55)" }}>{card.desc}</p>
+                        <p className="font-semibold text-[13px] text-white mb-0.5 tracking-[-0.01em]">{card.title}</p>
+                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(148,163,184,0.5)" }}>{card.desc}</p>
                       </div>
                     </div>
                   </button>
@@ -2430,32 +2425,34 @@ export default function ChatPage() {
       </main>
 
       {/* Input bar */}
-      <div className="relative z-20 px-4 pt-2.5 pb-4"
+      <div className="relative z-20 px-4 pt-3 pb-4"
         style={{
-          background: "rgba(5,10,26,0.94)",
-          backdropFilter: "blur(28px)",
-          WebkitBackdropFilter: "blur(28px)",
-          borderTop: "1px solid rgba(0,212,255,0.1)",
-          boxShadow: "0 -1px 0 rgba(0,212,255,0.07), 0 -12px 40px rgba(0,0,0,0.55)",
+          background: "rgba(4,9,22,0.97)",
+          backdropFilter: "blur(30px)",
+          WebkitBackdropFilter: "blur(30px)",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          boxShadow: "0 -1px 0 rgba(0,212,255,0.06), 0 -20px 60px rgba(0,0,0,0.6)",
         }}>
         <div className="max-w-3xl mx-auto">
 
           {/* Suggestion chips — only when no messages */}
           {!hasMessages && (
-            <div className="flex gap-1.5 flex-wrap mb-2.5">
+            <div className="flex gap-1.5 flex-wrap mb-3">
               {SUGGESTIONS.map((s) => (
                 <button key={s.text}
                   onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
-                  style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.16)", color: "rgba(0,212,255,0.65)" }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(148,163,184,0.6)" }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.12)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.95)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.1)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.25)";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.9)";
                     (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.05)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.65)";
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.09)";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.6)";
                     (e.currentTarget as HTMLButtonElement).style.transform = "";
                   }}>
                   {s.icon}
@@ -2466,66 +2463,62 @@ export default function ChatPage() {
           )}
 
           {/* Input + send */}
-          <div className="flex gap-2 items-end">
-            <div className="flex-1 relative">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Ask me to swap, bridge, add liquidity, or anything about Pharos…"
-                disabled={isSending}
-                rows={1}
-                className="w-full px-4 py-3 rounded-2xl text-sm text-white outline-none transition-all duration-200 disabled:opacity-60 resize-none overflow-hidden"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.09)",
-                  caretColor: "#00d4ff",
-                  fontFamily: "var(--font-inter)",
-                  lineHeight: "1.55",
-                  minHeight: "46px",
-                  maxHeight: "160px",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(0,212,255,0.42)";
-                  e.currentTarget.style.background   = "rgba(0,212,255,0.04)";
-                  e.currentTarget.style.boxShadow    = "0 0 0 3px rgba(0,212,255,0.07)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
-                  e.currentTarget.style.background  = "rgba(255,255,255,0.05)";
-                  e.currentTarget.style.boxShadow   = "";
-                }}
-              />
+          <div className="relative">
+            {/* Gradient border wrapper */}
+            <div className="rounded-2xl p-[1px] transition-all duration-300"
+              style={{ background: input.trim() ? "linear-gradient(135deg, rgba(0,212,255,0.5), rgba(56,189,248,0.3), rgba(99,102,241,0.3))" : "rgba(255,255,255,0.08)" }}>
+              <div className="flex gap-2 items-end rounded-[15px] px-3 py-2.5"
+                style={{ background: "rgba(6,12,28,0.96)", backdropFilter: "blur(20px)" }}>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  placeholder="Swap, bridge, add liquidity, or ask anything about Pharos…"
+                  disabled={isSending}
+                  rows={1}
+                  className="flex-1 text-sm text-white outline-none disabled:opacity-60 resize-none overflow-hidden bg-transparent"
+                  style={{
+                    caretColor: "#00d4ff",
+                    fontFamily: "var(--font-inter)",
+                    lineHeight: "1.6",
+                    minHeight: "26px",
+                    maxHeight: "160px",
+                    paddingTop: "3px",
+                    color: "rgba(230,242,255,0.92)",
+                  }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || isSending}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-black transition-all duration-200 shrink-0 self-end"
+                  style={{
+                    background: input.trim() && !isSending
+                      ? "linear-gradient(135deg, #00d4ff, #38bdf8)"
+                      : "rgba(255,255,255,0.06)",
+                    boxShadow: input.trim() && !isSending ? "0 4px 16px rgba(0,212,255,0.35)" : "none",
+                    color: input.trim() && !isSending ? "rgba(0,8,20,0.9)" : "rgba(148,163,184,0.25)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!input.trim() || isSending) return;
+                    (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.07)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 24px rgba(0,212,255,0.55)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.transform = "";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = input.trim() && !isSending ? "0 4px 16px rgba(0,212,255,0.35)" : "none";
+                  }}
+                >
+                  {isSending ? (
+                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
+                      <path d="M3.105 2.289a.75.75 0 00-.826.95l1.903 6.557H13.5a.75.75 0 010 1.5H4.182l-1.903 6.557a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
-
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isSending}
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-black transition-all duration-200 shrink-0"
-              style={{
-                background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
-                boxShadow: input.trim() && !isSending ? "0 4px 18px rgba(0,212,255,0.38)" : "none",
-                opacity: !input.trim() || isSending ? 0.3 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!input.trim() || isSending) return;
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.06)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 22px rgba(0,212,255,0.52)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.transform = "";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = input.trim() && !isSending ? "0 4px 18px rgba(0,212,255,0.38)" : "none";
-              }}
-            >
-              {isSending ? (
-                <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
-                  <path d="M3.105 2.289a.75.75 0 00-.826.95l1.903 6.557H13.5a.75.75 0 010 1.5H4.182l-1.903 6.557a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
-                </svg>
-              )}
-            </button>
           </div>
 
           <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.4)" }}>
