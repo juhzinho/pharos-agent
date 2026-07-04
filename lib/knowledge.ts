@@ -4,10 +4,16 @@
 export const CORE_KNOWLEDGE = `
 === PHAROS CORE KNOWLEDGE ===
 
-NETWORK: Chain ID 1672 | RPC https://rpc.pharos.xyz | Explorer pharosscan.xyz
-MAINNET: "Pacific Ocean" launched April 28, 2026 | 30,000 TPS, 2 Gigagas/s, block <1s | Dual VM (EVM + WASM) | AsyncBFT + speculative parallel execution → sub-second finality | Founded by ex-Ant Group leadership | ~$52M raised ($8M seed: Hack VC, Faction VC)
-TOKENS: PROS (native gas+governance) | WPROS: 0x52c48d4213107b20bc583832b0d951fb9ca8f0b0 (18 dec) | USDC: 0xc879c018db60520f4355c26ed1a6d572cdac1815 (6 dec)
-DOCS: docs.pharosnetwork.xyz | pharos.xyz | port.pharos.xyz/ecosystem | x.com/pharos_network | buildonpharos.com (dev portal) | github.com/PharosNetwork (official org)
+NETWORK: Chain ID 1672 | RPC https://rpc.pharos.xyz | WSS wss://rpc.pharos.xyz | Explorer https://www.pharosscan.xyz
+MAINNET: "Pacific Ocean" launched April 28, 2026 | 30,000 TPS, 2 Gigagas/s, block <1s | Dual VM (EVM + WASM) | AsyncBFT + speculative parallel execution → sub-second finality | Founded by ex-Ant Group leadership | ~$52M raised ($8M seed: Hack VC, Faction VC + $44M Series A)
+TESTNET: Atlantic Testnet | Chain ID 688689 | RPC https://atlantic.dplabs-internal.com | Explorer https://atlantic.pharosscan.xyz | Symbol PHRS | Rate limit: 500 req/5min
+NATIVE TOKEN: PROS (gas + governance + staking) | No inflation for first 6 months post-mainnet, then 5% annual to validators/delegators
+TOKENS (Mainnet addresses):
+  WPROS (Wrapped PROS): 0x52c48d4213107b20bc583832b0d951fb9ca8f0b0 (18 dec) | ETH: 0xB197E02499e6502733C6bCE2eb39013C39A03147 | Base: 0x8B7DdE054BE9D180c1Be7FaE0874697374A49832
+  USDC (Circle): 0xc879c018db60520f4355c26ed1a6d572cdac1815 (6 dec)
+  WETH: 0x1f4b7011Ee3d53969bb67F59428a9ec0477856E9 (18 dec)
+  LINK: 0x51e2A24742Db77604B881d6781Ee16B5b8fcBE29 (18 dec) | ETH LINK: 0x514910771AF9Ca656af840dff83E8264EcF986CA
+DOCS: docs.pharos.xyz | pharos.xyz | port.pharos.xyz/ecosystem | x.com/pharos_network | buildonpharos.com (dev portal) | github.com/PharosNetwork (official org)
 
 PHAROS PORT (port.pharos.xyz): Official RealFi hub — campaigns/rewards, PROS staking, bridge/swap, Harbor (curated RWA), full ecosystem directory.
 
@@ -20,18 +26,42 @@ DEX: FaroSwap primary DEX (DODO) V3+V2+PMM | ZentraFi AMM+launchpad | GoctoFun b
 Staking: Faroo (app.faroo.xyz) stake PROS→stPROS earns staking+RWA yield simultaneously
 RWA: R25 tokenized vaults (VRPCW/VRPCS/VRPCQ) USDC ERC-4626 | Centrifuge credit/debt (DROP/TIN) | Ember pAlpha yield vault | AquaFlux (app.aquaflux.pro) tri-token P/C/S | Agra RWA bonds | Asseto tokenized finance
 Wallets: Topnod native wallet | OKX Wallet | AlchemyPay fiat on/off-ramp
-Infra: CCIP 6-token bridge (no Optimism) | LI.FI/Jumper aggregator | LayerZero V2 | Stargate (stargate.finance, external UI) | Circle CCTP | Fiamma BTC bridge | Primus zkTLS | Babylon stBTC | EigenLayer stETH
+Infra: CCIP 6-token bridge (no Optimism) | LI.FI/Jumper aggregator | LayerZero V2 | Stargate (USDC/rUSD, external only) | Circle CCTP v2 | Fiamma BTC bridge | Primus zkTLS | Babylon stBTC | EigenLayer stETH
+
+CANONICAL CONTRACTS (Pacific Mainnet):
+  Create2Deployer: 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2
+  MultiCall3: 0xcA11bde05977b3631167028862bE2a173976CA11
+  GnosisSafe v1.3.0: 0x69f4D1788e39c87893C980c06EdF4b7f686e2938
+  Permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3
+  ERC-4337 EntryPoint v0.7: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+  ERC-4337 EntryPoint v0.6: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
+  CreateX: 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed
 
 KEY CONTRACTS:
 FaroSwap NonfungiblePositionManager: 0xc0479219f4feba5a668cff71bf96f4ffe124c3ab
+FaroSwap DODORouteProxy (swap router): 0xa5ca5fbe34e444f366b373170541ec6902b0f75c
+FaroSwap DODOApprove (ERC20 approval target): 0xbf105f4ffbd3825f5433d074008b9a76237d849c
+FaroSwap WPROS/USDC 0.01% pool: 0x912c9ade24d44d8922f0866d8dcb079f1363f647
 Fee tiers: 0.01%(100 PPM) | 0.05%(500) | 0.30%(3000) | 1.00%(10000)
-CCIP tokens: USDC, WETH, WPROS, LINK, PGOLD, USDpm | Chains: Ethereum, Base, Arbitrum, Polygon (NOT Optimism)
+CCIP Router (Pharos): 0x4e52dD94e9BCfeFE3C78153bDfB0AB1d30687297 | Chain Selector: 7801139999541420232
+CCIP tokens: USDC, WETH, WPROS, LINK, PGOLD, USDpm | Chains: Ethereum, Base, Arbitrum, Polygon, Jovay (NOT Optimism)
+CCTP v2 TokenMessengerV2: 0x28b5a0e9c621a5badaa536219b3a228c8168cf5d | MessageTransmitterV2: 0x81d40f21f12a8f0e3252bccb954d722d4c464b64
+CCTP Domain IDs: Pharos=31, Ethereum=0, Optimism=2, Arbitrum=3, Base=6, Polygon=7
 Ember pAlpha vault: 0xe47e9ba4ea2320a6ed87246d02fd5c38485ed7d1
 
-AGENT ACTIONS: swap (LI.FI) | bridge (LI.FI or CCIP) | add_liquidity (FaroSwap V3 WPROS/USDC only) | view_positions
-AGENT CANNOT: deposit RWA vaults | remove liquidity | collect fees | vote | claim staking rewards
-Bridge providers the agent EXECUTES: Jumper (LI.FI), Chainlink CCIP, and Circle CCTP v2 (USDC from Pharos to Ethereum/Base/Arbitrum/Optimism/Polygon — native burn&mint, no aggregator fee). Stargate (stargate.finance) and InterPort (app.interport.fi) support Pharos but only as external apps — the agent cannot build their transactions.
+GAS MODEL: EIP-1559 compatible | Base fee burned | Priority fee to validator (batched at epoch) | ALWAYS set gas limit 20% above estimated gas (refund mechanism requires buffer) | Use estimateGas() + 1.2x multiplier
+
+AGENT ACTIONS: swap (LI.FI or FaroSwap direct) | bridge (LI.FI, CCIP, or CCTP v2) | add_liquidity (FaroSwap V3 WPROS/USDC) | remove_liquidity (FaroSwap V3) | view_positions | view_wallet
+AGENT CANNOT: deposit RWA vaults | vote | claim staking rewards | stake PROS
+Bridge providers the agent EXECUTES: Jumper (LI.FI), Chainlink CCIP, Circle CCTP v2 (USDC burn&mint). Stargate and InterPort are external apps only.
 SECURITY: Never handle private keys/seed phrases. Non-custodial — user signs in own wallet. Only PROPOSE transactions, never claim execution.
+
+ARCHITECTURE:
+L1-Base: data availability + hardware acceleration
+L1-Core: high-performance globally distributed nodes, 30,000 TPS, sub-second finality, AsyncBFT consensus
+L1-Extension: SPNs (Special Processing Networks) for custom computation (HFT, ZKML, AI) + native restaking + cross-SPN interoperability
+Dual VM: EVM (Ethereum-compatible) + WASM (for high-performance apps) running simultaneously
+Parallel execution: speculative execution of multiple transactions simultaneously → near-zero state contention → 2 Gigagas/s throughput
 === END CORE KNOWLEDGE ===
 `;
 
@@ -164,6 +194,145 @@ Allocation: Ecosystem+Community 21% (incl. 6% airdrop) | Team+Investors 40% (12-
 Staking inflation: 0% for first 6 months post-mainnet, then 5% annual to node operators + delegators.
 Listed on: Binance Alpha, OKX, Bitget, 13+ exchanges.
 Restaking: integrates Babylon (stBTC) + EigenLayer (stETH) for additional network security.
+`,
+
+  // ════════ NEW: Pharos docs (enriched July 2026) ════════
+  pharos_network_full: `
+PHAROS NETWORK — Complete Reference:
+Pacific Mainnet: Chain ID 1672 | RPC https://rpc.pharos.xyz | WSS wss://rpc.pharos.xyz | Explorer https://www.pharosscan.xyz | Coin: PROS
+Atlantic Testnet: Chain ID 688689 | RPC https://atlantic.dplabs-internal.com | Explorer https://atlantic.pharosscan.xyz | Coin: PHRS | Rate limit: 500 req/5min
+
+ARCHITECTURE LAYERS:
+• L1-Base: data availability + hardware acceleration (foundation layer)
+• L1-Core: high-performance globally distributed blockchain — AsyncBFT consensus, 30,000 TPS, 2 Gigagas/s, <1s block time, sub-second deterministic finality
+• L1-Extension: SPNs (Special Processing Networks) for heterogeneous computation (HFT, ZKML, AI models) + Native Restaking (shared security, rewards, slashing) + Cross-SPN Interoperation
+
+DUAL VM: EVM (Ethereum-compatible, full Solidity/tooling support) + WASM running simultaneously. Chain ID 1672 is fully EVM-compatible — MetaMask, Rabby, ethers.js, Foundry, Hardhat all work.
+
+PARALLEL EXECUTION: Multiple transactions processed simultaneously (unlike sequential EVM). Combines AsyncBFT + speculative parallel execution to achieve 2 Gigagas/s throughput. Solves the "Bottleneck Effect" (isolated optimizations don't help — Pharos optimizes consensus + execution + storage together).
+
+ECOSYSTEM ARCHITECTURE:
+• Transaction Layer: secure cross-chain interoperability protocol
+• Consensus Layer: Adaptive Restaking Interaction Protocol (integrates Babylon stBTC, EigenLayer stETH for shared security)
+• Data Layer: Decentralized Data Exchange Protocol (synchronizes with external data centers for AI, FHE use cases)
+
+FUNDING: $52M total ($8M seed: Hack VC, Faction VC; $44M Series A). Founded by ex-Ant Group (Alipay) leadership. Mainnet launched April 28, 2026.
+`,
+
+  ccip_full: `
+CHAINLINK CCIP ON PHAROS (live Feb 2026):
+Router Contract: 0x4e52dD94e9BCfeFE3C78153bDfB0AB1d30687297
+Chain Selector: 7801139999541420232
+Supported lanes from Pharos: Pharos ↔ Ethereum | Pharos ↔ Jovay | Pharos ↔ Polygon | Pharos ↔ Base | Pharos ↔ Arbitrum
+Bridgeable tokens: USDC, WETH, WPROS, LINK, PGOLD, USDpm (6 tokens total)
+NOT supported via CCIP: Optimism (use Jumper/LI.FI instead for Optimism)
+Use cases: cross-chain token transfers, on-chain messaging between smart contracts, omnichain applications
+Integration: use the Router contract to initiate cross-chain messages; ensure correct chain selectors on both sides
+Full config: https://docs.chain.link/ccip/directory/mainnet/chain/pharos-mainnet
+`,
+
+  cctp_full: `
+CIRCLE CCTP v2 ON PHAROS (verified June 2026):
+Mechanism: native USDC burn & mint — Circle burns on source, mints native USDC on destination. No wrapped tokens, no aggregator fee, 1:1 transfer.
+Contract addresses (same canonical addresses on every chain):
+  TokenMessengerV2: 0x28b5a0e9c621a5badaa536219b3a228c8168cf5d
+  MessageTransmitterV2: 0x81d40f21f12a8f0e3252bccb954d722d4c464b64
+  TokenMinterV2 (Pharos): 0xfd78ee919681417d192449715b2594ab58f5d002
+USDC on Pharos: 0xc879c018db60520f4355c26ed1a6d572cdac1815
+Domain IDs: Pharos=31, Ethereum=0, Optimism=2, Arbitrum=3, Base=6, Polygon=7
+Burn limit: 10,000,000 USDC per message
+Fast transfers (minFinalityThreshold=1000): delivered by Circle relayers in under a minute; fees ~0.005–0.013%
+The agent EXECUTES CCTP v2 directly: approve + depositForBurn — say 'bridge X USDC to Base via circle/cctp'
+`,
+
+  layerzero_full: `
+LAYERZERO V2 ON PHAROS:
+LayerZero is an omnichain messaging protocol used by Stargate and other cross-chain apps.
+Pharos is supported on LayerZero (chainKey "pharos", chainId 1672).
+Stargate (stargate.finance): built on LayerZero. Tokens bridgeable from Pharos: USDC, rUSD, wsrUSD. PROS/WPROS and WETH are NOT bridgeable via Stargate from Pharos.
+IMPORTANT: Stargate is an external UI only — this agent cannot execute Stargate/LayerZero transactions. Use stargate.finance directly. For agent-executed bridges: use Jumper (LI.FI) or Chainlink CCIP instead.
+`,
+
+  canonical_contracts_full: `
+CANONICAL CONTRACTS — Pacific Mainnet:
+Create2Deployer: 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2
+Foundry Deterministic Deploy: 0x4e59b44847b379578588920ca78fbf26c0b4956c
+MultiCall3 (batch calls): 0xcA11bde05977b3631167028862bE2a173976CA11
+GnosisSafe v1.3.0 (multisig): 0x69f4D1788e39c87893C980c06EdF4b7f686e2938
+GnosisSafeL2 v1.3.0: 0xfb1bffC9d739B8D520DaF37dF666da4C687191EA
+SafeSingletonFactory: 0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7
+CreateX (CREATE/CREATE2/CREATE3 factory): 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed
+MultiSendCallOnly v1.3.0: 0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B
+MultiSend v1.3.0: 0x998739BFdAAdde7C933B942a68053933098f9EDa
+Permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3
+ERC-4337 EntryPoint v0.7: 0x0000000071727De22E5E9d8BAf0edAc6f37da032
+ERC-4337 SenderCreator v0.7: 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C
+ERC-4337 EntryPoint v0.6: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
+ERC-4337 SenderCreator v0.6: 0x7fc98430eAEdbb6070B35B39D798725049088348
+
+Atlantic Testnet canonical contracts: same addresses as mainnet for Create2Deployer, MultiCall3, GnosisSafe, Permit2, ERC-4337 EntryPoint — see docs.pharos.xyz for testnet token registry.
+`,
+
+  x402_protocol: `
+x402 PROTOCOL ON PHAROS:
+x402 is the micropayment protocol powering per-call billing on Anvita Flow. Named after HTTP 402 "Payment Required".
+How it works: enables AI agents and services to charge per API call using USDC or PROS automatically, without subscriptions or credit cards.
+On Pharos: x402 is the settlement layer for Anvita Flow Service Agents — each call is billed and settled automatically.
+Developer use: integrate x402 into any HTTP endpoint to gate it behind a payment wall that accepts crypto micropayments (as small as $0.001).
+Resources: docs.pharos.xyz/developer-guide/x402
+`,
+
+  anvita_flow_full: `
+ANVITA FLOW:
+AI agent infrastructure for Pharos. Converts Pharos Skills into hosted, discoverable, callable Service Agents.
+Core concepts:
+• Skill: packaged set of on-chain capabilities using the Pharos Skill Engine
+• Service Agent: hosted runtime wrapping a Skill — has identity, callable by other agents
+• Steward Agent: user's personal AI (Anvita On) — finds and calls Service Agents
+• Agent Card: public profile of a Service Agent (name, capabilities, pricing)
+• Marketplace: registry of all published Service Agents
+• x402 Protocol: micropayment billing per call
+• Developer Console: https://flow.anvita.xyz/service-agents
+
+Call flow: User → Anvita On → Steward Agent → Marketplace search → Service Agent → Skill execution → Result → Settlement via x402.
+
+To publish a Service Agent:
+1. Create SKILL.md with frontmatter (name + description)
+2. Package as zip: pharos-agent/ folder at zip root with SKILL.md inside
+3. Upload to Developer Console
+4. Configure Agent Card (name, capabilities, example tasks, pricing)
+5. Debug → Publish → Live in Marketplace
+`,
+
+  pharos_skill_engine: `
+PHAROS SKILL ENGINE:
+Open-source toolkit (github.com/PharosNetwork/pharos-skill-engine) for building on-chain AI agent skills on Pharos.
+Uses Claude Code (AI CLI) + Foundry (cast/forge) for contract interaction.
+Key files: SKILL.md (instructions), assets/networks.json (RPC config), assets/tokens.json (token addresses), references/ (protocol instruction docs).
+Skills can: deploy contracts, call contract functions, read on-chain state, query events, send transactions.
+Tutorial: Piggy Bank (SimpleVault) — lock PHRS for time, deposit, withdraw after lock period.
+Available on GitHub: github.com/PharosNetwork/pharos-skill-engine
+`,
+
+  validator_info: `
+PHAROS VALIDATOR INFO:
+Hardware requirements (minimum): CPU 32 cores (AMD Milan EPYC / Intel Xeon Platinum, 2.8GHz+) | RAM 256 GB | Storage 5 TB SSD (350 MiB/s bandwidth, 30000 IOPS) | Network 0.5 Gbps | ulimit -n ≥ 10,000,000
+Node versions (July 2026): Spec v14, Binary b5f7821d | Docker: public.ecr.aws/k2g7b7g1/pharos:pharos_community_v0.14.1_b5f7821d_0619
+Validator behavior rules: no prolonged offline | no consensus inactivity | no equivocation (double voting) — violations → block proposals rejected + loss of fee rewards
+Staking: PROS is staked for security. 0% inflation for first 6 months post-mainnet, then 5% annual to node operators + delegators.
+Restaking: integrates Babylon (stBTC) + EigenLayer (stETH) for additional shared security.
+Governance: no automated slashing currently — malicious behavior triggers governance procedures.
+`,
+
+  gas_model_full: `
+PHAROS GAS MODEL:
+EIP-1559 compatible: base fee (burned) + priority fee (to validator). Base fee recalculated per epoch.
+Transaction fee charged at inclusion time by gas_limit (not actual gas used).
+Key difference from Ethereum: priority fees are NOT settled per-transaction — they are accumulated and credited to validators in a batch at epoch boundaries (because parallel execution prevents real-time per-tx settlement).
+CRITICAL: Always set gas limit 20% ABOVE estimated gas. Reason: gas refunds (e.g. from SSTORE clearing) are applied AFTER execution — if gas limit = gas used exactly, refund cannot be processed and tx FAILS with out-of-gas.
+Example: forge estimateGas shows 100,000 → set gasLimit: 120,000.
+ethers.js: const gas = await contract.estimateGas.fn(); const gasLimit = gas * 12n / 10n;
+Fully aligned with Ethereum EVM opcode gas table.
 `,
 
   // ════════ DeFi education ════════
@@ -498,6 +667,19 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["agent center", "install skill", "skills", "on-chain agent", "ai agent", "agentes"], section: "agent_center" },
   { keys: ["research", "pesquisa", "deep dive", "whitepaper", "paper", "report"], section: "research" },
   { keys: ["kun", "termmax", "term max", "palpha", "pizza zone", "pros pixel", "pixel", "gamefi", "fixed-rate", "fixed rate"], section: "dapps_extra" },
+
+  // ── New enriched sections from Pharos docs ──
+  { keys: ["atlantic testnet", "testnet", "chain id 688689", "688689", "phrs faucet", "dplabs", "atlantic.dplabs"], section: "pharos_network_full" },
+  { keys: ["l1-base", "l1-core", "l1-extension", "asyncbft", "speculative parallel", "dual vm", "wasm", "parallel execution", "modular l1", "pharos architecture"], section: "pharos_network_full" },
+  { keys: ["ccip router", "chain selector", "7801139999541420232", "0x4e52", "jovay", "ccip lane", "chainlink ccip config"], section: "ccip_full" },
+  { keys: ["tokenmessengerv2", "messagetransmitterv2", "cctp domain", "cctp v2", "burn limit", "domain id 31", "pharos=31"], section: "cctp_full" },
+  { keys: ["layerzero", "layer zero", "stargate", "rusd", "wsrusd", "layerzero v2", "oft"], section: "layerzero_full" },
+  { keys: ["canonical contract", "create2deployer", "multicall3", "gnosis safe", "permit2", "entrypoint", "erc-4337", "account abstraction", "createx"], section: "canonical_contracts_full" },
+  { keys: ["x402", "http 402", "payment required", "micropayment", "per-call billing", "per call billing"], section: "x402_protocol" },
+  { keys: ["anvita flow", "anvita on", "steward agent", "service agent", "flow.anvita", "agent card", "marketplace agent"], section: "anvita_flow_full" },
+  { keys: ["skill engine", "pharos skill", "pharos-skill-engine", "skill.md", "skill package", "piggy bank tutorial", "simplev ault", "cast forge"], section: "pharos_skill_engine" },
+  { keys: ["validator", "validador", "hardware requirement", "cpu 32 cores", "256 gb", "node version", "ulimit", "equivocation", "double voting", "epoch reward"], section: "validator_info" },
+  { keys: ["gas model", "gas refund", "eip-1559", "base fee burned", "priority fee", "gas limit buffer", "out of gas", "gas 20%"], section: "gas_model_full" },
 ];
 
 export function getDetailedSection(userMessage: string): string {

@@ -891,46 +891,50 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
   const isUser = msg.role === "user";
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-5 msg-enter`}>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-6 msg-enter`}>
       {/* Agent avatar */}
       {!isUser && (
-        <div className="shrink-0 mr-3 mt-1">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{ background: "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.15), rgba(2,8,22,0.97))", border: "1px solid rgba(0,212,255,0.28)", boxShadow: "0 0 12px rgba(0,212,255,0.15)" }}>
+        <div className="shrink-0 mr-3 mt-0.5">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{
+              background: "radial-gradient(circle at 35% 35%, rgba(0,212,255,0.18), rgba(2,8,22,0.97))",
+              border: "1px solid rgba(0,212,255,0.25)",
+              boxShadow: "0 0 14px rgba(0,212,255,0.12)",
+            }}>
             <svg viewBox="0 0 28 28" className="w-full h-full" fill="none">
-              <circle cx="14" cy="14" r="4" fill="rgba(0,212,255,0.85)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
-              <circle cx="14" cy="14" r="9" stroke="rgba(0,212,255,0.15)" strokeWidth="0.7" />
+              <circle cx="14" cy="14" r="4" fill="rgba(0,212,255,0.9)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
+              <circle cx="14" cy="14" r="9" stroke="rgba(0,212,255,0.13)" strokeWidth="0.7" />
             </svg>
           </div>
         </div>
       )}
 
-      <div className={`${isUser ? "max-w-[72%]" : "max-w-[84%]"}`}>
+      <div className={`${isUser ? "max-w-[75%]" : "max-w-[86%] w-full"}`}>
         {/* Role label */}
         <p className={`text-[10px] font-medium mb-1.5 ${isUser ? "text-right" : "text-left"}`}
-          style={{ color: isUser ? "rgba(0,212,255,0.45)" : "rgba(148,163,184,0.35)" }}>
+          style={{ color: isUser ? "rgba(0,212,255,0.4)" : "rgba(148,163,184,0.3)" }}>
           {isUser ? "You" : "Pharos Agent"}
         </p>
 
-        <div className={`rounded-2xl text-sm leading-[1.65] ${isUser ? "rounded-br-sm" : "rounded-bl-sm"}`}
+        <div className={`rounded-2xl text-sm leading-[1.7] ${isUser ? "rounded-br-md" : "rounded-bl-md"}`}
           style={isUser ? {
-            background: "linear-gradient(135deg, #00b8d9 0%, #00d4ff 45%, #38bdf8 100%)",
-            color: "rgba(0,8,20,0.9)",
+            background: "linear-gradient(135deg, #009ec2 0%, #00c8f0 45%, #38bdf8 100%)",
+            color: "rgba(0,8,20,0.92)",
             fontWeight: 500,
-            padding: "11px 15px",
-            boxShadow: "0 4px 18px rgba(0,212,255,0.22), inset 0 1px 0 rgba(255,255,255,0.28)",
+            padding: "11px 16px",
+            boxShadow: "0 4px 20px rgba(0,212,255,0.2), inset 0 1px 0 rgba(255,255,255,0.25)",
           } : msg.isError ? {
-            background: "rgba(22,6,6,0.75)",
-            border: "1px solid rgba(239,68,68,0.18)",
+            background: "rgba(20,6,6,0.75)",
+            border: "1px solid rgba(239,68,68,0.16)",
             color: "rgba(252,165,165,0.88)",
-            padding: "11px 15px",
+            padding: "12px 16px",
           } : {
-            background: "rgba(10,18,40,0.78)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            color: "rgba(226,232,240,0.9)",
-            padding: "11px 15px",
+            background: "rgba(10,18,42,0.8)",
+            border: "1px solid rgba(255,255,255,0.065)",
+            color: "rgba(226,232,240,0.92)",
+            padding: "12px 16px",
             backdropFilter: "blur(16px)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)",
+            boxShadow: "0 2px 14px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.035)",
           }}>
 
           {msg.isLoading ? <TypingIndicator /> : msg.isSearching ? <SearchingIndicator /> : (
@@ -1052,10 +1056,16 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
               )}
 
               {!isUser && msg.sources && msg.sources.length > 0 && (
-                <p className="mt-2.5 pt-2 text-[10px] font-medium"
-                  style={{ borderTop: "1px solid rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.45)" }}>
-                  📚 Fonte: {msg.sources.join(" · ")}
-                </p>
+                <div className="mt-3 pt-2.5 flex items-center gap-1.5 flex-wrap"
+                  style={{ borderTop: "1px solid rgba(0,212,255,0.08)" }}>
+                  <span style={{ color: "rgba(0,212,255,0.35)", fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Sources</span>
+                  {msg.sources.map((s, i) => (
+                    <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
+                      style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.15)", color: "rgba(0,212,255,0.6)" }}>
+                      {s}
+                    </span>
+                  ))}
+                </div>
               )}
 
               {msg.providerChoice && walletAddress && (
@@ -1172,6 +1182,54 @@ const SUGGESTIONS = [
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 4h10v6H2zM5 4V2.5a2 2 0 014 0V4"/></svg> },
 ];
 
+// ChatGPT-style welcome cards shown only on empty state
+const WELCOME_CARDS = [
+  {
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    ),
+    title: "Swap tokens",
+    desc: "Trade any token pair on Pharos via the best route across FaroSwap, OKX DEX and more.",
+    prompt: "swap 1 PROS to USDC",
+    color: "#00d4ff",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+      </svg>
+    ),
+    title: "Bridge cross-chain",
+    desc: "Move assets to Ethereum, Base, Arbitrum, Polygon via Jumper (LI.FI), CCIP or Circle CCTP v2.",
+    prompt: "bridge 50 USDC from Pharos to Base",
+    color: "#818cf8",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+      </svg>
+    ),
+    title: "Provide liquidity",
+    desc: "Add concentrated V3 liquidity to FaroSwap WPROS/USDC pools. Pick fee tier and price range.",
+    prompt: "add liquidity 5 WPROS to FaroSwap 0.30% ±15% range",
+    color: "#34d399",
+  },
+  {
+    icon: (
+      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35M11 8v6M8 11h6" />
+      </svg>
+    ),
+    title: "Explore Pharos",
+    desc: "Ask anything about the ecosystem — protocols, RWA, staking, gas, contracts, architecture.",
+    prompt: "what DeFi protocols are on Pharos and what's their TVL?",
+    color: "#f472b6",
+  },
+];
+
 // ─── main chat page ────────────────────────────────────────────────────────
 
 export default function ChatPage() {
@@ -1179,7 +1237,7 @@ export default function ChatPage() {
     {
       id: "welcome",
       role: "agent",
-      text: "Hi! I'm Pharos Agent — your AI DeFi copilot on Pharos Network.\n\nConnect your wallet and tell me what you'd like to do. I can swap tokens, bridge to other chains, add liquidity, show your positions, or answer any question about Pharos.\n\nExamples:\n• swap 0.5 PROS to USDC\n• bridge 100 USDC to Base\n• what is Faroo and how does liquid staking work?",
+      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
     },
   ]);
   const [input, setInput] = useState("");
@@ -2004,24 +2062,74 @@ export default function ChatPage() {
 
       {/* Chat area */}
       <main className="flex-1 overflow-y-auto relative z-10">
-        <div className="max-w-3xl mx-auto px-4 py-6">
+        <div className={`max-w-3xl mx-auto px-4 ${hasMessages ? "py-6" : "py-4 flex flex-col justify-center min-h-full"}`}>
 
-          {/* Empty state — large suggestions */}
+          {/* Empty state — ChatGPT-style welcome */}
           {!hasMessages && (
-            <div className="flex flex-col items-center justify-center pt-8 pb-6 text-center">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-                style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.18)", boxShadow: "0 0 30px rgba(0,212,255,0.12)" }}>
-                <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="rgba(0,212,255,0.7)" strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+            <div className="flex flex-col items-center justify-center pt-4 pb-8 text-center select-none">
+              {/* Logo orb */}
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 relative"
+                style={{
+                  background: "radial-gradient(circle at 35% 30%, rgba(0,212,255,0.18) 0%, rgba(2,8,22,0.97) 70%)",
+                  border: "1px solid rgba(0,212,255,0.22)",
+                  boxShadow: "0 0 40px rgba(0,212,255,0.14), 0 0 0 1px rgba(0,212,255,0.06)",
+                }}>
+                <svg viewBox="0 0 40 40" className="w-9 h-9" fill="none">
+                  <circle cx="20" cy="20" r="6" fill="rgba(0,212,255,0.9)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
+                  <circle cx="20" cy="20" r="13" stroke="rgba(0,212,255,0.18)" strokeWidth="1" />
+                  <circle cx="20" cy="20" r="18" stroke="rgba(0,212,255,0.07)" strokeWidth="1" />
                 </svg>
               </div>
-              <h2 className="font-display font-bold text-white text-xl mb-1.5 tracking-[-0.02em]"
-                style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif" }}>
-                Ask me anything
+
+              <h2 className="font-display font-bold text-white mb-2 tracking-[-0.025em]"
+                style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", fontSize: "clamp(1.4rem, 3vw, 1.75rem)" }}>
+                How can I help you today?
               </h2>
-              <p className="text-sm mb-8" style={{ color: "rgba(148,163,184,0.5)" }}>
-                Swap, bridge, liquidity, or any Pharos question
+              <p className="text-sm mb-8 max-w-sm" style={{ color: "rgba(148,163,184,0.5)" }}>
+                Your AI DeFi copilot on Pharos Network — swap, bridge, liquidity, or any question
               </p>
+
+              {/* Welcome cards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
+                {WELCOME_CARDS.map((card, i) => (
+                  <button
+                    key={card.title}
+                    onClick={() => { setInput(card.prompt); inputRef.current?.focus(); }}
+                    className="text-left p-4 rounded-2xl transition-all duration-200 group"
+                    style={{
+                      background: "rgba(10,18,40,0.6)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      backdropFilter: "blur(12px)",
+                      animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both`,
+                    }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLButtonElement;
+                      el.style.border = `1px solid ${card.color}28`;
+                      el.style.boxShadow = `0 6px 24px ${card.color}10`;
+                      el.style.transform = "translateY(-2px)";
+                      el.style.background = "rgba(14,24,52,0.8)";
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLButtonElement;
+                      el.style.border = "1px solid rgba(255,255,255,0.07)";
+                      el.style.boxShadow = "";
+                      el.style.transform = "";
+                      el.style.background = "rgba(10,18,40,0.6)";
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-colors duration-200"
+                        style={{ background: `${card.color}12`, border: `1px solid ${card.color}20`, color: card.color }}>
+                        {card.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-white mb-0.5 tracking-[-0.01em]">{card.title}</p>
+                        <p className="text-xs leading-relaxed" style={{ color: "rgba(148,163,184,0.55)" }}>{card.desc}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2053,38 +2161,40 @@ export default function ChatPage() {
       </main>
 
       {/* Input bar */}
-      <div className="relative z-20 px-4 pt-3 pb-4"
+      <div className="relative z-20 px-4 pt-2.5 pb-4"
         style={{
-          background: "rgba(5,10,26,0.92)",
+          background: "rgba(5,10,26,0.94)",
           backdropFilter: "blur(28px)",
           WebkitBackdropFilter: "blur(28px)",
-          borderTop: "1px solid rgba(0,212,255,0.12)",
-          boxShadow: "0 -1px 0 rgba(0,212,255,0.08), 0 -8px 32px rgba(0,0,0,0.5)",
+          borderTop: "1px solid rgba(0,212,255,0.1)",
+          boxShadow: "0 -1px 0 rgba(0,212,255,0.07), 0 -12px 40px rgba(0,0,0,0.55)",
         }}>
         <div className="max-w-3xl mx-auto">
 
-          {/* Suggestion chips — always visible */}
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {SUGGESTIONS.map((s) => (
-              <button key={s.text}
-                onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
-                style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.16)", color: "rgba(0,212,255,0.65)" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.12)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.95)";
-                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.05)";
-                  (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.65)";
-                  (e.currentTarget as HTMLButtonElement).style.transform = "";
-                }}>
-                {s.icon}
-                {s.label}
-              </button>
-            ))}
-          </div>
+          {/* Suggestion chips — only when no messages */}
+          {!hasMessages && (
+            <div className="flex gap-1.5 flex-wrap mb-2.5">
+              {SUGGESTIONS.map((s) => (
+                <button key={s.text}
+                  onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
+                  style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.16)", color: "rgba(0,212,255,0.65)" }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.12)";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.95)";
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.05)";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.65)";
+                    (e.currentTarget as HTMLButtonElement).style.transform = "";
+                  }}>
+                  {s.icon}
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Input + send */}
           <div className="flex gap-2 items-end">
@@ -2094,13 +2204,13 @@ export default function ChatPage() {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Ask me to swap, bridge, add liquidity, or anything about Pharos… (Shift+Enter for new line)"
+                placeholder="Ask me to swap, bridge, add liquidity, or anything about Pharos…"
                 disabled={isSending}
                 rows={1}
                 className="w-full px-4 py-3 rounded-2xl text-sm text-white outline-none transition-all duration-200 disabled:opacity-60 resize-none overflow-hidden"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.09)",
                   caretColor: "#00d4ff",
                   fontFamily: "var(--font-inter)",
                   lineHeight: "1.55",
@@ -2108,13 +2218,13 @@ export default function ChatPage() {
                   maxHeight: "160px",
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(0,212,255,0.38)";
-                  e.currentTarget.style.background   = "rgba(0,212,255,0.035)";
-                  e.currentTarget.style.boxShadow    = "0 0 0 3px rgba(0,212,255,0.05)";
+                  e.currentTarget.style.borderColor = "rgba(0,212,255,0.42)";
+                  e.currentTarget.style.background   = "rgba(0,212,255,0.04)";
+                  e.currentTarget.style.boxShadow    = "0 0 0 3px rgba(0,212,255,0.07)";
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                  e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
+                  e.currentTarget.style.background  = "rgba(255,255,255,0.05)";
                   e.currentTarget.style.boxShadow   = "";
                 }}
               />
@@ -2126,14 +2236,18 @@ export default function ChatPage() {
               className="w-11 h-11 rounded-xl flex items-center justify-center text-black transition-all duration-200 shrink-0"
               style={{
                 background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
-                boxShadow: input.trim() && !isSending ? "0 4px 14px rgba(0,212,255,0.32)" : "none",
-                opacity: !input.trim() || isSending ? 0.35 : 1,
+                boxShadow: input.trim() && !isSending ? "0 4px 18px rgba(0,212,255,0.38)" : "none",
+                opacity: !input.trim() || isSending ? 0.3 : 1,
               }}
               onMouseEnter={(e) => {
                 if (!input.trim() || isSending) return;
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.05)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.06)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 22px rgba(0,212,255,0.52)";
               }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform = "";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = input.trim() && !isSending ? "0 4px 18px rgba(0,212,255,0.38)" : "none";
+              }}
             >
               {isSending ? (
                 <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -2145,8 +2259,8 @@ export default function ChatPage() {
             </button>
           </div>
 
-          <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.45)" }}>
-            Pharos Mainnet · Chain ID 1672 · Non-custodial · Your keys, your crypto
+          <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.4)" }}>
+            Pharos Mainnet · Chain ID 1672 · Non-custodial · Shift+Enter for new line
           </p>
         </div>
       </div>

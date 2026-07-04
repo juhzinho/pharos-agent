@@ -105,8 +105,8 @@ export default function LandingPage() {
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-8 text-xs font-semibold"
             style={{
               background: "rgba(0,212,255,0.07)",
-              border: "1px solid rgba(0,212,255,0.22)",
-              color: "rgba(0,212,255,0.8)",
+              border: "1px solid rgba(0,212,255,0.2)",
+              color: "rgba(0,212,255,0.75)",
               animation: "heroFadeUp 0.7s cubic-bezier(0.22,1,0.36,1) both",
             }}>
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#00d4ff" }} />
@@ -114,40 +114,38 @@ export default function LandingPage() {
           </div>
 
           {/* Main heading */}
-          <h1 className="font-display font-extrabold tracking-[-0.04em] leading-[1.05] mb-6"
+          <h1 className="font-display font-extrabold tracking-[-0.04em] leading-[1.05] mb-5"
             style={{
               fontFamily: "var(--font-display), var(--font-inter), sans-serif",
-              fontSize: "clamp(2.8rem, 7vw, 5.5rem)",
-              background: "linear-gradient(135deg, #ffffff 0%, #e2e8f0 35%, #00d4ff 65%, #38bdf8 100%)",
+              fontSize: "clamp(2.8rem, 7.5vw, 6rem)",
+              background: "linear-gradient(135deg, #ffffff 0%, #e2e8f0 30%, #a5f3fc 60%, #38bdf8 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
-              textShadow: "none",
-              filter: "drop-shadow(0 0 40px rgba(0,212,255,0.25))",
+              filter: "drop-shadow(0 0 50px rgba(0,212,255,0.2))",
               animation: "heroFadeUp 0.75s cubic-bezier(0.22,1,0.36,1) 0.1s both",
             }}>
             Pharos Agent
           </h1>
 
-          <h2 className="font-display font-bold tracking-[-0.025em] mb-6"
+          <h2 className="font-display font-semibold tracking-[-0.02em] mb-6"
             style={{
               fontFamily: "var(--font-display), var(--font-inter), sans-serif",
-              fontSize: "clamp(1.2rem, 3vw, 2rem)",
-              color: "rgba(226,232,240,0.7)",
+              fontSize: "clamp(1.15rem, 2.8vw, 1.85rem)",
+              color: "rgba(226,232,240,0.6)",
               animation: "heroFadeUp 0.75s cubic-bezier(0.22,1,0.36,1) 0.2s both",
             }}>
-            Your AI DeFi Copilot
+            Your AI DeFi Copilot on Pharos Network
           </h2>
 
-          <p className="max-w-2xl text-base leading-relaxed mb-10"
+          <p className="max-w-xl text-base leading-relaxed mb-10"
             style={{
-              color: "rgba(148,163,184,0.75)",
-              fontSize: "clamp(0.95rem, 2vw, 1.1rem)",
+              color: "rgba(148,163,184,0.65)",
+              fontSize: "clamp(0.9rem, 1.8vw, 1.05rem)",
               animation: "heroFadeUp 0.75s cubic-bezier(0.22,1,0.36,1) 0.3s both",
             }}>
-            Created and dedicated to the Pharos ecosystem. Built to help sailors navigate
-            RealFi with maximum security — swap, bridge, provide liquidity, and explore every
-            dApp on Pharos through natural conversation.
+            Swap, bridge, provide liquidity and explore every protocol in the Pharos ecosystem
+            through natural conversation — in any language, non-custodial, always secure.
           </p>
 
           {/* CTA buttons */}
@@ -163,7 +161,7 @@ export default function LandingPage() {
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px) scale(1.03)";
-                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 10px 36px rgba(0,212,255,0.6), inset 0 1px 0 rgba(255,255,255,0.35)";
+                (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 12px 40px rgba(0,212,255,0.62), inset 0 1px 0 rgba(255,255,255,0.35)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLAnchorElement).style.transform = "";
@@ -179,31 +177,54 @@ export default function LandingPage() {
             </Link>
 
             <a
-              href="https://pharos.xyz"
+              href="https://docs.pharos.xyz"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl font-semibold text-sm transition-all duration-200"
               style={{
                 background: "rgba(255,255,255,0.04)",
                 border: "1px solid rgba(255,255,255,0.1)",
-                color: "rgba(226,232,240,0.75)",
+                color: "rgba(226,232,240,0.65)",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.07)";
+                (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.08)";
                 (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.9)";
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.18)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.04)";
-                (e.currentTarget as HTMLAnchorElement).style.color = "rgba(226,232,240,0.75)";
+                (e.currentTarget as HTMLAnchorElement).style.color = "rgba(226,232,240,0.65)";
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.1)";
               }}
             >
               Pharos Docs ↗
             </a>
           </div>
 
-          {/* Subtle scroll hint */}
-          <div className="mt-16 flex flex-col items-center gap-1.5 opacity-30">
-            <span className="text-xs text-slate-400">Explore</span>
+          {/* Stats strip */}
+          <div className="mt-14 flex items-center gap-6 flex-wrap justify-center"
+            style={{ animation: "heroFadeUp 0.75s cubic-bezier(0.22,1,0.36,1) 0.5s both" }}>
+            {[
+              { label: "TPS", value: "30,000" },
+              { label: "Finality", value: "<1s" },
+              { label: "Throughput", value: "2 Gigagas/s" },
+              { label: "Chain ID", value: "1672" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <p className="font-display font-bold text-white tracking-[-0.02em]"
+                  style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", fontSize: "1.1rem" }}>
+                  {stat.value}
+                </p>
+                <p className="text-[10px] uppercase tracking-[0.1em] font-medium" style={{ color: "rgba(0,212,255,0.4)" }}>
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Scroll hint */}
+          <div className="mt-16 flex flex-col items-center gap-1.5 opacity-25">
+            <span className="text-xs text-slate-400">Scroll</span>
             <svg viewBox="0 0 16 24" className="w-4 h-6 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <rect x="2" y="2" width="12" height="20" rx="6" />
               <path d="M8 6v4" strokeOpacity="0.8" />
@@ -358,7 +379,7 @@ export default function LandingPage() {
                 onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(71,85,105,0.5)"; }}>
                 pharos.xyz ↗
               </a>
-              <a href="https://docs.pharosnetwork.xyz" target="_blank" rel="noopener noreferrer"
+              <a href="https://docs.pharos.xyz" target="_blank" rel="noopener noreferrer"
                 className="text-xs transition-colors" style={{ color: "rgba(71,85,105,0.5)" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.6)"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(71,85,105,0.5)"; }}>
