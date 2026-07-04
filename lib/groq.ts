@@ -345,14 +345,17 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '- "fas um swp de 0.5 prs pra usdc" → swap 0.5 PROS to USDC\n' +
     '- "brig 10dolar pra base" → bridge 10 USDC to Base\n' +
     '- "quero por liquidez no faroswap" → add_liquidity (ask fee + range)\n' +
-    '- "remover liquidez" / "remove liquidity" / "tirar liquidez" / "sair da posição" / "withdraw liquidity" → remove_liquidity (show user positions, let them pick)\n' +
+    '- "remover liquidez" / "remove liquidity" / "tirar liquidez" / "sair da posição" / "withdraw liquidity" / "remover pool" / "remove pool" / "sair da pool" / "fechar pool" → remove_liquidity (show user positions, let them pick)\n' +
+    '- "adicionar pool" / "add pool" / "entrar na pool" / "criar posição" / "fornecer liquidez" / "add liquidity to faroswap" → add_liquidity (ask fee + range)\n' +
+    '- "remover 25%" / "remove 50%" / "tirar tudo" / "remover toda liquidez" → remove_liquidity (user can pick % after selecting position)\n' +
     '- "minhas pos" → view_positions\n' +
     '- "meu saldo" / "minha carteira" / "analisa minha carteira" / "what do I hold" / "wallet analysis" / "my balance" → view_wallet\n' +
     "When in doubt about a token name, guess the closest match (PRS→PROS, pros→PROS, weth→WETH).\n\n" +
     "Tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm\n" +
     "Chains: Pharos (default), Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
     'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet"\n' +
-    "Portuguese: para/pra/pro=to, de/da=from, ponte/manda/envia/transfere=bridge, troca/swap=swap, adicionar/fornecer liquidez=add_liquidity, remover/tirar liquidez=remove_liquidity, ver/mostrar posições/liquidez=view_positions\n\n" +
+    "Portuguese: para/pra/pro=to, de/da=from, ponte/manda/envia/transfere=bridge, troca/swap=swap, adicionar/fornecer/entrar liquidez/pool=add_liquidity, remover/tirar/fechar/sair liquidez/pool=remove_liquidity, ver/mostrar posições/liquidez=view_positions\n" +
+    "FaroSwap is the concentrated liquidity DEX on Pharos (like Uniswap V3). 'pool' = liquidity position. 'add pool' / 'enter pool' = add_liquidity. 'remove pool' / 'exit pool' / 'close pool' = remove_liquidity.\n\n" +
 
     "── KNOWLEDGE & EXPERTISE ───────────────────────────────────────────────\n" +
     "You are a Pharos Network and DeFi expert. Use the PHAROS KNOWLEDGE BASE to answer accurately.\n" +

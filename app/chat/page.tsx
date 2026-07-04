@@ -82,6 +82,10 @@ interface RemoveLiquidityPendingTx {
   result: RemoveLiquidityBuildResult;
 }
 
+interface RemovePctPending {
+  position: V3Position;
+}
+
 interface AmountQueryState {
   token: string;
   balance: number;
@@ -122,6 +126,7 @@ interface Message {
   pending?: PendingTx;
   liquidityPending?: LiquidityPendingTx;
   removeLiquidityPending?: RemoveLiquidityPendingTx;
+  removePctPending?: RemovePctPending;
   positions?: V3Position[];
   providerChoice?: ProviderChoice;
   swapChoice?: SwapChoice;
@@ -520,59 +525,116 @@ function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
 
 // ─── position cards ────────────────────────────────────────────────────────
 
-function PositionCards({ positions }: { positions: V3Position[] }) {
+function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRemove?: (p: V3Position) => void }) {
   if (positions.length === 0) return null;
-  return (
-    <div className="mt-4 flex flex-col gap-2.5">
-      {positions.map((p) => {
-        const hasLiq = p.liquidity > 0n;
-        const hasFees = p.feesWPROS > 0 || p.feesUSDC > 0;
-        const inRange = hasLiq && p.inRange;
-        const sc = !hasLiq ? "rgba(100,116,139,0.8)" : inRange ? "#34d399" : "#fbbf24";
-        const sb = !hasLiq ? "rgba(100,116,139,0.1)" : inRange ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
-        const sl = !hasLiq ? "Closed" : inRange ? "In Range" : "Out of Range";
-        return (
-          <div key={String(p.tokenId)} className="rounded-2xl overflow-hidden"
-            style={{ background: "rgba(8,16,32,0.7)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(12px)" }}>
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(0,212,255,0.03)" }}>
-              <div className="flex items-center gap-2.5">
-                <div className="flex -space-x-1.5">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold z-10" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "1.5px solid rgba(6,13,31,0.9)" }}>W</div>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "1.5px solid rgba(6,13,31,0.9)" }}>U</div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-white">WPROS / USDC</p>
-                  <p className="text-[10px] font-data" style={{ color: "rgba(0,212,255,0.55)" }}>NFT #{String(p.tokenId)}</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full" style={{ color: sc, background: sb, border: `1px solid ${sc}44` }}>{sl}</span>
+
+  const inRange  = positions.filter(p => p.liquidity > 0n && p.inRange);
+  const outRange = positions.filter(p => p.liquidity > 0n && !p.inRange);
+  const closed   = positions.filter(p => p.liquidity === 0n);
+
+  function PositionCard({ p }: { p: V3Position }) {
+    const hasLiq = p.liquidity > 0n;
+    const hasFees = p.feesWPROS > 0.000001 || p.feesUSDC > 0.000001;
+    const inR = hasLiq && p.inRange;
+    const sc = !hasLiq ? "rgba(100,116,139,0.7)" : inR ? "#34d399" : "#fbbf24";
+    const sb = !hasLiq ? "rgba(100,116,139,0.08)" : inR ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
+    const sl = !hasLiq ? "Closed" : inR ? "In Range" : "Out of Range";
+    return (
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(12px)" }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(0,212,255,0.025)" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="flex -space-x-1.5">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold z-10" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "1.5px solid rgba(6,13,31,0.9)" }}>W</div>
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "1.5px solid rgba(6,13,31,0.9)" }}>U</div>
             </div>
-            <div className="px-4 py-3 space-y-2">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
-                <span style={{ color: "rgba(100,116,139,0.8)" }}>Fee tier</span>
-                <span className="text-right"><span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.8)", border: "1px solid rgba(0,212,255,0.15)" }}>{(p.fee / 10000).toFixed(2)}%</span></span>
-                <span style={{ color: "rgba(100,116,139,0.8)" }}>Tick range</span>
-                <span className="text-right text-gray-300 text-[11px]">{p.tickLower} → {p.tickUpper}</span>
-                {hasLiq && (<><span style={{ color: "rgba(100,116,139,0.8)" }}>WPROS</span><span className="text-right text-gray-200">{p.amount0WPROS.toFixed(6)}</span><span style={{ color: "rgba(100,116,139,0.8)" }}>USDC</span><span className="text-right text-gray-200">{p.amount1USDC.toFixed(6)}</span></>)}
-              </div>
-              {hasFees && (
-                <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}>
-                  <span className="text-xs font-data" style={{ color: "rgba(251,191,36,0.7)" }}>Uncollected fees</span>
-                  <span className="text-xs font-data font-semibold" style={{ color: "rgba(251,191,36,0.85)" }}>{p.feesWPROS.toFixed(6)} WPROS{p.feesUSDC > 0 ? ` + ${p.feesUSDC.toFixed(6)} USDC` : ""}</span>
-                </div>
-              )}
-              <a href={`https://www.pharosscan.xyz/token/${FAROSWAP.NPM}?a=${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[10px] font-medium transition-colors" style={{ color: "rgba(0,212,255,0.38)" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.7)")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.38)")}>
-                View NFT on Pharosscan →
-              </a>
+            <div>
+              <p className="text-xs font-semibold text-white">WPROS / USDC</p>
+              <p className="text-[10px] font-data" style={{ color: "rgba(0,212,255,0.55)" }}>NFT #{String(p.tokenId)}</p>
             </div>
           </div>
-        );
-      })}
-      {positions[0] && positions[0].currentPriceUSDC > 0 && (
-        <p className="text-[10px] font-data text-right" style={{ color: "rgba(100,116,139,0.5)" }}>
+          <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full" style={{ color: sc, background: sb, border: `1px solid ${sc}44` }}>{sl}</span>
+        </div>
+        {/* Body */}
+        <div className="px-4 py-3 space-y-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
+            <span style={{ color: "rgba(100,116,139,0.75)" }}>Fee tier</span>
+            <span className="text-right"><span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.8)", border: "1px solid rgba(0,212,255,0.15)" }}>{(p.fee / 10000).toFixed(2)}%</span></span>
+            <span style={{ color: "rgba(100,116,139,0.75)" }}>Tick range</span>
+            <span className="text-right text-gray-300 text-[11px]">{p.tickLower} → {p.tickUpper}</span>
+            {hasLiq && (<>
+              <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
+              <span className="text-right text-gray-200">{p.amount0WPROS.toFixed(6)}</span>
+              <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
+              <span className="text-right text-gray-200">{p.amount1USDC.toFixed(6)}</span>
+            </>)}
+          </div>
+          {hasFees && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}>
+              <span className="text-xs font-data" style={{ color: "rgba(251,191,36,0.65)" }}>Uncollected fees</span>
+              <span className="text-xs font-data font-semibold" style={{ color: "rgba(251,191,36,0.85)" }}>
+                {p.feesWPROS > 0 ? `${p.feesWPROS.toFixed(6)} WPROS` : ""}
+                {p.feesWPROS > 0 && p.feesUSDC > 0 ? " + " : ""}
+                {p.feesUSDC > 0 ? `${p.feesUSDC.toFixed(6)} USDC` : ""}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between pt-1">
+            <a href={`https://www.pharosscan.xyz/token/${FAROSWAP.NPM}?a=${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] font-medium transition-colors" style={{ color: "rgba(0,212,255,0.35)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.7)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.35)")}>
+              View NFT →
+            </a>
+            {onRemove && hasLiq && (
+              <button onClick={() => onRemove(p)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
+                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "rgba(248,113,113,0.9)" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.18)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.45)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.25)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "";
+                }}>
+                <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                  <path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A1 1 0 004.7 12.5h4.6a1 1 0 001-.99L11 4"/>
+                </svg>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function Group({ title, badge, color, items }: { title: string; badge: string; color: string; items: V3Position[] }) {
+    if (items.length === 0) return null;
+    return (
+      <div className="mb-1">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] uppercase tracking-[0.1em] font-semibold" style={{ color }}>{title}</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: `${color}18`, border: `1px solid ${color}33`, color }}>{badge}</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          {items.map(p => <PositionCard key={String(p.tokenId)} p={p} />)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <Group title="In Range" badge={`${inRange.length}`} color="rgba(52,211,153,0.85)" items={inRange} />
+      <Group title="Out of Range" badge={`${outRange.length}`} color="rgba(251,191,36,0.85)" items={outRange} />
+      <Group title="Closed" badge={`${closed.length}`} color="rgba(100,116,139,0.6)" items={closed} />
+      {positions[0]?.currentPriceUSDC > 0 && (
+        <p className="text-[10px] font-data text-right" style={{ color: "rgba(100,116,139,0.45)" }}>
           Pool price: ~{positions[0].currentPriceUSDC.toFixed(4)} USDC/WPROS
         </p>
       )}
@@ -762,46 +824,139 @@ function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (
   );
 }
 
-// ─── percentage quick-pick buttons ──────────────────────────────────────────
+// ─── remove liquidity % selector ──────────────────────────────────────────
 
-function RemovePositionSelector({ positions, onSelect }: { positions: V3Position[]; onSelect: (position: V3Position) => void }) {
+function RemovePctSelector({ position, onSelect }: { position: V3Position; onSelect: (pct: number) => void }) {
+  const [hoveredPct, setHoveredPct] = useState<number | null>(null);
+  const pcts = [
+    { label: "25%", pct: 25, accent: "rgba(56,189,248,0.85)" },
+    { label: "50%", pct: 50, accent: "rgba(99,102,241,0.85)" },
+    { label: "75%", pct: 75, accent: "rgba(251,191,36,0.85)" },
+    { label: "100%", pct: 100, accent: "rgba(239,68,68,0.85)" },
+  ];
+  const display = hoveredPct ?? 100;
+  const previewWpros = (position.amount0WPROS * display / 100).toFixed(6);
+  const previewUsdc  = (position.amount1USDC  * display / 100).toFixed(6);
+
   return (
-    <div className="mt-4 flex flex-col gap-2">
-      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2" style={{ color: "rgba(0,212,255,0.45)" }}>
-        Select position to remove
-      </p>
-      <div className="flex flex-col gap-2">
-        {positions.map((pos) => {
-          const inRange = pos.inRange;
-          const statusColor = inRange ? "rgba(52,211,153,0.8)" : "rgba(251,191,36,0.8)";
-          const statusBg = inRange ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
-          return (
-            <button key={String(pos.tokenId)} onClick={() => onSelect(pos)}
-              className="flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-all duration-200"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(0,212,255,0.2)" }}
+    <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(239,68,68,0.18)" }}>
+      <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(239,68,68,0.1)", background: "rgba(239,68,68,0.04)" }}>
+        <p className="text-xs font-semibold text-white">Remove Liquidity — NFT #{String(position.tokenId)}</p>
+        <p className="text-[10px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.45)" }}>
+          WPROS / USDC · {(position.fee / 10000).toFixed(2)}% fee · {position.inRange ? "In Range" : "Out of Range"}
+        </p>
+      </div>
+
+      {/* Preview */}
+      <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+        <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-2" style={{ color: "rgba(148,163,184,0.4)" }}>
+          You will receive (~{display}%)
+        </p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-data">
+          <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
+          <span className="text-right font-semibold text-gray-200">{previewWpros}</span>
+          <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
+          <span className="text-right font-semibold text-gray-200">{previewUsdc}</span>
+          {(position.feesWPROS > 0.000001 || position.feesUSDC > 0.000001) && (<>
+            <span className="col-span-2 mt-1" style={{ color: "rgba(251,191,36,0.55)", fontSize: "10px" }}>
+              + all uncollected fees: {position.feesWPROS.toFixed(6)} WPROS + {position.feesUSDC.toFixed(6)} USDC
+            </span>
+          </>)}
+        </div>
+      </div>
+
+      {/* Pct buttons */}
+      <div className="px-4 py-3">
+        <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-2.5" style={{ color: "rgba(148,163,184,0.35)" }}>
+          How much to remove?
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          {pcts.map(({ label, pct, accent }) => (
+            <button key={pct}
+              onClick={() => onSelect(pct)}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.08)";
-                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.4)";
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                setHoveredPct(pct);
+                (e.currentTarget as HTMLButtonElement).style.background = `${accent}22`;
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
-                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.2)";
+                setHoveredPct(null);
+                (e.currentTarget as HTMLButtonElement).style.background = `${accent}12`;
                 (e.currentTarget as HTMLButtonElement).style.transform = "";
-              }}>
-              <div>
-                <p className="text-sm font-semibold text-white">NFT #{String(pos.tokenId)}</p>
-                <p className="text-[10px] mt-1 font-data" style={{ color: "rgba(148,163,184,0.6)" }}>
-                  {pos.amount0WPROS.toFixed(4)} WPROS + {pos.amount1USDC.toFixed(4)} USDC · {(pos.fee / 10000).toFixed(2)}% fee
-                </p>
-              </div>
-              <span className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0" style={{ color: statusColor, background: statusBg, border: `1px solid ${statusColor}66` }}>
-                {inRange ? "In Range" : "Out of Range"}
-              </span>
+              }}
+              className="py-2.5 rounded-xl text-sm font-bold transition-all duration-200 flex flex-col items-center gap-0.5"
+              style={{ background: `${accent}12`, border: `1px solid ${accent}30`, color: accent }}>
+              {label}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ─── remove position selector ────────────────────────────────────────────────
+
+function RemovePositionSelector({ positions, onSelect }: { positions: V3Position[]; onSelect: (position: V3Position) => void }) {
+  const withLiq = positions.filter(p => p.liquidity > 0n);
+  const outRange = withLiq.filter(p => !p.inRange);
+  const inRange  = withLiq.filter(p => p.inRange);
+
+  function Row({ pos }: { pos: V3Position }) {
+    const inR = pos.inRange;
+    const sc = inR ? "rgba(52,211,153,0.8)" : "rgba(251,191,36,0.8)";
+    const sb = inR ? "rgba(52,211,153,0.08)" : "rgba(251,191,36,0.08)";
+    return (
+      <button onClick={() => onSelect(pos)}
+        className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl text-left transition-all duration-200"
+        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(239,68,68,0.18)" }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.07)";
+          (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.35)";
+          (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
+          (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.18)";
+          (e.currentTarget as HTMLButtonElement).style.transform = "";
+        }}>
+        <div>
+          <p className="text-sm font-semibold text-white">NFT #{String(pos.tokenId)}</p>
+          <p className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.5)" }}>
+            {(pos.fee / 10000).toFixed(2)}% · {pos.amount0WPROS.toFixed(4)} WPROS + {pos.amount1USDC.toFixed(4)} USDC
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: sc, background: sb, border: `1px solid ${sc}40` }}>{inR ? "In Range" : "Out of Range"}</span>
+          <svg viewBox="0 0 14 14" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="rgba(239,68,68,0.55)" strokeWidth="1.7" strokeLinecap="round">
+            <path d="M5 2.5h4M2 4h10M4 4l.7 7.5a1 1 0 001 .99h4.6a1 1 0 001-.99L12 4"/>
+          </svg>
+        </div>
+      </button>
+    );
+  }
+
+  function Group({ title, color, items }: { title: string; color: string; items: V3Position[] }) {
+    if (items.length === 0) return null;
+    return (
+      <div className="mb-2">
+        <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color }}>{title} ({items.length})</p>
+        <div className="flex flex-col gap-1.5">{items.map(p => <Row key={String(p.tokenId)} pos={p} />)}</div>
+      </div>
+    );
+  }
+
+  if (withLiq.length === 0) {
+    return <p className="mt-3 text-sm" style={{ color: "rgba(148,163,184,0.55)" }}>No active positions to remove.</p>;
+  }
+
+  return (
+    <div className="mt-4">
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(239,68,68,0.5)" }}>
+        Select position to remove
+      </p>
+      <Group title="Out of Range" color="rgba(251,191,36,0.7)" items={outRange} />
+      <Group title="In Range" color="rgba(52,211,153,0.7)" items={inRange} />
     </div>
   );
 }
@@ -877,7 +1032,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect }: {
+function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect }: {
   msg: Message; walletAddress: string;
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -887,6 +1042,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
   onWalletChoice: (id: string, opt: WalletOption) => void;
   onAmountPicked: (amount: number, token: string) => void;
   onPositionSelect: (msgId: string, position: V3Position) => void;
+  onPctSelect: (msgId: string, position: V3Position, pct: number) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -1137,12 +1293,19 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
                 </div>
               )}
 
-              {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} />}
+              {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} onRemove={(pos) => onPositionSelect(msg.id, pos)} />}
 
               {msg.positions && msg.removeMode && (
                 <RemovePositionSelector
                   positions={msg.positions}
                   onSelect={(pos) => onPositionSelect(msg.id, pos)}
+                />
+              )}
+
+              {msg.removePctPending && (
+                <RemovePctSelector
+                  position={msg.removePctPending.position}
+                  onSelect={(pct) => onPctSelect(msg.id, msg.removePctPending!.position, pct)}
                 />
               )}
 
@@ -1403,27 +1566,46 @@ export default function ChatPage() {
   }
 
   async function handlePositionSelect(msgId: string, position: V3Position) {
+    // Show percentage picker — don't build tx yet
+    updateMessage(msgId, {
+      positions: undefined,
+      removeMode: undefined,
+      removePctPending: { position },
+    });
+  }
+
+  async function handlePctSelect(msgId: string, position: V3Position, pct: number) {
     const lang = guessUserLang(messages);
-    // Remove the selector from the message that showed positions
-    updateMessage(msgId, { positions: undefined, removeMode: undefined, text: lang === "pt" ? "Preparando remoção de liquidez…" : "Building remove liquidity transaction…", isLoading: true });
+    updateMessage(msgId, {
+      removePctPending: undefined,
+      text: lang === "pt" ? "Preparando remoção de liquidez…" : "Building remove liquidity transaction…",
+      isLoading: true,
+    });
     try {
       const { buildRemoveLiquidityTx, FEE_TIERS: _FEE_TIERS } = await import("@/lib/liquidity");
       const feeTier = position.fee as import("@/lib/liquidity").FeeTier;
+
+      // Scale liquidity by percentage
+      const scaledLiquidity = position.liquidity * BigInt(pct) / 100n;
+      const scaledWpros     = position.amount0WPROS * pct / 100;
+      const scaledUsdc      = position.amount1USDC  * pct / 100;
+      // Always collect all accrued fees regardless of removal %
       const result = await buildRemoveLiquidityTx(
         position.tokenId,
-        position.liquidity,
+        scaledLiquidity,
         feeTier,
         walletAddress,
-        position.amount0WPROS,
-        position.amount1USDC,
+        scaledWpros,
+        scaledUsdc,
         position.feesWPROS,
         position.feesUSDC,
       );
+      const pctLabel = pct === 100 ? "all" : `${pct}%`;
       const totalWPROS = (result.amount0WPROS + result.feesWPROS).toFixed(6);
       const totalUSDC  = (result.amount1USDC  + result.feesUSDC).toFixed(6);
       const confirmText = lang === "pt"
-        ? `Pronto! Vou remover a posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`
-        : `Ready to remove NFT #${String(position.tokenId)}.\n\nYou'll receive:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirm in your wallet.`;
+        ? `Pronto! Removendo **${pctLabel}** da posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`
+        : `Ready to remove **${pctLabel}** of NFT #${String(position.tokenId)}.\n\nYou'll receive:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirm in your wallet.`;
       updateMessage(msgId, { isLoading: false, text: confirmText, removeLiquidityPending: { result } });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -2154,6 +2336,7 @@ export default function ChatPage() {
                 inputRef.current?.focus();
               }}
               onPositionSelect={handlePositionSelect}
+              onPctSelect={handlePctSelect}
             />
           ))}
           <div ref={bottomRef} />
