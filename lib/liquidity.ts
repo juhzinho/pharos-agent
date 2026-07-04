@@ -406,6 +406,8 @@ export interface RemoveLiquidityBuildResult {
   decreaseCalldata: string;
   collectCalldata: string;
   description: string;
+  /** true when liquidity=0 — only collect fees, skip decreaseLiquidity */
+  collectOnly: boolean;
 }
 
 export async function buildRemoveLiquidityTx(
@@ -418,23 +420,27 @@ export async function buildRemoveLiquidityTx(
   feesAmount0: number,
   feesAmount1: number,
 ): Promise<RemoveLiquidityBuildResult> {
+  const collectOnly = liquidity === 0n;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
 
-  // With 1% slippage tolerance
-  const amount0Min = BigInt(Math.floor(expectedAmount0 * 1e18 * 0.99));
-  const amount1Min = BigInt(Math.floor(expectedAmount1 * 1e6 * 0.99));
+  // decreaseLiquidity is skipped when liquidity=0 (closed position — collect fees only)
+  let decreaseCalldata = "";
+  if (!collectOnly) {
+    const amount0Min = BigInt(Math.floor(expectedAmount0 * 1e18 * 0.99));
+    const amount1Min = BigInt(Math.floor(expectedAmount1 * 1e6 * 0.99));
+    decreaseCalldata = buildDecreaseCalldata(
+      tokenId,
+      liquidity,
+      amount0Min,
+      amount1Min,
+      deadline,
+    );
+  }
 
-  const decreaseCalldata = buildDecreaseCalldata(
-    tokenId,
-    liquidity,
-    amount0Min,
-    amount1Min,
-    deadline,
-  );
-
-  // Collect all available tokens + fees
-  const amount0Max = BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n;
-  const amount1Max = BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n;
+  // Collect all available tokens + fees (use uint128 max to collect everything)
+  const MAX_UINT128 = (2n ** 128n) - 1n;
+  const amount0Max = collectOnly ? MAX_UINT128 : (BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n);
+  const amount1Max = collectOnly ? MAX_UINT128 : (BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n);
 
   const collectCalldata = buildCollectCalldata(
     tokenId,
@@ -444,11 +450,9 @@ export async function buildRemoveLiquidityTx(
   );
 
   const feeLabel = FEE_TIERS[feeTier].label;
-  const description =
-    `FaroSwap V3 · Remove liquidity · fee ${feeLabel}\n` +
-    `Token ID: ${tokenId.toString()}\n` +
-    `WPROS: ${expectedAmount0.toFixed(6)} (+ ${feesAmount0.toFixed(6)} fees)\n` +
-    `USDC: ${expectedAmount1.toFixed(6)} (+ ${feesAmount1.toFixed(6)} fees)`;
+  const description = collectOnly
+    ? `FaroSwap V3 · Collect fees · fee ${feeLabel}\nToken ID: ${tokenId.toString()}\nFees: ${feesAmount0.toFixed(6)} WPROS + ${feesAmount1.toFixed(6)} USDC`
+    : `FaroSwap V3 · Remove liquidity · fee ${feeLabel}\nToken ID: ${tokenId.toString()}\nWPROS: ${expectedAmount0.toFixed(6)} (+ ${feesAmount0.toFixed(6)} fees)\nUSDC: ${expectedAmount1.toFixed(6)} (+ ${feesAmount1.toFixed(6)} fees)`;
 
   return {
     tokenId,
@@ -461,6 +465,7 @@ export async function buildRemoveLiquidityTx(
     decreaseCalldata,
     collectCalldata,
     description,
+    collectOnly,
   };
 }
 

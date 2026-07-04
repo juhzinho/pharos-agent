@@ -587,24 +587,35 @@ function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRem
               onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.35)")}>
               View NFT →
             </a>
-            {onRemove && hasLiq && (
+            {onRemove && (hasLiq || p.feesWPROS > 0.000001 || p.feesUSDC > 0.000001) && (
               <button onClick={() => onRemove(p)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
-                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "rgba(248,113,113,0.9)" }}
+                style={hasLiq
+                  ? { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "rgba(248,113,113,0.9)" }
+                  : { background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(251,191,36,0.9)" }
+                }
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.18)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.45)";
+                  const col = hasLiq ? "rgba(239,68,68," : "rgba(251,191,36,";
+                  (e.currentTarget as HTMLButtonElement).style.background = col + "0.18)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = col + "0.45)";
                   (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.1)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.25)";
+                  const col = hasLiq ? "rgba(239,68,68," : "rgba(251,191,36,";
+                  (e.currentTarget as HTMLButtonElement).style.background = col + "0.1)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = col + "0.25)";
                   (e.currentTarget as HTMLButtonElement).style.transform = "";
                 }}>
-                <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                  <path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A1 1 0 004.7 12.5h4.6a1 1 0 001-.99L11 4"/>
-                </svg>
-                Remove
+                {hasLiq ? (
+                  <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                    <path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A1 1 0 004.7 12.5h4.6a1 1 0 001-.99L11 4"/>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                    <path d="M7 1v12M3 5l4-4 4 4M3 9l4 4 4-4"/>
+                  </svg>
+                )}
+                {hasLiq ? "Remove" : "Collect Fees"}
               </button>
             )}
           </div>
@@ -728,13 +739,14 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
   type Step = "idle" | "switching" | "decreasing" | "confirming_decrease" | "collecting" | "done";
   const [step, setStep] = useState<Step>("idle");
   const { result } = removeLiquidityPending;
+  const isCollectOnly = result.collectOnly;
 
   const stepLabels: Record<Step, string> = {
-    idle: "Remove Liquidity",
+    idle: isCollectOnly ? "Collect Fees" : "Remove Liquidity",
     switching: "Switching to Pharos…",
     decreasing: "Removing liquidity…",
     confirming_decrease: "Confirming removal…",
-    collecting: "Collecting tokens + fees…",
+    collecting: isCollectOnly ? "Collecting fees…" : "Collecting tokens + fees…",
     done: "Done!",
   };
 
@@ -745,14 +757,16 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
       const ethersProvider = getBrowserProvider();
       const signer = await ethersProvider.getSigner();
 
-      setStep("decreasing");
-      const tx1 = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.decreaseCalldata, value: 0n });
-      setStep("confirming_decrease");
-      const receipt1 = await tx1.wait(1);
-      if (!receipt1 || receipt1.status !== 1) {
-        setStep("idle");
-        onReverted(tx1.hash);
-        return;
+      if (!isCollectOnly) {
+        setStep("decreasing");
+        const tx1 = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.decreaseCalldata, value: 0n });
+        setStep("confirming_decrease");
+        const receipt1 = await tx1.wait(1);
+        if (!receipt1 || receipt1.status !== 1) {
+          setStep("idle");
+          onReverted(tx1.hash);
+          return;
+        }
       }
 
       setStep("collecting");
@@ -775,13 +789,18 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
 
   const isIdle = step === "idle";
   const isDone = step === "done";
+  const btnBg = isDone
+    ? "linear-gradient(135deg,#0ea5e9,#38bdf8)"
+    : isCollectOnly
+    ? "linear-gradient(135deg,#d97706 0%,#fbbf24 50%,#b45309 100%)"
+    : "linear-gradient(135deg,#ef4444 0%,#f87171 50%,#dc2626 100%)";
+  const btnShadow = isIdle
+    ? isCollectOnly ? "0 4px 18px rgba(251,191,36,0.32), inset 0 1px 0 rgba(255,255,255,0.2)" : "0 4px 18px rgba(239,68,68,0.32), inset 0 1px 0 rgba(255,255,255,0.2)"
+    : "none";
   return (
     <button onClick={handleRemove} disabled={!isIdle}
       className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
-      style={{
-        background: isDone ? "linear-gradient(135deg,#0ea5e9,#38bdf8)" : "linear-gradient(135deg,#ef4444 0%,#f87171 50%,#dc2626 100%)",
-        boxShadow: isIdle ? "0 4px 18px rgba(239,68,68,0.32), inset 0 1px 0 rgba(255,255,255,0.2)" : "none",
-      }}
+      style={{ background: btnBg, boxShadow: btnShadow }}
       onMouseEnter={(e) => { if (!isIdle) return; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
       {isIdle && <span className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.15) 50%,transparent 60%)", animation: "shimmer 3s ease-in-out infinite" }} />}
@@ -828,6 +847,7 @@ function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (
 
 function RemovePctSelector({ position, onSelect }: { position: V3Position; onSelect: (pct: number) => void }) {
   const [hoveredPct, setHoveredPct] = useState<number | null>(null);
+  const isCollectOnly = position.liquidity === 0n;
   const pcts = [
     { label: "25%", pct: 25, accent: "rgba(56,189,248,0.85)" },
     { label: "50%", pct: 50, accent: "rgba(99,102,241,0.85)" },
@@ -837,6 +857,36 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
   const display = hoveredPct ?? 100;
   const previewWpros = (position.amount0WPROS * display / 100).toFixed(6);
   const previewUsdc  = (position.amount1USDC  * display / 100).toFixed(6);
+
+  if (isCollectOnly) {
+    return (
+      <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(251,191,36,0.2)" }}>
+        <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(251,191,36,0.12)", background: "rgba(251,191,36,0.03)" }}>
+          <p className="text-xs font-semibold text-white">Collect Fees — NFT #{String(position.tokenId)}</p>
+          <p className="text-[10px] mt-0.5 font-data" style={{ color: "rgba(251,191,36,0.45)" }}>
+            Closed position · {(position.fee / 10000).toFixed(2)}% fee tier
+          </p>
+        </div>
+        <div className="px-4 py-3 space-y-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-data">
+            <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS fees</span>
+            <span className="text-right font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{position.feesWPROS.toFixed(6)}</span>
+            {position.feesUSDC > 0 && (<>
+              <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC fees</span>
+              <span className="text-right font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{position.feesUSDC.toFixed(6)}</span>
+            </>)}
+          </div>
+          <button onClick={() => onSelect(100)}
+            className="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
+            style={{ background: "linear-gradient(135deg,#d97706,#fbbf24,#b45309)", boxShadow: "0 4px 16px rgba(251,191,36,0.28)", color: "#000" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
+            Collect All Fees
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(239,68,68,0.18)" }}>
@@ -898,37 +948,40 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
 // ─── remove position selector ────────────────────────────────────────────────
 
 function RemovePositionSelector({ positions, onSelect }: { positions: V3Position[]; onSelect: (position: V3Position) => void }) {
-  const withLiq = positions.filter(p => p.liquidity > 0n);
+  const withLiq  = positions.filter(p => p.liquidity > 0n);
   const outRange = withLiq.filter(p => !p.inRange);
   const inRange  = withLiq.filter(p => p.inRange);
+  // Closed positions with uncollected fees (liquidity=0 but fees pending)
+  const closed   = positions.filter(p => p.liquidity === 0n && (p.feesWPROS > 0.000001 || p.feesUSDC > 0.000001));
 
-  function Row({ pos }: { pos: V3Position }) {
-    const inR = pos.inRange;
-    const sc = inR ? "rgba(52,211,153,0.8)" : "rgba(251,191,36,0.8)";
-    const sb = inR ? "rgba(52,211,153,0.08)" : "rgba(251,191,36,0.08)";
+  function Row({ pos, label, accent }: { pos: V3Position; label: string; accent: string }) {
+    const hasLiq = pos.liquidity > 0n;
     return (
       <button onClick={() => onSelect(pos)}
         className="flex items-center justify-between w-full px-3.5 py-3 rounded-xl text-left transition-all duration-200"
-        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(239,68,68,0.18)" }}
+        style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${accent}30` }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.07)";
-          (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.35)";
+          (e.currentTarget as HTMLButtonElement).style.background = `${accent}10`;
+          (e.currentTarget as HTMLButtonElement).style.borderColor = `${accent}55`;
           (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.03)";
-          (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.18)";
+          (e.currentTarget as HTMLButtonElement).style.borderColor = `${accent}30`;
           (e.currentTarget as HTMLButtonElement).style.transform = "";
         }}>
         <div>
           <p className="text-sm font-semibold text-white">NFT #{String(pos.tokenId)}</p>
-          <p className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.5)" }}>
-            {(pos.fee / 10000).toFixed(2)}% · {pos.amount0WPROS.toFixed(4)} WPROS + {pos.amount1USDC.toFixed(4)} USDC
+          <p className="text-[11px] font-data mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>
+            {hasLiq
+              ? `${(pos.fee / 10000).toFixed(2)}% · ${pos.amount0WPROS.toFixed(4)} WPROS + ${pos.amount1USDC.toFixed(4)} USDC`
+              : `${(pos.fee / 10000).toFixed(2)}% · Fees: ${pos.feesWPROS.toFixed(6)} WPROS${pos.feesUSDC > 0 ? ` + ${pos.feesUSDC.toFixed(6)} USDC` : ""}`
+            }
           </p>
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: sc, background: sb, border: `1px solid ${sc}40` }}>{inR ? "In Range" : "Out of Range"}</span>
-          <svg viewBox="0 0 14 14" className="w-3.5 h-3.5 shrink-0" fill="none" stroke="rgba(239,68,68,0.55)" strokeWidth="1.7" strokeLinecap="round">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: accent, background: `${accent}15`, border: `1px solid ${accent}35` }}>{label}</span>
+          <svg viewBox="0 0 14 14" className="w-3.5 h-3.5 shrink-0" fill="none" stroke={accent} strokeOpacity="0.6" strokeWidth="1.7" strokeLinecap="round">
             <path d="M5 2.5h4M2 4h10M4 4l.7 7.5a1 1 0 001 .99h4.6a1 1 0 001-.99L12 4"/>
           </svg>
         </div>
@@ -936,18 +989,23 @@ function RemovePositionSelector({ positions, onSelect }: { positions: V3Position
     );
   }
 
-  function Group({ title, color, items }: { title: string; color: string; items: V3Position[] }) {
+  function Group({ title, color, items, label, accent }: { title: string; color: string; items: V3Position[]; label: string; accent: string }) {
     if (items.length === 0) return null;
     return (
       <div className="mb-2">
         <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color }}>{title} ({items.length})</p>
-        <div className="flex flex-col gap-1.5">{items.map(p => <Row key={String(p.tokenId)} pos={p} />)}</div>
+        <div className="flex flex-col gap-1.5">{items.map(p => <Row key={String(p.tokenId)} pos={p} label={label} accent={accent} />)}</div>
       </div>
     );
   }
 
-  if (withLiq.length === 0) {
-    return <p className="mt-3 text-sm" style={{ color: "rgba(148,163,184,0.55)" }}>No active positions to remove.</p>;
+  if (withLiq.length === 0 && closed.length === 0) {
+    return (
+      <div className="mt-3 px-3 py-3 rounded-xl" style={{ background: "rgba(100,116,139,0.08)", border: "1px solid rgba(100,116,139,0.15)" }}>
+        <p className="text-sm" style={{ color: "rgba(148,163,184,0.55)" }}>Nenhuma posição ativa ou com fees pendentes encontrada.</p>
+        <p className="text-xs mt-1" style={{ color: "rgba(100,116,139,0.4)" }}>Diga "adicionar liquidez" para criar uma nova posição no FaroSwap.</p>
+      </div>
+    );
   }
 
   return (
@@ -955,8 +1013,9 @@ function RemovePositionSelector({ positions, onSelect }: { positions: V3Position
       <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(239,68,68,0.5)" }}>
         Select position to remove
       </p>
-      <Group title="Out of Range" color="rgba(251,191,36,0.7)" items={outRange} />
-      <Group title="In Range" color="rgba(52,211,153,0.7)" items={inRange} />
+      <Group title="Out of Range" color="rgba(251,191,36,0.7)" items={outRange} label="Out of Range" accent="rgba(251,191,36,0.8)" />
+      <Group title="In Range" color="rgba(52,211,153,0.7)" items={inRange} label="In Range" accent="rgba(52,211,153,0.8)" />
+      <Group title="Closed — Collect Fees" color="rgba(148,163,184,0.5)" items={closed} label="Collect Fees" accent="rgba(251,191,36,0.8)" />
     </div>
   );
 }
@@ -1249,24 +1308,34 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
               {msg.removeLiquidityPending && walletAddress && (
                 <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.8)", border: "1px solid rgba(239,68,68,0.18)", backdropFilter: "blur(16px)" }}>
                   <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(239,68,68,0.12)", background: "rgba(239,68,68,0.04)" }}>
-                    <p className="text-xs font-semibold text-white">Remove Liquidity</p>
+                    <p className="text-xs font-semibold text-white">
+                      {msg.removeLiquidityPending.result.collectOnly ? "Collect Fees" : "Remove Liquidity"}
+                    </p>
                     <p className="text-[11px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.5)" }}>NFT #{String(msg.removeLiquidityPending.result.tokenId)} · FaroSwap V3</p>
                   </div>
                   <div className="px-4 py-3 space-y-3">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
                       <span style={{ color: "rgba(100,116,139,0.75)" }}>Token ID</span>
                       <span className="text-right text-gray-300">#{String(msg.removeLiquidityPending.result.tokenId)}</span>
-                      <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
-                      <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount0WPROS.toFixed(6)}</span>
-                      <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
-                      <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount1USDC.toFixed(6)}</span>
-                      {msg.removeLiquidityPending.result.feesWPROS > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>Fee WPROS</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span></>)}
-                      {msg.removeLiquidityPending.result.feesUSDC > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>Fee USDC</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span></>)}
+                      {!msg.removeLiquidityPending.result.collectOnly && (<>
+                        <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
+                        <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount0WPROS.toFixed(6)}</span>
+                        <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
+                        <span className="text-right font-medium text-gray-200">{msg.removeLiquidityPending.result.amount1USDC.toFixed(6)}</span>
+                      </>)}
+                      {msg.removeLiquidityPending.result.feesWPROS > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>{msg.removeLiquidityPending.result.collectOnly ? "WPROS fees" : "Fee WPROS"}</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span></>)}
+                      {msg.removeLiquidityPending.result.feesUSDC > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>{msg.removeLiquidityPending.result.collectOnly ? "USDC fees" : "Fee USDC"}</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span></>)}
                     </div>
-                    {(msg.removeLiquidityPending.result.feesWPROS > 0 || msg.removeLiquidityPending.result.feesUSDC > 0) && (
+                    {!msg.removeLiquidityPending.result.collectOnly && (msg.removeLiquidityPending.result.feesWPROS > 0 || msg.removeLiquidityPending.result.feesUSDC > 0) && (
                       <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
                         <span style={{ color: "rgba(251,191,36,0.8)" }} className="mt-0.5 shrink-0 text-sm">★</span>
                         <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.7)" }}>Uncollected fees will be included automatically.</span>
+                      </div>
+                    )}
+                    {msg.removeLiquidityPending.result.collectOnly && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
+                        <span style={{ color: "rgba(251,191,36,0.8)" }} className="mt-0.5 shrink-0 text-sm">★</span>
+                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.7)" }}>This position is closed. Only uncollected fees will be collected.</span>
                       </div>
                     )}
                   </div>
@@ -1566,7 +1635,12 @@ export default function ChatPage() {
   }
 
   async function handlePositionSelect(msgId: string, position: V3Position) {
-    // Show percentage picker — don't build tx yet
+    // Closed position (liquidity=0): skip pct picker — go straight to collect fees
+    if (position.liquidity === 0n) {
+      await handlePctSelect(msgId, position, 100);
+      return;
+    }
+    // Active position: show percentage picker
     updateMessage(msgId, {
       positions: undefined,
       removeMode: undefined,
@@ -1600,12 +1674,17 @@ export default function ChatPage() {
         position.feesWPROS,
         position.feesUSDC,
       );
-      const pctLabel = pct === 100 ? "all" : `${pct}%`;
+      const pctLabel = pct === 100 && position.liquidity === 0n ? "fees" : pct === 100 ? "all" : `${pct}%`;
       const totalWPROS = (result.amount0WPROS + result.feesWPROS).toFixed(6);
       const totalUSDC  = (result.amount1USDC  + result.feesUSDC).toFixed(6);
+      const isCollectOnly = position.liquidity === 0n;
       const confirmText = lang === "pt"
-        ? `Pronto! Removendo **${pctLabel}** da posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`
-        : `Ready to remove **${pctLabel}** of NFT #${String(position.tokenId)}.\n\nYou'll receive:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirm in your wallet.`;
+        ? isCollectOnly
+          ? `Coletando fees da posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`
+          : `Pronto! Removendo **${pctLabel}** da posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`
+        : isCollectOnly
+          ? `Collecting fees from NFT #${String(position.tokenId)}.\n\nYou'll receive:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirm in your wallet.`
+          : `Ready to remove **${pctLabel}** of NFT #${String(position.tokenId)}.\n\nYou'll receive:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirm in your wallet.`;
       updateMessage(msgId, { isLoading: false, text: confirmText, removeLiquidityPending: { result } });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
