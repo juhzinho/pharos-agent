@@ -1,7 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import PriceTicker from "@/components/PriceTicker";
+import type { WalletOption } from "@/lib/wallet";
+
+interface WalletPicker {
+  options: WalletOption[];
+  onChoose: (opt: WalletOption) => void;
+  onClose: () => void;
+}
 
 interface NavbarProps {
   walletAddress?: string;
@@ -12,6 +20,7 @@ interface NavbarProps {
   isWrongNetwork?: boolean;
   onSwitchNetwork?: () => void;
   stats?: { totalCount: number; favoriteToken?: string | null; favoriteChain?: string | null } | null;
+  walletPicker?: WalletPicker | null;
 }
 
 function OrbLogo() {
@@ -22,8 +31,24 @@ function OrbLogo() {
   );
 }
 
-export default function Navbar({ walletAddress, balance, isConnecting, onConnect, onDisconnect, isWrongNetwork, onSwitchNetwork, stats }: NavbarProps) {
+export default function Navbar({
+  walletAddress, balance, isConnecting, onConnect, onDisconnect,
+  isWrongNetwork, onSwitchNetwork, stats, walletPicker,
+}: NavbarProps) {
   const pathname = usePathname();
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    if (!walletPicker) return;
+    function handler(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        walletPicker?.onClose();
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [walletPicker]);
 
   const navLinks = [
     { label: "Chat",     href: "/chat"      },
@@ -85,6 +110,7 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
         {/* Wallet / CTA */}
         <div className="flex items-center gap-2.5 shrink-0">
           <PriceTicker />
+
           {walletAddress ? (
             <div className="flex items-center gap-2 shrink-0">
               {isWrongNetwork && onSwitchNetwork && (
@@ -129,42 +155,87 @@ export default function Navbar({ walletAddress, balance, isConnecting, onConnect
                 </div>
               </div>
             </div>
-          ) : onConnect ? (
-            <button
-              onClick={onConnect}
-              disabled={isConnecting}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-xs text-black transition-all duration-200 disabled:opacity-60"
-              style={{
-                background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
-                boxShadow: "0 4px 14px rgba(0,212,255,0.3)",
-              }}
-              onMouseEnter={(e) => {
-                if (!isConnecting) (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.03)";
-              }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
-            >
-              {isConnecting ? (
-                <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="currentColor">
-                  <path d="M12 4H2a.88.88 0 00-.88.88v3.5A.88.88 0 002 9.25h10a.88.88 0 00.88-.87v-3.5A.88.88 0 0012 4zM2.88 8.12V6.63A.88.88 0 012 5.75a.88.88 0 01.88-.88v3.25z"/>
-                </svg>
-              )}
-              {isConnecting ? "Connecting…" : "Connect Wallet"}
-            </button>
           ) : (
-            <Link
-              href="/chat"
-              className="px-4 py-2 rounded-xl font-semibold text-xs text-black transition-all duration-200"
-              style={{
-                background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
-                boxShadow: "0 4px 14px rgba(0,212,255,0.3)",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-1px) scale(1.03)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = ""; }}
-            >
-              Launch App →
-            </Link>
+            // Connect button + wallet picker dropdown
+            <div className="relative" ref={pickerRef}>
+              {onConnect ? (
+                <button
+                  onClick={onConnect}
+                  disabled={isConnecting}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-xs text-black transition-all duration-200 disabled:opacity-60"
+                  style={{
+                    background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
+                    boxShadow: "0 4px 14px rgba(0,212,255,0.3)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isConnecting) (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.03)";
+                  }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+                >
+                  {isConnecting ? (
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="currentColor">
+                      <path d="M12 4H2a.88.88 0 00-.88.88v3.5A.88.88 0 002 9.25h10a.88.88 0 00.88-.87v-3.5A.88.88 0 0012 4zM2.88 8.12V6.63A.88.88 0 012 5.75a.88.88 0 01.88-.88v3.25z"/>
+                    </svg>
+                  )}
+                  {isConnecting ? "Connecting…" : "Connect Wallet"}
+                </button>
+              ) : (
+                <Link
+                  href="/chat"
+                  className="px-4 py-2 rounded-xl font-semibold text-xs text-black transition-all duration-200"
+                  style={{
+                    background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
+                    boxShadow: "0 4px 14px rgba(0,212,255,0.3)",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-1px) scale(1.03)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = ""; }}
+                >
+                  Launch App →
+                </Link>
+              )}
+
+              {/* Wallet picker dropdown */}
+              {walletPicker && walletPicker.options.length > 0 && (
+                <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl overflow-hidden z-50"
+                  style={{
+                    background: "rgba(6,12,28,0.97)",
+                    border: "1px solid rgba(0,212,255,0.22)",
+                    backdropFilter: "blur(24px)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,212,255,0.06)",
+                  }}>
+                  <div className="px-3.5 py-2.5 border-b" style={{ borderColor: "rgba(0,212,255,0.1)" }}>
+                    <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(0,212,255,0.45)" }}>
+                      Choose wallet
+                    </p>
+                  </div>
+                  <div className="p-2 flex flex-col gap-1">
+                    {walletPicker.options.map((opt) => (
+                      <button key={opt.id}
+                        onClick={() => { walletPicker.onChoose(opt); walletPicker.onClose(); }}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left transition-all duration-150"
+                        style={{ background: "transparent" }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.08)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                        }}>
+                        {opt.icon
+                          ? <img src={opt.icon} alt="" className="w-7 h-7 rounded-lg shrink-0" />
+                          : <span className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-xs font-bold"
+                              style={{ background: "rgba(0,212,255,0.12)", color: "rgba(0,212,255,0.7)" }}>
+                              {opt.name[0]}
+                            </span>
+                        }
+                        <span className="text-sm font-semibold text-white">{opt.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

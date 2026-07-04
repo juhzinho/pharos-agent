@@ -4,12 +4,22 @@ interface UserPrefs {
   tokenUsage: Record<string, number>;
   chainUsage: Record<string, number>;
   lastProvider: string | null;
+  detectedLanguage: string | null;
+  conversationStyle: "casual" | "technical" | null;
 }
 
 const STORAGE_KEY = "pharos_agent_prefs";
 
 function defaultPrefs(): UserPrefs {
-  return { swapCount: 0, bridgeCount: 0, tokenUsage: {}, chainUsage: {}, lastProvider: null };
+  return {
+    swapCount: 0,
+    bridgeCount: 0,
+    tokenUsage: {},
+    chainUsage: {},
+    lastProvider: null,
+    detectedLanguage: null,
+    conversationStyle: null,
+  };
 }
 
 function load(): UserPrefs {
@@ -40,6 +50,8 @@ export interface UserStats {
   favoriteToken: string | null;
   favoriteChain: string | null;
   lastProvider: string | null;
+  detectedLanguage: string | null;
+  conversationStyle: "casual" | "technical" | null;
 }
 
 export function getStats(): UserStats {
@@ -51,6 +63,8 @@ export function getStats(): UserStats {
     favoriteToken: topKey(p.tokenUsage),
     favoriteChain: topKey(p.chainUsage),
     lastProvider: p.lastProvider,
+    detectedLanguage: p.detectedLanguage,
+    conversationStyle: p.conversationStyle,
   };
 }
 
@@ -69,14 +83,28 @@ export function recordTransaction(
   save(p);
 }
 
-// Returns a compact string injected into Groq's system prompt so it can
-// reference the user's history in its replies (e.g. "Use your usual USDC?").
+export function updateLanguage(lang: string): void {
+  const p = load();
+  p.detectedLanguage = lang;
+  save(p);
+}
+
+export function updateConversationStyle(style: "casual" | "technical"): void {
+  const p = load();
+  p.conversationStyle = style;
+  save(p);
+}
+
+// Returns a compact string injected into the AI system prompt so it can
+// reference the user's history in replies (e.g. "Use your usual USDC?").
 export function getPrefsContext(): string {
   const s = getStats();
-  if (s.totalCount === 0) return "";
-  const parts: string[] = [`totalTxns=${s.totalCount}`];
+  const parts: string[] = [];
+  if (s.totalCount > 0) parts.push(`totalTxns=${s.totalCount}`);
   if (s.favoriteToken) parts.push(`favoriteToken=${s.favoriteToken}`);
   if (s.favoriteChain) parts.push(`favoriteChain=${s.favoriteChain}`);
   if (s.lastProvider) parts.push(`lastProvider=${s.lastProvider}`);
+  if (s.detectedLanguage) parts.push(`preferredLang=${s.detectedLanguage}`);
+  if (s.conversationStyle) parts.push(`style=${s.conversationStyle}`);
   return parts.join(", ");
 }

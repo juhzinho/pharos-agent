@@ -37,7 +37,7 @@ import {
   type WalletOption,
 } from "@/lib/wallet";
 import { TOKENS, type TokenSymbol } from "@/lib/tokens";
-import { getStats, recordTransaction, getPrefsContext, type UserStats } from "@/lib/memory";
+import { getStats, recordTransaction, getPrefsContext, updateLanguage, updateConversationStyle, type UserStats } from "@/lib/memory";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
 import { generateScript, type ScriptOperation, type ScriptLanguage } from "@/lib/scriptgen";
@@ -129,6 +129,7 @@ interface Message {
   amountQuery?: AmountQueryState;  // For balance check before amount entry
   tokenChoice?: TokenChoiceState;  // For choosing swap/bridge tokens
   chainChoice?: ChainChoiceState;  // For choosing bridge destination
+  removeMode?: boolean;
   txHash?: string;
   isLoading?: boolean;
   isSearching?: boolean;
@@ -235,7 +236,7 @@ function looksLikeSwapBridge(text: string): boolean {
 }
 
 function isCompleteIntent(r: GroqResult): boolean {
-  if (r.action === "view_positions" || r.action === "view_wallet") return true;
+  if (r.action === "view_positions" || r.action === "view_wallet" || r.action === "remove_liquidity") return true;
   if (r.action === "add_liquidity") {
     const hasAmount =
       (r.amount != null && r.amount > 0) ||
@@ -656,6 +657,78 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
   );
 }
 
+// ─── remove liquidity tx button ───────────────────────────────────────────
+
+function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSuccess, onError, onReverted }: {
+  removeLiquidityPending: RemoveLiquidityPendingTx; walletAddress: string;
+  onSuccess: (hash: string) => void; onError: (msg: string) => void; onReverted: (hash: string) => void;
+}) {
+  type Step = "idle" | "switching" | "decreasing" | "confirming_decrease" | "collecting" | "done";
+  const [step, setStep] = useState<Step>("idle");
+  const { result } = removeLiquidityPending;
+
+  const stepLabels: Record<Step, string> = {
+    idle: "Remove Liquidity",
+    switching: "Switching to Pharos…",
+    decreasing: "Removing liquidity…",
+    confirming_decrease: "Confirming removal…",
+    collecting: "Collecting tokens + fees…",
+    done: "Done!",
+  };
+
+  async function handleRemove() {
+    try {
+      setStep("switching");
+      await switchToChain("Pharos");
+      const ethersProvider = getBrowserProvider();
+      const signer = await ethersProvider.getSigner();
+
+      setStep("decreasing");
+      const tx1 = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.decreaseCalldata, value: 0n });
+      setStep("confirming_decrease");
+      const receipt1 = await tx1.wait(1);
+      if (!receipt1 || receipt1.status !== 1) {
+        setStep("idle");
+        onReverted(tx1.hash);
+        return;
+      }
+
+      setStep("collecting");
+      const tx2 = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.collectCalldata, value: 0n });
+      const receipt2 = await tx2.wait(1);
+      if (receipt2 && receipt2.status === 1) {
+        setStep("done");
+        onSuccess(tx2.hash);
+      } else {
+        setStep("idle");
+        onReverted(tx2.hash);
+      }
+    } catch (err: unknown) {
+      setStep("idle");
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRejected = /user rejected|user denied|rejected the request/i.test(msg);
+      onError(isRejected ? "Transaction rejected by user." : msg);
+    }
+  }
+
+  const isIdle = step === "idle";
+  const isDone = step === "done";
+  return (
+    <button onClick={handleRemove} disabled={!isIdle}
+      className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
+      style={{
+        background: isDone ? "linear-gradient(135deg,#0ea5e9,#38bdf8)" : "linear-gradient(135deg,#ef4444 0%,#f87171 50%,#dc2626 100%)",
+        boxShadow: isIdle ? "0 4px 18px rgba(239,68,68,0.32), inset 0 1px 0 rgba(255,255,255,0.2)" : "none",
+      }}
+      onMouseEnter={(e) => { if (!isIdle) return; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
+      {isIdle && <span className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.15) 50%,transparent 60%)", animation: "shimmer 3s ease-in-out infinite" }} />}
+      {!isIdle && !isDone && <Spinner />}
+      <span className="relative">{stepLabels[step]}</span>
+    </button>
+  );
+}
+
 // ─── percentage quick-pick buttons ──────────────────────────────────────────
 
 function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (amount: number) => void }) {
@@ -689,7 +762,7 @@ function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (
   );
 }
 
-// ─── remove position selector ──────────────────────────────────────────────
+// ─── percentage quick-pick buttons ──────────────────────────────────────────
 
 function RemovePositionSelector({ positions, onSelect }: { positions: V3Position[]; onSelect: (position: V3Position) => void }) {
   return (
@@ -804,7 +877,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked }: {
+function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect }: {
   msg: Message; walletAddress: string;
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -813,6 +886,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
   onSwapChoice: (id: string, opt: SwapRouteOption) => void;
   onWalletChoice: (id: string, opt: WalletOption) => void;
   onAmountPicked: (amount: number, token: string) => void;
+  onPositionSelect: (msgId: string, position: V3Position) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -992,9 +1066,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
                 <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
               )}
 
-              {msg.walletChoice && !walletAddress && (
-                <WalletChoiceButtons options={msg.walletChoice} onChoose={(opt) => onWalletChoice(msg.id, opt)} />
-              )}
+              {/* Wallet choice moved to navbar dropdown */}
 
               {msg.pending && walletAddress && (
                 <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
@@ -1009,9 +1081,10 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
               )}
 
               {msg.removeLiquidityPending && walletAddress && (
-                <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.8)", border: "1px solid rgba(0,212,255,0.12)", backdropFilter: "blur(16px)" }}>
-                  <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(0,212,255,0.08)", background: "rgba(0,212,255,0.03)" }}>
+                <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.8)", border: "1px solid rgba(239,68,68,0.18)", backdropFilter: "blur(16px)" }}>
+                  <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(239,68,68,0.12)", background: "rgba(239,68,68,0.04)" }}>
                     <p className="text-xs font-semibold text-white">Remove Liquidity</p>
+                    <p className="text-[11px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.5)" }}>NFT #{String(msg.removeLiquidityPending.result.tokenId)} · FaroSwap V3</p>
                   </div>
                   <div className="px-4 py-3 space-y-3">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
@@ -1024,6 +1097,21 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
                       {msg.removeLiquidityPending.result.feesWPROS > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>Fee WPROS</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span></>)}
                       {msg.removeLiquidityPending.result.feesUSDC > 0 && (<><span style={{ color: "rgba(100,116,139,0.75)" }}>Fee USDC</span><span className="text-right text-amber-200">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span></>)}
                     </div>
+                    {(msg.removeLiquidityPending.result.feesWPROS > 0 || msg.removeLiquidityPending.result.feesUSDC > 0) && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
+                        <span style={{ color: "rgba(251,191,36,0.8)" }} className="mt-0.5 shrink-0 text-sm">★</span>
+                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.7)" }}>Uncollected fees will be included automatically.</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-4 pb-4">
+                    <RemoveLiquidityTxButton
+                      removeLiquidityPending={msg.removeLiquidityPending}
+                      walletAddress={walletAddress}
+                      onSuccess={(hash) => onTxSuccess(msg.id, hash)}
+                      onError={(err) => onTxError(msg.id, err)}
+                      onReverted={(hash) => onTxReverted(msg.id, hash)}
+                    />
                   </div>
                 </div>
               )}
@@ -1039,7 +1127,14 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
                 </div>
               )}
 
-              {msg.positions && <PositionCards positions={msg.positions} />}
+              {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} />}
+
+              {msg.positions && msg.removeMode && (
+                <RemovePositionSelector
+                  positions={msg.positions}
+                  onSelect={(pos) => onPositionSelect(msg.id, pos)}
+                />
+              )}
 
               {msg.txHash && (
                 <a href={`https://www.pharosscan.xyz/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
@@ -1095,6 +1190,7 @@ export default function ChatPage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
   const [chainId, setChainId] = useState<string | null>(null);
+  const [walletPickerOptions, setWalletPickerOptions] = useState<WalletOption[] | null>(null);
 
   const isWrongNetwork = !!walletAddress && !!chainId && chainId.toLowerCase() !== PHAROS_CHAIN_ID_HEX;
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1205,8 +1301,8 @@ export default function ChatPage() {
         await connectTo(wallets[0]);
         return;
       }
-      // Multiple wallets → let the user pick.
-      addMessage({ role: "agent", text: "I found multiple wallets — which one do you want to connect?", walletChoice: wallets });
+      // Multiple wallets → open picker in navbar dropdown.
+      setWalletPickerOptions(wallets);
     } catch (err: unknown) {
       addMessage({ role: "agent", text: err instanceof Error ? err.message : "Failed to detect wallets.", isError: true });
     } finally {
@@ -1245,6 +1341,35 @@ export default function ChatPage() {
       const msg = err instanceof Error ? err.message : String(err);
       const isRejected = /user rejected|user denied|rejected the request/i.test(msg);
       addMessage({ role: "agent", text: isRejected ? "Você precisa aprovar a troca para a rede Pharos para continuar." : `Falha ao trocar de rede: ${msg}`, isError: true });
+    }
+  }
+
+  async function handlePositionSelect(msgId: string, position: V3Position) {
+    const lang = guessUserLang(messages);
+    // Remove the selector from the message that showed positions
+    updateMessage(msgId, { positions: undefined, removeMode: undefined, text: lang === "pt" ? "Preparando remoção de liquidez…" : "Building remove liquidity transaction…", isLoading: true });
+    try {
+      const { buildRemoveLiquidityTx, FEE_TIERS: _FEE_TIERS } = await import("@/lib/liquidity");
+      const feeTier = position.fee as import("@/lib/liquidity").FeeTier;
+      const result = await buildRemoveLiquidityTx(
+        position.tokenId,
+        position.liquidity,
+        feeTier,
+        walletAddress,
+        position.amount0WPROS,
+        position.amount1USDC,
+        position.feesWPROS,
+        position.feesUSDC,
+      );
+      const totalWPROS = (result.amount0WPROS + result.feesWPROS).toFixed(6);
+      const totalUSDC  = (result.amount1USDC  + result.feesUSDC).toFixed(6);
+      const confirmText = lang === "pt"
+        ? `Pronto! Vou remover a posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`
+        : `Ready to remove NFT #${String(position.tokenId)}.\n\nYou'll receive:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirm in your wallet.`;
+      updateMessage(msgId, { isLoading: false, text: confirmText, removeLiquidityPending: { result } });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to build remove-liquidity tx: ${msg}` });
     }
   }
 
@@ -1383,6 +1508,15 @@ export default function ChatPage() {
       const groqResult = await callAgent({ history, prefsContext, txContext });
 
       if (groqResult) {
+        // Persist detected language for future context
+        if (groqResult.detectedLanguage) {
+          updateLanguage(groqResult.detectedLanguage);
+        }
+        // Detect conversation style from script generation or tech terms
+        if (groqResult.action === "generate_script") {
+          updateConversationStyle("technical");
+        }
+
         // generate_script (BONUS for devs): return ready-to-run code as TEXT.
         // No wallet, no execution, no keys — the app only renders the snippet.
         if (groqResult.action === "generate_script") {
@@ -1573,6 +1707,7 @@ export default function ChatPage() {
                 role: "agent",
                 text: "Which position would you like to remove?",
                 positions,
+                removeMode: true,
               });
             }
           } catch (err: unknown) {
@@ -1756,8 +1891,15 @@ export default function ChatPage() {
             const parts = [r.wprosAmount > 0 ? `${r.wprosAmount.toFixed(4)} WPROS` : "", r.usdcAmount > 0 ? `${r.usdcAmount.toFixed(4)} USDC` : ""].filter(Boolean).join(" + ");
             return `Liquidity added! ${parts} deposited into FaroSwap V3 ${feeLabel} pool. You received an LP NFT.`;
           })()
+        : m.removeLiquidityPending
+        ? (() => {
+            const r = m.removeLiquidityPending.result;
+            const wpros = (r.amount0WPROS + r.feesWPROS).toFixed(4);
+            const usdc  = (r.amount1USDC  + r.feesUSDC).toFixed(4);
+            return `Liquidity removed! Received ${wpros} WPROS + ${usdc} USDC from NFT #${String(r.tokenId)}.`;
+          })()
         : m.pending?.description ?? "Transaction sent!";
-      return { ...m, pending: undefined, liquidityPending: undefined, text: successText, txHash: hash };
+      return { ...m, pending: undefined, liquidityPending: undefined, removeLiquidityPending: undefined, text: successText, txHash: hash };
     }));
     getBalance(walletAddress).then(setBalance);
 
@@ -1792,6 +1934,7 @@ export default function ChatPage() {
     updateMessage(id, {
       pending: undefined,
       liquidityPending: undefined,
+      removeLiquidityPending: undefined,
       isError: true,
       text: lang === "pt"
         ? `❌ A transação falhou (revertida on-chain). Veja no [Pharosscan](${link}). Quer tentar de novo?`
@@ -1830,6 +1973,11 @@ export default function ChatPage() {
           isWrongNetwork={isWrongNetwork}
           onSwitchNetwork={handleSwitchNetwork}
           stats={stats}
+          walletPicker={walletPickerOptions ? {
+            options: walletPickerOptions,
+            onChoose: (opt) => { connectTo(opt); setWalletPickerOptions(null); },
+            onClose: () => setWalletPickerOptions(null),
+          } : null}
         />
       </div>
 
@@ -1889,9 +2037,15 @@ export default function ChatPage() {
               onSwapChoice={handleSwapChoice}
               onWalletChoice={(id, opt) => { void id; connectTo(opt); }}
               onAmountPicked={(amount, token) => {
-                setInput(`${amount.toFixed(4)} ${token}`);
+                // Gas buffer: leave ~0.01 PROS for gas when using 100% of native balance
+                const isNativePros = token === "PROS";
+                const amountQuery = messages.find(m => m.amountQuery?.token === token)?.amountQuery;
+                const isMax = amountQuery && Math.abs(amount - amountQuery.balance) < 0.0001;
+                const finalAmount = (isNativePros && isMax) ? Math.max(0, amount - 0.01) : amount;
+                setInput(`${finalAmount.toFixed(4)} ${token}`);
                 inputRef.current?.focus();
               }}
+              onPositionSelect={handlePositionSelect}
             />
           ))}
           <div ref={bottomRef} />

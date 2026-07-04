@@ -53,8 +53,8 @@ async function callGrok(messages: ChatMessage[], systemPrompt: string): Promise<
           },
           body: JSON.stringify({
             model,
-            temperature: 0.1,
-            max_tokens: 1000,
+            temperature: 0.2,
+            max_tokens: 1500,
             response_format: { type: "json_object" },
             search_parameters: {
               mode: "auto",
@@ -133,8 +133,8 @@ async function callOpenAI(messages: ChatMessage[], systemPrompt: string): Promis
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.1,
-        max_tokens: 1000,
+        temperature: 0.2,
+        max_tokens: 1500,
         response_format: { type: "json_object" },
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
@@ -167,8 +167,8 @@ async function callGitHub(messages: ChatMessage[], systemPrompt: string): Promis
       },
       body: JSON.stringify({
         model: "gpt-4o",
-        temperature: 0.1,
-        max_tokens: 1000,
+        temperature: 0.2,
+        max_tokens: 1500,
         response_format: { type: "json_object" },
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
@@ -204,8 +204,8 @@ async function callCerebras(messages: ChatMessage[], systemPrompt: string): Prom
         },
         body: JSON.stringify({
           model,
-          temperature: 0.1,
-          max_tokens: 1000,
+          temperature: 0.2,
+          max_tokens: 1500,
           response_format: { type: "json_object" },
           messages: [{ role: "system", content: systemPrompt }, ...messages],
         }),
@@ -264,7 +264,7 @@ async function callGemini(messages: ChatMessage[], systemPrompt: string): Promis
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents: toGeminiContents(messages),
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1000, responseMimeType: "application/json" },
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1500, responseMimeType: "application/json" },
       }),
     },
     REQUEST_TIMEOUT_MS
@@ -295,8 +295,8 @@ async function callGroq(messages: ChatMessage[], systemPrompt: string): Promise<
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        temperature: 0.1,
-        max_tokens: 1000,
+        temperature: 0.2,
+        max_tokens: 1500,
         response_format: { type: "json_object" },
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
