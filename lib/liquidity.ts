@@ -419,6 +419,8 @@ export async function buildRemoveLiquidityTx(
   expectedAmount1: number,
   feesAmount0: number,
   feesAmount1: number,
+  rawFees0?: bigint,
+  rawFees1?: bigint,
 ): Promise<RemoveLiquidityBuildResult> {
   const collectOnly = liquidity === 0n;
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
@@ -437,10 +439,20 @@ export async function buildRemoveLiquidityTx(
     );
   }
 
-  // Collect all available tokens + fees (use uint128 max to collect everything)
-  const MAX_UINT128 = (2n ** 128n) - 1n;
-  const amount0Max = collectOnly ? MAX_UINT128 : (BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n);
-  const amount1Max = collectOnly ? MAX_UINT128 : (BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n);
+  // For collect-only: use the exact raw on-chain tokensOwed values (most reliable).
+  // For partial/full removal: compute from expected + fees with a small buffer.
+  let amount0Max: bigint;
+  let amount1Max: bigint;
+  if (collectOnly) {
+    // Use raw tokensOwed directly — avoids float precision issues and uint128 overflow
+    amount0Max = rawFees0 !== undefined ? rawFees0 + 1n : BigInt(Math.ceil(feesAmount0 * 1e18)) + 1000n;
+    amount1Max = rawFees1 !== undefined ? rawFees1 + 1n : BigInt(Math.ceil(feesAmount1 * 1e6)) + 1000n;
+    // Ensure at least 1 to satisfy require(amount0Max > 0 || amount1Max > 0)
+    if (amount0Max === 1n && amount1Max === 1n) amount0Max = 2n;
+  } else {
+    amount0Max = BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n;
+    amount1Max = BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n;
+  }
 
   const collectCalldata = buildCollectCalldata(
     tokenId,
@@ -449,7 +461,7 @@ export async function buildRemoveLiquidityTx(
     amount1Max,
   );
 
-  const feeLabel = FEE_TIERS[feeTier].label;
+  const feeLabel = FEE_TIERS[feeTier as FeeTier]?.label ?? `${(feeTier / 10000).toFixed(2)}%`;
   const description = collectOnly
     ? `FaroSwap V3 · Collect fees · fee ${feeLabel}\nToken ID: ${tokenId.toString()}\nFees: ${feesAmount0.toFixed(6)} WPROS + ${feesAmount1.toFixed(6)} USDC`
     : `FaroSwap V3 · Remove liquidity · fee ${feeLabel}\nToken ID: ${tokenId.toString()}\nWPROS: ${expectedAmount0.toFixed(6)} (+ ${feesAmount0.toFixed(6)} fees)\nUSDC: ${expectedAmount1.toFixed(6)} (+ ${feesAmount1.toFixed(6)} fees)`;
@@ -457,7 +469,7 @@ export async function buildRemoveLiquidityTx(
   return {
     tokenId,
     liquidity,
-    feeTier,
+    feeTier: (feeTier in FEE_TIERS ? feeTier : 3000) as FeeTier,
     amount0WPROS: expectedAmount0,
     amount1USDC: expectedAmount1,
     feesWPROS: feesAmount0,

@@ -1657,7 +1657,12 @@ export default function ChatPage() {
     });
     try {
       const { buildRemoveLiquidityTx, FEE_TIERS: _FEE_TIERS } = await import("@/lib/liquidity");
-      const feeTier = position.fee as import("@/lib/liquidity").FeeTier;
+      // Normalise fee tier — FaroSwap may use non-standard values; map closest valid tier
+      const validTiers = [100, 500, 3000, 10000] as const;
+      const feeTier = (validTiers.includes(position.fee as 100 | 500 | 3000 | 10000)
+        ? position.fee
+        : validTiers.reduce((prev, curr) => Math.abs(curr - position.fee) < Math.abs(prev - position.fee) ? curr : prev)
+      ) as import("@/lib/liquidity").FeeTier;
 
       // Scale liquidity by percentage
       const scaledLiquidity = position.liquidity * BigInt(pct) / 100n;
@@ -1673,6 +1678,8 @@ export default function ChatPage() {
         scaledUsdc,
         position.feesWPROS,
         position.feesUSDC,
+        position.tokensOwed0,
+        position.tokensOwed1,
       );
       const pctLabel = pct === 100 && position.liquidity === 0n ? "fees" : pct === 100 ? "all" : `${pct}%`;
       const totalWPROS = (result.amount0WPROS + result.feesWPROS).toFixed(6);
