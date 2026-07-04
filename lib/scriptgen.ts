@@ -62,7 +62,7 @@ export interface GeneratedScript {
 const PHAROS = {
   chainId: 1672,
   rpc: "https://rpc.pharos.xyz",
-  explorer: "https://www.pharosscan.xyz",
+  explorer: "https://pharos.socialscan.io",
   symbol: "PROS",
 };
 

@@ -41,7 +41,7 @@ export const CHAIN_WALLET_CONFIGS: Record<string, {
     chainName: "Pharos Mainnet",
     nativeCurrency: { name: "PROS", symbol: "PROS", decimals: 18 },
     rpcUrls: ["https://rpc.pharos.xyz"],
-    blockExplorerUrls: ["https://www.pharosscan.xyz"],
+    blockExplorerUrls: ["https://pharos.socialscan.io", "https://pharosscan.xyz"],
   },
   Ethereum: {
     chainId: "0x1",

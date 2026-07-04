@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       },
       info: { method: "GET", path: "/api/info" },
     },
-    network: { name: "Pharos", chainId: 1672, explorer: "https://pharosscan.xyz" },
+    network: { name: "Pharos", chainId: 1672, explorer: "https://pharos.socialscan.io" },
     supportedTokens: ["PROS", "WPROS", "USDC", "WETH", "LINK", "PGOLD", "USDpm"],
     supportedChains: ["Pharos", "Ethereum", "Base", "Arbitrum", "Polygon", "Optimism"],
     rateLimit: "20 requests/minute per IP",

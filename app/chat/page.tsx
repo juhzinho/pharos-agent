@@ -582,7 +582,7 @@ function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRem
             </div>
           )}
           <div className="flex items-center justify-between pt-1">
-            <a href={`https://www.pharosscan.xyz/token/${FAROSWAP.NPM}?a=${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
+            <a href={`https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-[10px] font-medium transition-colors" style={{ color: "rgba(0,212,255,0.35)" }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.7)")}
               onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.35)")}>
@@ -1292,59 +1292,98 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
               <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
             )}
 
-            {msg.removeLiquidityPending && walletAddress && (
-              <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.85)", border: "1px solid rgba(239,68,68,0.2)", backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
-                <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(239,68,68,0.12)", background: "rgba(239,68,68,0.04)" }}>
-                  <div>
-                    <p className="text-xs font-bold text-white">
-                      {msg.removeLiquidityPending.result.collectOnly ? "⬆ Collect Fees" : "🔴 Remove Liquidity"}
-                    </p>
-                    <p className="text-[10px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.55)" }}>NFT #{String(msg.removeLiquidityPending.result.tokenId)} · FaroSwap V3</p>
-                  </div>
-                  <span className="text-[10px] px-2 py-1 rounded-full font-medium" style={{ background: "rgba(239,68,68,0.1)", color: "rgba(239,68,68,0.7)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                    {msg.removeLiquidityPending.result.feeTier / 10000}% pool
-                  </span>
-                </div>
-                <div className="px-4 py-3 space-y-2.5">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-data">
-                    {!msg.removeLiquidityPending.result.collectOnly && (<>
-                      <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity WPROS</span>
-                      <span className="text-right font-semibold text-gray-200">{msg.removeLiquidityPending.result.amount0WPROS.toFixed(6)}</span>
-                      <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity USDC</span>
-                      <span className="text-right font-semibold text-gray-200">{msg.removeLiquidityPending.result.amount1USDC.toFixed(6)}</span>
-                    </>)}
-                    {msg.removeLiquidityPending.result.feesWPROS > 0 && (<>
-                      <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees WPROS</span>
-                      <span className="text-right font-semibold text-amber-300">{msg.removeLiquidityPending.result.feesWPROS.toFixed(6)}</span>
-                    </>)}
-                    {msg.removeLiquidityPending.result.feesUSDC > 0 && (<>
-                      <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees USDC</span>
-                      <span className="text-right font-semibold text-amber-300">{msg.removeLiquidityPending.result.feesUSDC.toFixed(6)}</span>
-                    </>)}
-                  </div>
-                  {msg.removeLiquidityPending.result.collectOnly ? (
-                    <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
-                      <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">ℹ</span>
-                      <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Position is closed — only uncollected fees will be collected.</span>
+            {msg.removeLiquidityPending && walletAddress && (() => {
+              const r = msg.removeLiquidityPending!.result;
+              const faroswapUrl = `https://faroswap.xyz/#/pool/${String(r.tokenId)}`;
+              const scanUrl = `https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(r.tokenId)}`;
+              return (
+                <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.85)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}`, backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)"}`, background: r.simulationFailed ? "rgba(245,158,11,0.04)" : "rgba(239,68,68,0.04)" }}>
+                    <div>
+                      <p className="text-xs font-bold text-white">
+                        {r.collectOnly ? "⬆ Collect Fees" : "🔴 Remove Liquidity"}
+                      </p>
+                      <p className="text-[10px] mt-0.5 font-data" style={{ color: r.simulationFailed ? "rgba(245,158,11,0.6)" : "rgba(239,68,68,0.55)" }}>NFT #{String(r.tokenId)} · FaroSwap V3</p>
                     </div>
-                  ) : (msg.removeLiquidityPending.result.feesWPROS > 0 || msg.removeLiquidityPending.result.feesUSDC > 0) && (
-                    <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
-                      <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">★</span>
-                      <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Uncollected fees included automatically.</span>
+                    <span className="text-[10px] px-2 py-1 rounded-full font-medium" style={{ background: r.simulationFailed ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)", color: r.simulationFailed ? "rgba(245,158,11,0.8)" : "rgba(239,68,68,0.7)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}` }}>
+                      {(r.feeTier / 10000).toFixed(2)}% pool
+                    </span>
+                  </div>
+                  <div className="px-4 py-3 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-data">
+                      {!r.collectOnly && (<>
+                        <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity WPROS</span>
+                        <span className="text-right font-semibold text-gray-200">{r.amount0WPROS.toFixed(6)}</span>
+                        <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity USDC</span>
+                        <span className="text-right font-semibold text-gray-200">{r.amount1USDC.toFixed(6)}</span>
+                      </>)}
+                      {r.feesWPROS > 0 && (<>
+                        <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees WPROS</span>
+                        <span className="text-right font-semibold text-amber-300">{r.feesWPROS.toFixed(6)}</span>
+                      </>)}
+                      {r.feesUSDC > 0 && (<>
+                        <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees USDC</span>
+                        <span className="text-right font-semibold text-amber-300">{r.feesUSDC.toFixed(6)}</span>
+                      </>)}
+                    </div>
+
+                    {/* Simulation-failed warning — direct to FaroSwap UI */}
+                    {r.simulationFailed && (
+                      <div className="flex items-start gap-2.5 px-3 py-3 rounded-xl" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                        <span style={{ color: "rgba(245,158,11,0.9)" }} className="shrink-0 text-sm mt-0.5">⚠</span>
+                        <div className="space-y-2">
+                          <p className="text-xs leading-relaxed font-semibold" style={{ color: "rgba(245,158,11,0.9)" }}>
+                            Não é possível coletar fees via agent para esta posição. Use o FaroSwap diretamente.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <a href={faroswapUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
+                              style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "rgba(245,158,11,0.95)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(245,158,11,0.22)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(245,158,11,0.15)"; }}>
+                              <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
+                              Abrir no FaroSwap
+                            </a>
+                            <a href={scanUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200"
+                              style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.18)", color: "rgba(0,212,255,0.75)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,212,255,0.12)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,212,255,0.07)"; }}>
+                              View NFT
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!r.simulationFailed && r.collectOnly && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                        <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">ℹ</span>
+                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Position is closed — only uncollected fees will be collected.</span>
+                      </div>
+                    )}
+                    {!r.simulationFailed && !r.collectOnly && (r.feesWPROS > 0 || r.feesUSDC > 0) && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                        <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">★</span>
+                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Uncollected fees included automatically.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {!r.simulationFailed && (
+                    <div className="px-4 pb-4">
+                      <RemoveLiquidityTxButton
+                        removeLiquidityPending={msg.removeLiquidityPending!}
+                        walletAddress={walletAddress}
+                        onSuccess={(hash) => onTxSuccess(msg.id, hash)}
+                        onError={(err) => onTxError(msg.id, err)}
+                        onReverted={(hash) => onTxReverted(msg.id, hash)}
+                      />
                     </div>
                   )}
                 </div>
-                <div className="px-4 pb-4">
-                  <RemoveLiquidityTxButton
-                    removeLiquidityPending={msg.removeLiquidityPending}
-                    walletAddress={walletAddress}
-                    onSuccess={(hash) => onTxSuccess(msg.id, hash)}
-                    onError={(err) => onTxError(msg.id, err)}
-                    onReverted={(hash) => onTxReverted(msg.id, hash)}
-                  />
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {msg.amountQuery && (
               <div className="mt-3">
@@ -1371,7 +1410,7 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
             )}
 
             {msg.txHash && (
-              <a href={`https://www.pharosscan.xyz/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
+              <a href={`https://pharos.socialscan.io/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-200 text-xs font-medium"
                 style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "rgba(52,211,153,0.88)" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.14)"; }}
@@ -2247,7 +2286,7 @@ export default function ChatPage() {
   // card with an honest failure + Pharosscan link. NOT a success.
   function handleTxReverted(id: string, hash: string) {
     const lang = guessUserLang(messages);
-    const link = `https://www.pharosscan.xyz/tx/${hash}`;
+    const link = `https://pharos.socialscan.io/tx/${hash}`;
     updateMessage(id, {
       pending: undefined,
       liquidityPending: undefined,

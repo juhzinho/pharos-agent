@@ -408,6 +408,8 @@ export interface RemoveLiquidityBuildResult {
   description: string;
   /** true when liquidity=0 — only collect fees, skip decreaseLiquidity */
   collectOnly: boolean;
+  /** true when eth_call simulation of collect reverted — tx would fail on-chain */
+  simulationFailed?: boolean;
 }
 
 export async function buildRemoveLiquidityTx(
@@ -439,16 +441,17 @@ export async function buildRemoveLiquidityTx(
     );
   }
 
-  // For collect-only: use the exact raw on-chain tokensOwed values (most reliable).
-  // For partial/full removal: compute from expected + fees with a small buffer.
+  // Use MAX_UINT128 for collect amounts — standard Uniswap V3 approach.
+  // The actual collected amount is capped by the contract's tokensOwed values.
+  // Max is 2^128 - 1 as per standard Uniswap V3 NPM.
+  const MAX_UINT128 = (BigInt(2) ** BigInt(128)) - 1n;
+
   let amount0Max: bigint;
   let amount1Max: bigint;
   if (collectOnly) {
-    // Use raw tokensOwed directly — avoids float precision issues and uint128 overflow
-    amount0Max = rawFees0 !== undefined ? rawFees0 + 1n : BigInt(Math.ceil(feesAmount0 * 1e18)) + 1000n;
-    amount1Max = rawFees1 !== undefined ? rawFees1 + 1n : BigInt(Math.ceil(feesAmount1 * 1e6)) + 1000n;
-    // Ensure at least 1 to satisfy require(amount0Max > 0 || amount1Max > 0)
-    if (amount0Max === 1n && amount1Max === 1n) amount0Max = 2n;
+    // Use MAX_UINT128 so the contract collects everything it owes without arithmetic issues
+    amount0Max = MAX_UINT128;
+    amount1Max = MAX_UINT128;
   } else {
     amount0Max = BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n;
     amount1Max = BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n;
@@ -460,6 +463,21 @@ export async function buildRemoveLiquidityTx(
     amount0Max,
     amount1Max,
   );
+
+  // Simulate the collect call before returning — if it reverts we mark simulationFailed
+  // so the UI can warn the user and link to FaroSwap directly instead of wasting gas.
+  let simulationFailed = false;
+  if (collectOnly) {
+    try {
+      const simResult = await ethCallRpc(FAROSWAP.NPM, collectCalldata);
+      // A successful call returns non-empty data; "0x" means no return or call failed
+      if (!simResult || simResult === "0x" || simResult === "0x" + "0".repeat(128)) {
+        // empty return is suspicious but not necessarily a revert — don't fail yet
+      }
+    } catch {
+      simulationFailed = true;
+    }
+  }
 
   const feeLabel = FEE_TIERS[feeTier as FeeTier]?.label ?? `${(feeTier / 10000).toFixed(2)}%`;
   const description = collectOnly
@@ -478,6 +496,7 @@ export async function buildRemoveLiquidityTx(
     collectCalldata,
     description,
     collectOnly,
+    simulationFailed,
   };
 }
 

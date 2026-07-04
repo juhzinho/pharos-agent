@@ -4,7 +4,7 @@
 export const CORE_KNOWLEDGE = `
 === PHAROS CORE KNOWLEDGE ===
 
-NETWORK: Chain ID 1672 | RPC https://rpc.pharos.xyz | WSS wss://rpc.pharos.xyz | Explorer https://www.pharosscan.xyz
+NETWORK: Chain ID 1672 | RPC https://rpc.pharos.xyz | WSS wss://rpc.pharos.xyz | Explorer https://pharos.socialscan.io (also pharosscan.xyz)
 MAINNET: "Pacific Ocean" launched April 28, 2026 | 30,000 TPS, 2 Gigagas/s, block <1s | Dual VM (EVM + WASM) | AsyncBFT + speculative parallel execution → sub-second finality | Founded by ex-Ant Group leadership | ~$52M raised ($8M seed: Hack VC, Faction VC + $44M Series A)
 TESTNET: Atlantic Testnet | Chain ID 688689 | RPC https://atlantic.dplabs-internal.com | Explorer https://atlantic.pharosscan.xyz | Symbol PHRS | Rate limit: 500 req/5min
 NATIVE TOKEN: PROS (gas + governance + staking) | No inflation for first 6 months post-mainnet, then 5% annual to validators/delegators
@@ -203,7 +203,7 @@ Restaking: integrates Babylon (stBTC) + EigenLayer (stETH) for additional networ
   // ════════ NEW: Pharos docs (enriched July 2026) ════════
   pharos_network_full: `
 PHAROS NETWORK — Complete Reference:
-Pacific Mainnet: Chain ID 1672 | RPC https://rpc.pharos.xyz | WSS wss://rpc.pharos.xyz | Explorer https://www.pharosscan.xyz | Coin: PROS
+Pacific Mainnet: Chain ID 1672 | RPC https://rpc.pharos.xyz | WSS wss://rpc.pharos.xyz | Explorer https://pharos.socialscan.io | Also: https://pharosscan.xyz | Coin: PROS
 Atlantic Testnet: Chain ID 688689 | RPC https://atlantic.dplabs-internal.com | Explorer https://atlantic.pharosscan.xyz | Coin: PHRS | Rate limit: 500 req/5min
 
 ARCHITECTURE LAYERS:

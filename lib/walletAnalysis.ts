@@ -85,7 +85,7 @@ export async function getWalletAnalysis(address: string): Promise<WalletAnalysis
     address,
     holdings,
     totalUsd,
-    explorer: `https://www.pharosscan.xyz/address/${address}`,
+    explorer: `https://pharos.socialscan.io/address/${address}`,
   };
 }
 

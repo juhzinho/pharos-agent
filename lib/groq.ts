@@ -511,7 +511,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  if they want the transaction built here.\n" +
     "- Supported tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm.\n" +
     "If asked what bridges the app can execute, say: 'Jumper (LI.FI), Chainlink CCIP, and Circle CCTP v2 (USDC from Pharos)' (Stargate works on Pharos but only via its own site, stargate.finance).\n" +
-    "If asked about transaction status or why something is slow, say you cannot track on-chain status in real time and suggest checking Pharosscan (pharosscan.xyz), instead of inventing reasons.\n" +
+    "If asked about transaction status or why something is slow, say you cannot track on-chain status in real time and suggest checking the Pharos explorers: pharos.socialscan.io or pharosscan.xyz — instead of inventing reasons.\n" +
     "Never claim capabilities the app does not have. If unsure, say so.\n\n" +
     "CRITICAL — TRUTHFULNESS ABOUT TRANSACTION EXECUTION:\n" +
     "You NEVER claim a transaction was executed, sent, started, initiated, or completed.\n" +
