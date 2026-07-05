@@ -125,6 +125,29 @@ interface SwapChoice {
   options: SwapRouteOption[];
 }
 
+// Guided bridge flow: deterministic wizard (token w/ balances → amount → chain)
+// followed by a route comparison with the best return highlighted.
+interface BridgeWizardState {
+  holdings: Array<{ symbol: string; balance: number }>;
+  preToken?: string;
+  preAmount?: number;
+  preChain?: string;
+}
+
+interface BridgeRouteOption {
+  provider: "lifi" | "ccip" | "cctp";
+  pending: PendingTx;
+  summary: string;
+  receiveLabel: string;
+  receiveValue: number;  // numeric estimate for best-route ranking
+  note: string;
+  best?: boolean;
+}
+
+interface BridgeChoice {
+  options: BridgeRouteOption[];
+}
+
 interface Message {
   id: string;
   role: MessageRole;
@@ -140,6 +163,8 @@ interface Message {
   amountQuery?: AmountQueryState;  // For balance check before amount entry
   tokenChoice?: TokenChoiceState;  // For choosing swap/bridge tokens
   chainChoice?: ChainChoiceState;  // For choosing bridge destination
+  bridgeWizard?: BridgeWizardState; // Guided bridge flow (token → amount → chain)
+  bridgeChoice?: BridgeChoice;      // Bridge route comparison (best return marked)
   removeMode?: boolean;
   txHash?: string;
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
@@ -586,6 +611,191 @@ function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose:
               <span className="text-sm font-semibold text-white">{meta.label}</span>
               <span className="text-sm font-data font-semibold" style={{ color: `rgb(${meta.accent})` }}>receive ~{opt.receiveLabel}</span>
               <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>{meta.subtitle}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── bridge wizard (token → amount → destination) ───────────────────────────
+
+const BRIDGE_DEST_CHAINS = ["Ethereum", "Base", "Arbitrum", "Polygon", "Optimism"] as const;
+const BRIDGE_GAS_BUFFER_PROS = 0.01;
+
+function BridgeWizardCard({ state, lang, onSubmit }: {
+  state: BridgeWizardState;
+  lang: "pt" | "en";
+  onSubmit: (token: string, amount: number, toChain: string) => void;
+}) {
+  const [token, setToken] = useState<string | null>(state.preToken ?? null);
+  const [amountStr, setAmountStr] = useState(state.preAmount != null && state.preAmount > 0 ? String(state.preAmount) : "");
+  const [toChain, setToChain] = useState<string | null>(state.preChain ?? null);
+
+  const selected = state.holdings.find((h) => h.symbol === token);
+  const maxAmount = selected
+    ? (selected.symbol === "PROS" ? Math.max(0, selected.balance - BRIDGE_GAS_BUFFER_PROS) : selected.balance)
+    : 0;
+  const amount = parseFloat(amountStr.replace(",", "."));
+  const amountOk = Number.isFinite(amount) && amount > 0 && amount <= maxAmount + 1e-9;
+  const ready = !!token && amountOk && !!toChain;
+
+  const t = lang === "pt"
+    ? { step1: "1 · Escolha o token", step2: "2 · Quanto?", step3: "3 · Rede de destino", max: "disponível", insufficient: "Valor maior que o saldo disponível", submit: "Comparar rotas de bridge →", empty: "Nenhum token com saldo na carteira. Deposite fundos primeiro." }
+    : { step1: "1 · Pick a token", step2: "2 · How much?", step3: "3 · Destination chain", max: "available", insufficient: "Amount exceeds available balance", submit: "Compare bridge routes →", empty: "No tokens with balance in this wallet. Fund it first." };
+
+  const withBalance = state.holdings.filter((h) => h.balance > 0);
+
+  return (
+    <div className="mt-3 px-4 py-4 rounded-2xl space-y-4"
+      style={{ background: "rgba(7,14,30,0.9)", border: "1px solid rgba(129,140,248,0.22)", backdropFilter: "blur(16px)" }}>
+      {/* Step 1 — token with balances */}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(129,140,248,0.6)" }}>{t.step1}</p>
+        {withBalance.length === 0 ? (
+          <p className="text-xs" style={{ color: "rgba(251,191,36,0.8)" }}>{t.empty}</p>
+        ) : (
+          <div className="flex gap-2 flex-wrap">
+            {withBalance.map((h) => {
+              const active = token === h.symbol;
+              return (
+                <button key={h.symbol} onClick={() => { setToken(h.symbol); setAmountStr(""); }}
+                  className="flex-1 min-w-[120px] flex flex-col gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: active ? "rgba(129,140,248,0.14)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${active ? "rgba(129,140,248,0.55)" : "rgba(255,255,255,0.08)"}`,
+                  }}>
+                  <span className="text-sm font-semibold text-white">{h.symbol}</span>
+                  <span className="text-[11px] font-data" style={{ color: active ? "rgba(165,180,252,0.9)" : "rgba(148,163,184,0.55)" }}>
+                    {h.balance.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Step 2 — amount: free input + % quick-picks */}
+      {selected && (
+        <div>
+          <div className="flex items-baseline justify-between mb-2.5">
+            <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(129,140,248,0.6)" }}>{t.step2}</p>
+            <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.55)" }}>
+              {maxAmount.toLocaleString("en-US", { maximumFractionDigits: 6 })} {selected.symbol} {t.max}
+            </span>
+          </div>
+          <input
+            type="text" inputMode="decimal" value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.,]/g, ""))}
+            placeholder={`0.0 ${selected.symbol}`}
+            className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+            style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${amountStr && !amountOk ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}` }}
+          />
+          {amountStr && !amountOk && (
+            <p className="text-[11px] mt-1.5" style={{ color: "rgba(251,113,133,0.85)" }}>{t.insufficient}</p>
+          )}
+          <div className="mt-2 flex gap-2 flex-wrap">
+            {[25, 50, 75, 100].map((pct) => (
+              <button key={pct}
+                onClick={() => setAmountStr(String(Number((maxAmount * pct / 100).toFixed(6))))}
+                className="flex-1 min-w-[64px] px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.22)", color: "rgba(0,212,255,0.85)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.14)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.07)"; }}>
+                {pct}%
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step 3 — destination chain */}
+      {selected && amountOk && (
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(129,140,248,0.6)" }}>{t.step3}</p>
+          <div className="flex gap-2 flex-wrap">
+            {BRIDGE_DEST_CHAINS.map((c) => {
+              const active = toChain === c;
+              return (
+                <button key={c} onClick={() => setToChain(c)}
+                  className="flex-1 min-w-[96px] px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: active ? "rgba(129,140,248,0.14)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${active ? "rgba(129,140,248,0.55)" : "rgba(255,255,255,0.08)"}`,
+                    color: active ? "#c7d2fe" : "rgba(215,228,245,0.8)",
+                  }}>
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Submit */}
+      <button disabled={!ready}
+        onClick={() => ready && onSubmit(token!, amount, toChain!)}
+        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${ready ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
+        style={{
+          background: ready ? "linear-gradient(135deg, rgba(99,102,241,0.85), rgba(0,150,220,0.85))" : "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(129,140,248,0.35)",
+          color: "white",
+        }}>
+        {t.submit}
+      </button>
+    </div>
+  );
+}
+
+// ─── bridge route comparison ─────────────────────────────────────────────────
+
+const BRIDGE_ROUTE_META: Record<BridgeRouteOption["provider"], { label: string; accent: string }> = {
+  lifi: { label: "Jumper (LI.FI)",   accent: "99,102,241" },
+  ccip: { label: "Chainlink CCIP",   accent: "245,158,11" },
+  cctp: { label: "Circle CCTP v2",   accent: "16,185,129" },
+};
+
+function BridgeRouteButtons({ choice, lang, onChoose }: {
+  choice: BridgeChoice; lang: "pt" | "en"; onChoose: (opt: BridgeRouteOption) => void;
+}) {
+  const bestLabel = lang === "pt" ? "★ Melhor retorno" : "★ Best return";
+  const receiveLabel = lang === "pt" ? "você recebe" : "you receive";
+  return (
+    <div className="mt-4">
+      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
+        {lang === "pt" ? "Escolha a rota de bridge" : "Choose bridge route"}
+      </p>
+      <div className="flex gap-2.5 flex-wrap">
+        {choice.options.map((opt) => {
+          const meta = BRIDGE_ROUTE_META[opt.provider];
+          return (
+            <button key={opt.provider} onClick={() => onChoose(opt)}
+              className="flex-1 min-w-[170px] relative flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer"
+              style={{
+                background: opt.best ? `rgba(${meta.accent},0.09)` : "rgba(255,255,255,0.03)",
+                border: `1px solid rgba(${meta.accent},${opt.best ? "0.5" : "0.22"})`,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = `rgba(${meta.accent},0.12)`;
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = opt.best ? `rgba(${meta.accent},0.09)` : "rgba(255,255,255,0.03)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "";
+              }}>
+              {opt.best && (
+                <span className="absolute -top-2.5 right-3 text-[9px] px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: `rgb(${meta.accent})`, color: "#0a0f1e" }}>
+                  {bestLabel}
+                </span>
+              )}
+              <span className="text-sm font-semibold text-white">{meta.label}</span>
+              <span className="text-sm font-data font-semibold" style={{ color: `rgb(${meta.accent})` }}>
+                {receiveLabel} ~{opt.receiveLabel}
+              </span>
+              <span className="text-[11px] leading-snug" style={{ color: "rgba(148,163,184,0.55)" }}>{opt.note}</span>
             </button>
           );
         })}
@@ -1431,8 +1641,8 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect }: {
-  msg: Message; walletAddress: string;
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice }: {
+  msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
   onTxReverted: (id: string, hash: string) => void;
@@ -1442,6 +1652,8 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
   onAmountPicked: (amount: number, token: string) => void;
   onPositionSelect: (msgId: string, position: V3Position) => void;
   onPctSelect: (msgId: string, position: V3Position, pct: number) => void;
+  onBridgeWizardSubmit: (msgId: string, token: string, amount: number, toChain: string) => void;
+  onBridgeRouteChoice: (msgId: string, opt: BridgeRouteOption) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -1592,6 +1804,15 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
 
         {msg.swapChoice && walletAddress && (
           <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
+        )}
+
+        {msg.bridgeWizard && walletAddress && (
+          <BridgeWizardCard state={msg.bridgeWizard} lang={lang}
+            onSubmit={(token, amount, toChain) => onBridgeWizardSubmit(msg.id, token, amount, toChain)} />
+        )}
+
+        {msg.bridgeChoice && walletAddress && (
+          <BridgeRouteButtons choice={msg.bridgeChoice} lang={lang} onChoose={(opt) => onBridgeRouteChoice(msg.id, opt)} />
         )}
 
         {msg.pending && walletAddress && (
@@ -2451,6 +2672,156 @@ export default function ChatPage() {
     }
   }
 
+  // ── Guided bridge flow ─────────────────────────────────────────────────
+  // Every bridge request goes through this wizard: token pick (with live
+  // balances), amount (typed or 25/50/75/100%), destination chain — then a
+  // route comparison with the best return highlighted.
+  async function startBridgeWizard(msgId: string, pre: { token?: string; amount?: number; chain?: string }) {
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
+    });
+    try {
+      const analysis = await getWalletAnalysis(walletAddress);
+      const holdings = analysis.holdings
+        .filter((h) => h.balance > 0)
+        .map((h) => ({ symbol: h.symbol, balance: h.balance }));
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Vamos fazer a bridge! Escolha o token, o valor e a rede de destino — depois eu comparo as rotas disponíveis pra você pegar o melhor retorno."
+          : "Let's bridge! Pick the token, amount and destination chain — then I'll compare the available routes so you get the best return.",
+        bridgeWizard: {
+          holdings,
+          preToken: pre.token && holdings.some((h) => h.symbol === pre.token) ? pre.token : undefined,
+          preAmount: pre.amount,
+          preChain: pre.chain && (BRIDGE_DEST_CHAINS as readonly string[]).includes(pre.chain) ? pre.chain : undefined,
+        },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
+    }
+  }
+
+  async function handleBridgeWizardSubmit(msgId: string, token: string, amount: number, toChain: string) {
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      bridgeWizard: undefined,
+      isLoading: true,
+      text: lang === "pt"
+        ? `Buscando as melhores rotas para ${amount} ${token} → ${toChain}…`
+        : `Fetching the best routes for ${amount} ${token} → ${toChain}…`,
+    });
+
+    const intent: ParsedIntent = {
+      action: "bridge",
+      fromToken: token,
+      toToken: token,
+      amount,
+      fromChain: "Pharos",
+      toChain,
+    };
+
+    try {
+      const ccipCheck = checkCcipSupport(intent);
+      const cctpCheck = checkCctpSupport(intent);
+
+      const [lifiRes, cctpRes, ccipRes] = await Promise.allSettled([
+        buildLifiPending(intent),
+        cctpCheck.supported ? buildCctpPending(intent) : Promise.reject(new Error(cctpCheck.reason ?? "unsupported")),
+        ccipCheck.supported ? buildCcipTransaction(intent, walletAddress) : Promise.reject(new Error(ccipCheck.reason ?? "unsupported")),
+      ]);
+
+      const options: BridgeRouteOption[] = [];
+
+      if (lifiRes.status === "fulfilled") {
+        const receiveValue = parseFloat(lifiRes.value.receiveLabel) || 0;
+        options.push({
+          provider: "lifi",
+          pending: lifiRes.value.pending,
+          summary: lifiRes.value.summary,
+          receiveLabel: lifiRes.value.receiveLabel,
+          receiveValue,
+          note: lang === "pt" ? "agregador · melhor rota multi-chain" : "aggregator · best multi-chain route",
+        });
+      } else {
+        console.warn("[pharos:bridge] LI.FI quote failed:", lifiRes.reason);
+      }
+
+      if (cctpRes.status === "fulfilled") {
+        // CCTP fee is capped at 0.1% (typically ~0.01%) — estimate conservatively.
+        const receiveValue = amount * 0.999;
+        options.push({
+          provider: "cctp",
+          pending: cctpRes.value.pending,
+          summary: cctpRes.value.summary,
+          receiveLabel: `${receiveValue.toFixed(4)} USDC`,
+          receiveValue,
+          note: lang === "pt" ? "USDC nativo · taxa máx 0,1% · ~1 min" : "native USDC · max 0.1% fee · ~1 min",
+        });
+      } else if (cctpCheck.supported) {
+        console.warn("[pharos:bridge] CCTP quote failed:", cctpRes.reason);
+      }
+
+      if (ccipRes.status === "fulfilled") {
+        const ccipData = ccipRes.value;
+        const feePROS = Number(ccipData.feeAmount) / 1e18;
+        options.push({
+          provider: "ccip",
+          pending: {
+            provider: "ccip", ccip: ccipData, intent,
+            description: `Bridge ${amount} ${token} → ${toChain} via CCIP`,
+            needsApproval: false,
+          },
+          summary: `Bridge via Chainlink CCIP: ${amount} ${token} → ${toChain}\nCCIP fee: ~${feePROS.toFixed(6)} PROS`,
+          receiveLabel: `${amount} ${token}`,
+          receiveValue: amount,
+          note: lang === "pt"
+            ? `1:1 · taxa de ~${feePROS.toFixed(4)} PROS paga à parte`
+            : `1:1 · ~${feePROS.toFixed(4)} PROS fee paid separately`,
+        });
+      } else if (ccipCheck.supported) {
+        console.warn("[pharos:bridge] CCIP quote failed:", ccipRes.reason);
+      }
+
+      if (options.length === 0) {
+        const reason = lifiRes.status === "rejected" && lifiRes.reason instanceof Error ? lifiRes.reason.message : "no route available";
+        updateMessage(msgId, {
+          isLoading: false, isError: true,
+          text: lang === "pt"
+            ? `Não encontrei nenhuma rota para ${amount} ${token} → ${toChain}: ${reason}`
+            : `Couldn't find any route for ${amount} ${token} → ${toChain}: ${reason}`,
+        });
+        return;
+      }
+
+      // Highest estimated receive wins the "best return" badge.
+      options.sort((a, b) => b.receiveValue - a.receiveValue);
+      if (options.length > 1) options[0].best = true;
+
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? `Encontrei **${options.length} rota${options.length > 1 ? "s" : ""}** para ${amount} ${token} → ${toChain}. Compare o retorno estimado e escolha:`
+          : `Found **${options.length} route${options.length > 1 ? "s" : ""}** for ${amount} ${token} → ${toChain}. Compare the estimated return and pick one:`,
+        bridgeChoice: { options },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to fetch bridge routes: ${msg}` });
+    }
+  }
+
+  function handleBridgeRouteChoice(msgId: string, opt: BridgeRouteOption) {
+    updateMessage(msgId, {
+      bridgeChoice: undefined,
+      text: opt.summary,
+      pending: opt.pending,
+    });
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || isSending) return;
@@ -2661,6 +3032,20 @@ export default function ChatPage() {
         if (!complete) {
           const effectiveQuery = groqResult.searchQuery || (groqResult.needsSearch ? text : null);
 
+          // Bridge is always guided: token (with balances) → amount (% picks) →
+          // destination → route comparison. Never a dangling "confirm in your
+          // wallet" reply without an actual transaction card.
+          if (groqResult.action === "bridge" && walletAddress) {
+            await startBridgeWizard(thinkingId, {
+              token: groqResult.fromToken || undefined,
+              amount: groqResult.amount != null && groqResult.amount > 0 ? groqResult.amount : undefined,
+              chain: groqResult.toChain || undefined,
+            });
+            setIsSending(false);
+            inputRef.current?.focus();
+            return;
+          }
+
           if (!groqResult.action && groqResult.needsPrice) {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
             try {
@@ -2695,7 +3080,7 @@ export default function ChatPage() {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
             const result = await searchWithFallback(effectiveQuery, groqResult.reply, { history, prefsContext, txContext }, guessUserLang(messages));
             updateMessage(thinkingId, { isSearching: false, text: result.text, sources: result.sources ?? (result.text === groqResult.reply ? ragSources : undefined) });
-          } else if ((groqResult.action === "swap" || groqResult.action === "bridge" || groqResult.action === "add_liquidity") && groqResult.needsAmount && walletAddress) {
+          } else if ((groqResult.action === "swap" || groqResult.action === "add_liquidity") && groqResult.needsAmount && walletAddress) {
             // Balance check before asking for amount
             try {
               const fromToken = groqResult.fromToken || "PROS";
@@ -2863,26 +3248,14 @@ export default function ChatPage() {
           return;
         }
 
-        // bridge
+        // bridge — always the guided wizard (prefilled with what the user said),
+        // so token/amount/destination are confirmed against live balances and
+        // routes are compared for the best return.
         if (intent.action === "bridge") {
-          const ccipCheck = checkCcipSupport(intent);
-          const cctpCheck = checkCctpSupport(intent);
-          if (groqResult.bridgeVia === "cctp" && cctpCheck.supported) {
-            updateMessage(thinkingId, { text: safeReply + "\n\nBuilding Circle CCTP v2 transaction…" });
-            const { pending, summary } = await buildCctpPending(intent);
-            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, pending });
-            setIsSending(false);
-            inputRef.current?.focus();
-            return;
-          }
-          updateMessage(thinkingId, {
-            isLoading: false,
-            text: safeReply,
-            providerChoice: {
-              intent,
-              ccipSupported: ccipCheck.supported, ccipNote: ccipCheck.reason,
-              cctpSupported: cctpCheck.supported, cctpNote: cctpCheck.reason,
-            },
+          await startBridgeWizard(thinkingId, {
+            token: intent.fromToken || undefined,
+            amount: intent.amount > 0 ? intent.amount : undefined,
+            chain: intent.toChain || undefined,
           });
         } else {
           // swap — explicit provider goes direct; otherwise quote both routes
@@ -2959,16 +3332,10 @@ export default function ChatPage() {
       }
 
       if (intent.action === "bridge") {
-        const ccipCheck = checkCcipSupport(intent);
-        const cctpCheck = checkCctpSupport(intent);
-        updateMessage(thinkingId, {
-          isLoading: false,
-          text: `Bridge ${intent.amount} ${intent.fromToken} from ${intent.fromChain ?? "Pharos"} → ${intent.toChain}. Choose your provider:`,
-          providerChoice: {
-            intent,
-            ccipSupported: ccipCheck.supported, ccipNote: ccipCheck.reason,
-            cctpSupported: cctpCheck.supported, cctpNote: cctpCheck.reason,
-          },
+        await startBridgeWizard(thinkingId, {
+          token: intent.fromToken || undefined,
+          amount: intent.amount > 0 ? intent.amount : undefined,
+          chain: intent.toChain || undefined,
         });
       } else {
         updateMessage(thinkingId, { text: "Building transaction with LI.FI…" });
@@ -3311,6 +3678,7 @@ export default function ChatPage() {
               key={msg.id}
               msg={msg}
               walletAddress={walletAddress}
+              lang={guessUserLang(messages)}
               onTxSuccess={handleTxSuccess}
               onTxError={handleTxError}
               onTxReverted={handleTxReverted}
@@ -3328,6 +3696,8 @@ export default function ChatPage() {
               }}
               onPositionSelect={handlePositionSelect}
               onPctSelect={handlePctSelect}
+              onBridgeWizardSubmit={handleBridgeWizardSubmit}
+              onBridgeRouteChoice={handleBridgeRouteChoice}
             />
           ))}
           <div ref={bottomRef} />
