@@ -20,11 +20,32 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const SITE_URL = "https://pharos-agent-pi.vercel.app";
+const TITLE = "Pharos Agent — AI DeFi Copilot";
+const DESCRIPTION =
+  "Swap, bridge, add liquidity and track RealFi positions on Pharos Network via natural language. Non-custodial AI copilot.";
+
 export const metadata: Metadata = {
-  title: "Pharos Agent — AI DeFi Copilot",
-  description: "Swap and bridge tokens on Pharos Network via natural language",
+  // metadataBase makes the og:image URL absolute — required for Discord/Twitter/WhatsApp link previews
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
   icons: {
     icon: "/favicon.svg",
+  },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: SITE_URL,
+    siteName: "Pharos Agent",
+    type: "website",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Pharos Agent — AI DeFi Copilot on Pharos Network" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/og.png"],
   },
 };
 
