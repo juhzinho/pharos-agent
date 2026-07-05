@@ -42,6 +42,7 @@ import { getStats, recordTransaction, getPrefsContext, updateLanguage, updateCon
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
 import { generateScript, type ScriptOperation, type ScriptLanguage } from "@/lib/scriptgen";
+import { ECOSYSTEM_DAPPS } from "@/lib/knowledge";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -193,6 +194,42 @@ async function callAgent(payload: {
     console.warn("[pharos:agent] fetch failed:", err);
     return null;
   }
+}
+
+// ─── Deterministic dApp directory answer ───────────────────────────────────
+// "What protocols/dApps are on Pharos?" is answered instantly from the local
+// directory (lib/knowledge.ts) — no LLM, no web search, so it can never dangle.
+
+const DAPP_LIST_SUBJECT_RE =
+  /\b(protocols?|protocolos?|d?apps?|aplicativos?|projects?|projetos?|ecosystem|ecossistema)\b/i;
+const DAPP_LIST_INTENT_RE =
+  /\b(what|which|quais?|que|list|lista|liste|show|mostr[ae]|todos?|todas?|all|available|dispon[ií]ve|exist|tem n[ao]|there (is|are)|are (on|available|in)|s[ãa]o os)\b/i;
+
+function isDappListQuestion(text: string): boolean {
+  // Avoid hijacking questions about ONE specific protocol ("what is Morpho?").
+  const mentionsSpecific =
+    /\b(faroswap|bitverse|morpho|termmax|faroo|ember|zona|aquaflux|asseto|agra|r25|jumper|li\.?fi|layerzero|interport|circle|cctp|ccip|grandline|pharosverse|supra|goldsky|hemera|topnod|onekey|fordefi|anchorage|zellic|hypernative|openzeppelin)\b/i.test(text);
+  return !mentionsSpecific && DAPP_LIST_SUBJECT_RE.test(text) && DAPP_LIST_INTENT_RE.test(text);
+}
+
+function buildDappListReply(lang: "pt" | "en"): string {
+  const intro =
+    lang === "pt"
+      ? "Aqui está o ecossistema da Pharos — **42 projetos ativos** no diretório oficial:"
+      : "Here's the Pharos ecosystem — **42 active projects** in the official directory:";
+  const outro =
+    lang === "pt"
+      ? "\n📂 Diretório completo e sempre atualizado: [port.pharos.xyz/ecosystem](https://port.pharos.xyz/ecosystem)\n\n💡 Eu executo swaps na **Faroswap**, bridges via **LI.FI/Jumper, CCIP e CCTP**, e gerencio liquidez V3 na Faroswap — é só pedir!"
+      : "\n📂 Full, always-updated directory: [port.pharos.xyz/ecosystem](https://port.pharos.xyz/ecosystem)\n\n💡 I can execute swaps on **Faroswap**, bridges via **LI.FI/Jumper, CCIP and CCTP**, and manage V3 liquidity on Faroswap — just ask!";
+  const sections = Object.entries(ECOSYSTEM_DAPPS)
+    .map(([category, dapps]) => {
+      const rows = dapps
+        .map((d) => `- **[${d.name}](${d.url})** — ${lang === "pt" ? d.descPt : d.desc}`)
+        .join("\n");
+      return `**${category}**\n${rows}`;
+    })
+    .join("\n\n");
+  return `${intro}\n\n${sections}\n${outro}`;
 }
 
 // Replies where the model *promises* content ("um momento…") — these must never
@@ -2041,6 +2078,17 @@ export default function ChatPage() {
 
     const thinkingId = addMessage({ role: "agent", text: "Thinking…", isLoading: true });
 
+    // Deterministic fast path: ecosystem/dApp listing questions are answered
+    // straight from the local directory — instant, complete, never dangles.
+    if (isDappListQuestion(text)) {
+      const lang: "pt" | "en" =
+        /[ãõáéíóúâêôçà]|\b(quais?|lista|liste|mostr[ae]|protocolos?|projetos?|ecossistema|dispon[ií]ve|tem)\b/i.test(text) ? "pt" : "en";
+      updateMessage(thinkingId, { isLoading: false, text: buildDappListReply(lang) });
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
     try {
       const txContext = lastTxHash
         ? `sessionTx=signed,txHashPrefix=${lastTxHash.slice(0, 10)}`
@@ -2128,6 +2176,10 @@ export default function ChatPage() {
             const grounded = await callAgent({ history, prefsContext, txContext, docs: { target: groqResult.docsTarget, query: groqResult.docsQuery } });
             if (grounded && grounded.grounded) {
               updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
+            } else if (DANGLING_PROMISE_RE.test(groqResult.reply)) {
+              // Docs lookup failed and the reply is just a promise — search instead.
+              const result = await searchWithFallback(groqResult.docsQuery, groqResult.reply, { history, prefsContext, txContext }, guessUserLang(messages));
+              updateMessage(thinkingId, { isSearching: false, text: result.text, sources: result.sources });
             } else {
               updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }

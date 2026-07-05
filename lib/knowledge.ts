@@ -832,6 +832,79 @@ Live directory: port.pharos.xyz/ecosystem (new dApps launch frequently)
 `,
 };
 
+// Structured dApp directory (source: api.pharosnetwork.xyz/omni_port/ecosystem, July 2026).
+// Used to build a deterministic client-side answer for "what dApps/protocols are on Pharos?"
+// — no LLM involved, so the answer never dangles.
+export interface EcosystemDapp {
+  name: string;
+  url: string;
+  desc: string;   // English
+  descPt: string; // Portuguese
+}
+
+export const ECOSYSTEM_DAPPS: Record<string, EcosystemDapp[]> = {
+  "DEX & Trading": [
+    { name: "Faroswap", url: "https://faroswap.xyz", desc: "Pharos-native DEX fueling RWA-Fi (swaps + V3 liquidity)", descPt: "DEX nativa da Pharos para RWA-Fi (swaps + liquidez V3)" },
+    { name: "Bitverse", url: "https://www.bitverse.zone", desc: "RWA perp DEX with U.S. stock futures, AI-powered", descPt: "Perp DEX de RWA com futuros de ações dos EUA, com IA" },
+    { name: "Agra", url: "https://bonds.agra.gg/", desc: "Exchange for onchain credit and tokenized bonds", descPt: "Exchange de crédito onchain e títulos tokenizados" },
+    { name: "OKU", url: "https://oku.trade/", desc: "DeFi aggregator on 35+ chains, 0% fees", descPt: "Agregador DeFi em 35+ chains, 0% de taxas" },
+  ],
+  "RWA": [
+    { name: "R25", url: "https://www.r25.xyz/", desc: "Tokenizes solar & EV assets via IoT + AI (~$93M TVL, #1 on Pharos)", descPt: "Tokeniza ativos solares e de VE com IoT + IA (~$93M TVL, nº 1 da Pharos)" },
+    { name: "AquaFlux", url: "https://www.aquaflux.pro", desc: "RWA yield & liquidity via tri-token model (P/C/S)", descPt: "Yield e liquidez de RWA com modelo tri-token (P/C/S)" },
+    { name: "Asseto", url: "https://asseto.finance/", desc: "Next-generation on-chain RWA asset platform", descPt: "Plataforma on-chain de ativos RWA de nova geração" },
+    { name: "Zona", url: "https://www.zona.finance/", desc: "Deposit RWAs and unlock idle liquidity", descPt: "Deposite RWAs e desbloqueie liquidez parada" },
+  ],
+  "Lending & Yield": [
+    { name: "Morpho", url: "https://morpho.org/", desc: "Lending: pooled + P2P orderbook-style matching", descPt: "Lending: pools + matching P2P estilo orderbook" },
+    { name: "TermMax", url: "https://app.termmax.ts.finance/earn", desc: "Fixed-rate lending & borrowing", descPt: "Empréstimos com taxa fixa" },
+    { name: "Faroo", url: "https://app.faroo.xyz/", desc: "Liquid staking: PROS → stPROS with staking + RWA yield", descPt: "Liquid staking: PROS → stPROS com yield de staking + RWA" },
+    { name: "Ember", url: "https://ember.so/earn", desc: "Unified vault platform tokenising yield strategies", descPt: "Plataforma de vaults que tokeniza estratégias de yield" },
+  ],
+  "Bridges": [
+    { name: "LI.FI", url: "https://li.fi/", desc: "Bridge aggregation protocol", descPt: "Protocolo agregador de bridges" },
+    { name: "Jumper", url: "https://jumper.exchange", desc: "LI.FI-powered cross-chain swap & bridge UI", descPt: "Interface cross-chain de swap e bridge (LI.FI)" },
+    { name: "Chainlink CCIP", url: "https://chain.link/", desc: "Cross-chain bridge + oracle infrastructure", descPt: "Bridge cross-chain + infraestrutura de oráculos" },
+    { name: "LayerZero", url: "https://layerzero.network/", desc: "Omnichain interoperability protocol", descPt: "Protocolo de interoperabilidade omnichain" },
+    { name: "InterPort", url: "https://interport.fi/", desc: "Fast cross-chain swaps & bridge", descPt: "Swaps e bridge cross-chain rápidos" },
+  ],
+  "Stablecoins & Payments": [
+    { name: "Circle", url: "https://www.circle.com/", desc: "USDC issuer — native USDC + CCTP v2 on Pharos", descPt: "Emissor do USDC — USDC nativo + CCTP v2 na Pharos" },
+    { name: "Alchemy Pay", url: "https://alchemypay.org/", desc: "Fiat ↔ crypto on/off ramp", descPt: "On/off ramp fiat ↔ cripto" },
+  ],
+  "Wallets & Custody": [
+    { name: "OKX Wallet", url: "https://web3.okx.com/", desc: "The crypto wallet for everything onchain", descPt: "Carteira cripto para tudo onchain" },
+    { name: "TopNod", url: "https://topnod.com/", desc: "Self-custody wallet for RWA & digital assets", descPt: "Carteira self-custody para RWA e ativos digitais" },
+    { name: "OneKey", url: "https://onekey.so/", desc: "Open-source crypto wallet", descPt: "Carteira cripto open-source" },
+    { name: "KuCoin Wallet", url: "https://www.kucoin.com/web3", desc: "Web3 wallet by KuCoin", descPt: "Carteira Web3 da KuCoin" },
+    { name: "Fordefi", url: "https://fordefi.com/", desc: "Institutional MPC wallet & security platform", descPt: "Carteira MPC institucional e plataforma de segurança" },
+    { name: "Safe", url: "https://app.safe.global/", desc: "Smart contract multisig wallet", descPt: "Carteira multisig de smart contract" },
+    { name: "Anchorage", url: "https://www.anchorage.com/", desc: "Institutional custody, staking & trading", descPt: "Custódia institucional, staking e trading" },
+  ],
+  "Oracles, RPC & Infra": [
+    { name: "Supra", url: "https://supra.com/", desc: "Oracle infrastructure", descPt: "Infraestrutura de oráculos" },
+    { name: "ZAN", url: "https://zan.top/", desc: "Web3 tools & RPC services", descPt: "Ferramentas Web3 e serviços RPC" },
+    { name: "Alchemy", url: "https://www.alchemy.com/", desc: "Web3 development platform", descPt: "Plataforma de desenvolvimento Web3" },
+    { name: "Nirvana", url: "https://nirvanalabs.io/", desc: "Web3 infrastructure for blockchain apps", descPt: "Infraestrutura Web3 para apps blockchain" },
+    { name: "Hemera", url: "https://www.thehemera.com/", desc: "Account-centric indexing network", descPt: "Rede de indexação centrada em contas" },
+    { name: "GoldSky", url: "https://goldsky.com/", desc: "Scalable blockchain indexing", descPt: "Indexação blockchain escalável" },
+  ],
+  "Security & Compliance": [
+    { name: "Hypernative", url: "https://www.hypernative.io/", desc: "Real-time threat detection & prevention", descPt: "Detecção e prevenção de ameaças em tempo real" },
+    { name: "Zellic", url: "https://www.zellic.io/", desc: "Blockchain security audits", descPt: "Auditorias de segurança blockchain" },
+    { name: "ExVul", url: "https://exvul.com/", desc: "Smart contract audits & pen testing", descPt: "Auditorias de contratos e pen testing" },
+    { name: "OpenZeppelin", url: "https://www.openzeppelin.com/", desc: "Crypto cybersecurity technology", descPt: "Tecnologia de cibersegurança cripto" },
+    { name: "TRM", url: "https://www.trmlabs.com/", desc: "Crypto compliance & risk management (KYT)", descPt: "Compliance cripto e gestão de risco (KYT)" },
+    { name: "Trusta Labs", url: "https://www.trustalabs.ai/", desc: "Web3 security & data analytics", descPt: "Segurança Web3 e análise de dados" },
+  ],
+  "Identity, NFT & Community": [
+    { name: "PNS", url: "https://pharosname.com", desc: "Official .pharos domain name service", descPt: "Serviço oficial de domínios .pharos" },
+    { name: "ZNS Connect", url: "https://zns.bio/", desc: "Web3 identity layer, multi-chain domains", descPt: "Camada de identidade Web3, domínios multi-chain" },
+    { name: "Grandline", url: "https://app.grandline.world", desc: "Native NFT launch & trading platform", descPt: "Plataforma nativa de lançamento e trading de NFTs" },
+    { name: "Pharosverse", url: "https://pharosverse.xyz", desc: "Ecosystem navigator: insights, projects, community", descPt: "Navegador do ecossistema: insights, projetos, comunidade" },
+  ],
+};
+
 // Keyword → section mapping. Only the first 2 matches are used per query to cap token usage.
 const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["defi protocols", "protocols on pharos", "protocols are", "quais protocolos", "que protocolos", "dapps", "dapp list", "lista de dapps", "ecosystem list", "all projects", "todos os projetos", "port.pharos.xyz/ecosystem", "o que tem na pharos", "what's on pharos", "available on pharos", "projects on pharos"], section: "port_ecosystem_directory" },
