@@ -43,6 +43,10 @@ import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
 import { generateScript, type ScriptOperation, type ScriptLanguage } from "@/lib/scriptgen";
 import { ECOSYSTEM_DAPPS, PHAROS_PARTNERS } from "@/lib/knowledge";
+import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } from "@/lib/prices";
+import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
+import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
+import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -138,6 +142,9 @@ interface Message {
   chainChoice?: ChainChoiceState;  // For choosing bridge destination
   removeMode?: boolean;
   txHash?: string;
+  transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
+  approvePending?: BuiltTx;            // ERC-20 approval to sign
+  priceChart?: { symbol: string };     // interactive price chart card
   isLoading?: boolean;
   isSearching?: boolean;
   isError?: boolean;
@@ -264,6 +271,72 @@ function buildPartnersReply(lang: "pt" | "en"): string {
     `🎯 Goal: expand RWA infrastructure across Asia and globally — bringing **$50 trillion** in traditional + digital assets on-chain.\n\n` +
     `📂 See the partners on the official site: [port.pharos.xyz/ecosystem#partners](https://port.pharos.xyz/ecosystem#partners)`
   );
+}
+
+// ─── Live campaigns + news (deterministic, fetched from our API routes) ─────
+
+const CAMPAIGN_QUESTION_RE =
+  /\b(campanhas?|campaigns?|quests?|eventos? ativ|active events?|atividades ativ|airdrops? ativ|rewards? (ativ|dispon)|o que (ta|tá|está) rolando|what'?s (happening|live|running))\b/i;
+const NEWS_QUESTION_RE =
+  /\b(not[íi]cias?|news|novidades?|latest (from|on) pharos|[úu]ltimas (da|de|do) pharos|feed de not|what'?s new)\b/i;
+
+async function fetchCampaignsReply(lang: "pt" | "en"): Promise<string> {
+  try {
+    const res = await fetch("/api/campaigns");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    const campaigns: Array<{ name: string; startTime: string; endTime: string; url: string; kind: string }> = j.campaigns ?? [];
+    if (campaigns.length === 0) throw new Error("empty");
+    const fmt = (iso: string) => {
+      if (!iso) return "?";
+      return new Date(iso).toLocaleDateString(lang === "pt" ? "pt-BR" : "en-US", { month: "short", day: "numeric" });
+    };
+    const now = Date.now();
+    const rows = campaigns.map((c) => {
+      const ended = c.endTime && new Date(c.endTime).getTime() < now;
+      const daysLeft = c.endTime ? Math.max(0, Math.ceil((new Date(c.endTime).getTime() - now) / 86400000)) : null;
+      const status = ended
+        ? lang === "pt" ? "encerrada" : "ended"
+        : daysLeft != null
+          ? lang === "pt" ? `${daysLeft}d restantes` : `${daysLeft}d left`
+          : "";
+      const name = c.name.replace(/\b\w/g, (ch) => ch.toUpperCase());
+      return `- **[${name}](${c.url})** · ${fmt(c.startTime)} → ${fmt(c.endTime)}${status ? ` · _${status}_` : ""}`;
+    });
+    const intro = lang === "pt"
+      ? "📡 **Campanhas ativas na Pharos** (direto da API oficial do Port):"
+      : "📡 **Active Pharos campaigns** (live from the official Port API):";
+    const outro = lang === "pt"
+      ? "\n\nAcompanhe tudo em [port.pharos.xyz](https://port.pharos.xyz/)"
+      : "\n\nTrack everything at [port.pharos.xyz](https://port.pharos.xyz/)";
+    return `${intro}\n\n${rows.join("\n")}${outro}`;
+  } catch {
+    return lang === "pt"
+      ? "Não consegui carregar as campanhas ao vivo agora. Veja diretamente em [port.pharos.xyz](https://port.pharos.xyz/) — em julho de 2026 estão rolando: **Agent Carnival** (até 26/jul), **Anvita Cyber Cup** (até 19/jul), **TopNod Cup** (até 20/jul) e **AquaFlux Campaign** (até 31/jul)."
+      : "Couldn't load live campaigns right now. Check [port.pharos.xyz](https://port.pharos.xyz/) directly — as of July 2026: **Agent Carnival** (until Jul 26), **Anvita Cyber Cup** (until Jul 19), **TopNod Cup** (until Jul 20) and **AquaFlux Campaign** (until Jul 31).";
+  }
+}
+
+async function fetchNewsReply(lang: "pt" | "en"): Promise<string> {
+  try {
+    const res = await fetch("/api/news");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    const items: Array<{ title: string; date: string; kind: string }> = j.items ?? [];
+    if (items.length === 0) throw new Error("empty");
+    const rows = items.slice(0, 10).map((n) => `- **${n.title}** · _${n.date}_${n.kind === "blog" ? " (blog)" : ""}`);
+    const intro = lang === "pt"
+      ? "📰 **Últimas notícias da Pharos** (ao vivo de pharos.xyz/resources):"
+      : "📰 **Latest Pharos news** (live from pharos.xyz/resources):";
+    const outro = lang === "pt"
+      ? "\n\nTodas as notícias: [pharos.xyz/resources](https://www.pharos.xyz/resources)"
+      : "\n\nAll news: [pharos.xyz/resources](https://www.pharos.xyz/resources)";
+    return `${intro}\n\n${rows.join("\n")}${outro}`;
+  } catch {
+    return lang === "pt"
+      ? "Não consegui carregar o feed ao vivo agora, mas as manchetes mais recentes que conheço:\n\n- **Faroo incubada a valuation de $10M + RWA Hybrid Vault** · _Jul 2, 2026_\n- **PROS Never Sleeps: Alpha Summer começou** · _Jun 10, 2026_\n- **Pacific Ocean Mainnet + USDC/CCTP ao vivo** · _Apr 28, 2026_\n- **Series A de $44M (total $52M)** · _Apr 8, 2026_\n\nTudo em [pharos.xyz/resources](https://www.pharos.xyz/resources)"
+      : "Couldn't load the live feed right now, but the latest headlines I know:\n\n- **Faroo incubated at $10M valuation + RWA Hybrid Vault** · _Jul 2, 2026_\n- **PROS Never Sleeps: Alpha Summer begins** · _Jun 10, 2026_\n- **Pacific Ocean Mainnet + USDC/CCTP live** · _Apr 28, 2026_\n- **$44M Series A (total $52M)** · _Apr 8, 2026_\n\nEverything at [pharos.xyz/resources](https://www.pharos.xyz/resources)";
+  }
 }
 
 // Replies where the model *promises* content ("um momento…") — these must never
@@ -1685,6 +1758,30 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
           />
         )}
 
+        {msg.priceChart && <PriceChartCard symbol={msg.priceChart.symbol} />}
+
+        {msg.transferPending && walletAddress && (
+          <TransferCard
+            build={msg.transferPending}
+            lang={/[ãõáéíóúâêôç]/i.test(msg.text) ? "pt" : "en"}
+            onDone={(hash, error) => {
+              if (error) onTxError(msg.id, error);
+              else if (hash) onTxSuccess(msg.id, hash);
+            }}
+          />
+        )}
+
+        {msg.approvePending && walletAddress && (
+          <ApproveCard
+            tx={msg.approvePending}
+            lang={/[ãõáéíóúâêôç]/i.test(msg.text) ? "pt" : "en"}
+            onDone={(hash, error) => {
+              if (error) onTxError(msg.id, error);
+              else if (hash) onTxSuccess(msg.id, hash);
+            }}
+          />
+        )}
+
         {msg.txHash && (
           <a href={`https://pharos.socialscan.io/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-200 text-xs font-semibold"
@@ -1750,6 +1847,253 @@ const WELCOME_CARDS = [
 ];
 
 // ─── main chat page ────────────────────────────────────────────────────────
+
+// ─── Price chart card (interactive: 24h / 7d / 30d + CEX links) ─────────────
+
+function PriceChartCard({ symbol }: { symbol: string }) {
+  const [range, setRange] = useState<ChartRange>("7");
+  const [points, setPoints] = useState<PricePoint[] | null>(null);
+  const [error, setError] = useState(false);
+  const [hover, setHover] = useState<{ x: number; point: PricePoint } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setPoints(null);
+    setError(false);
+    getPriceHistory(symbol, range)
+      .then((p) => { if (alive) setPoints(p); })
+      .catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, [symbol, range]);
+
+  const W = 560;
+  const H = 160;
+  const PAD = 8;
+
+  let path = "";
+  let areaPath = "";
+  let min = 0, max = 0, up = true;
+  if (points && points.length > 1) {
+    min = Math.min(...points.map((p) => p.p));
+    max = Math.max(...points.map((p) => p.p));
+    const span = max - min || 1;
+    const step = (W - PAD * 2) / (points.length - 1);
+    const coords = points.map((p, i) => ({
+      x: PAD + i * step,
+      y: PAD + (H - PAD * 2) * (1 - (p.p - min) / span),
+    }));
+    path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+    areaPath = path + ` L${coords[coords.length - 1].x.toFixed(1)},${H - PAD} L${PAD},${H - PAD} Z`;
+    up = points[points.length - 1].p >= points[0].p;
+  }
+
+  const color = up ? "#34d399" : "#f87171";
+
+  function onMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!points || points.length < 2) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relX = ((e.clientX - rect.left) / rect.width) * W;
+    const idx = Math.round(((relX - PAD) / (W - PAD * 2)) * (points.length - 1));
+    const clamped = Math.max(0, Math.min(points.length - 1, idx));
+    setHover({ x: PAD + clamped * ((W - PAD * 2) / (points.length - 1)), point: points[clamped] });
+  }
+
+  const fmtP = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${n.toFixed(4)}`);
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm font-semibold text-white/90">{symbol.toUpperCase()} · USD</div>
+        <div className="flex gap-1">
+          {(["1", "7", "30"] as ChartRange[]).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                range === r ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30" : "text-white/50 hover:text-white/80 border border-transparent"
+              }`}
+            >
+              {r === "1" ? "24h" : `${r}d`}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && <div className="text-xs text-white/40 py-8 text-center">Chart unavailable right now — try again shortly.</div>}
+      {!error && !points && <div className="text-xs text-white/40 py-8 text-center animate-pulse">Loading chart…</div>}
+      {!error && points && points.length > 1 && (
+        <div className="relative">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full h-auto cursor-crosshair"
+            onMouseMove={onMove}
+            onMouseLeave={() => setHover(null)}
+          >
+            <defs>
+              <linearGradient id={`grad-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+                <stop offset="100%" stopColor={color} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={areaPath} fill={`url(#grad-${symbol})`} />
+            <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+            {hover && (
+              <>
+                <line x1={hover.x} y1={PAD} x2={hover.x} y2={H - PAD} stroke="rgba(255,255,255,0.25)" strokeWidth="1" strokeDasharray="3,3" />
+                <circle
+                  cx={hover.x}
+                  cy={PAD + (H - PAD * 2) * (1 - (hover.point.p - min) / ((max - min) || 1))}
+                  r="4"
+                  fill={color}
+                />
+              </>
+            )}
+          </svg>
+          {hover && (
+            <div className="absolute top-1 left-2 rounded-lg bg-black/70 px-2 py-1 text-xs text-white/90 pointer-events-none">
+              {fmtP(hover.point.p)} · {new Date(hover.point.t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
+          <div className="flex justify-between text-[11px] text-white/40 mt-1">
+            <span>Low {fmtP(min)}</span>
+            <span>High {fmtP(max)}</span>
+          </div>
+        </div>
+      )}
+      {symbol.toLowerCase().includes("pros") && (
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/5">
+          <span className="text-[11px] text-white/40 uppercase tracking-wide">Trade:</span>
+          {PROS_CEX_LINKS.map((l) => (
+            <a
+              key={l.name}
+              href={l.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg text-xs bg-white/5 text-cyan-300 hover:bg-cyan-500/15 border border-white/10 transition-colors"
+            >
+              {l.name} ↗
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Transfer (payment agent) card — sign 1..n txs sequentially ─────────────
+
+function TransferCard({
+  build, lang, onDone,
+}: {
+  build: TransferBuild;
+  lang: "pt" | "en";
+  onDone: (lastHash: string | null, error?: string) => void;
+}) {
+  const [signing, setSigning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const net = PHAROS_NETWORKS[build.network];
+
+  async function sign() {
+    setSigning(true);
+    let lastHash: string | null = null;
+    try {
+      await switchToChain(build.network === "testnet" ? "PharosTestnet" : "Pharos");
+      for (let i = 0; i < build.txs.length; i++) {
+        setProgress(i + 1);
+        const tx = build.txs[i];
+        lastHash = await sendTransaction({ to: tx.to, data: tx.data, value: tx.value });
+      }
+      onDone(lastHash);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onDone(lastHash, msg);
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  const totals = Object.entries(build.totalByToken)
+    .map(([sym, amt]) => `${amt.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${sym}`)
+    .join(" + ");
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-semibold text-white/90">
+          {lang === "pt" ? "💸 Pagamento" : "💸 Payment"} {build.txs.length > 1 ? `(${build.txs.length} tx)` : ""}
+        </div>
+        <span className={`px-2 py-0.5 rounded-md text-[11px] border ${build.network === "testnet" ? "border-amber-400/30 text-amber-300 bg-amber-500/10" : "border-cyan-400/30 text-cyan-300 bg-cyan-500/10"}`}>
+          {net.label}
+        </span>
+      </div>
+      <div className="space-y-1.5 mb-3">
+        {build.txs.map((tx, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs text-white/70">
+            <span className="text-white/30">{i + 1}.</span>
+            <span>{tx.description}</span>
+            {signing && progress === i + 1 && <span className="text-cyan-300 animate-pulse">✍️</span>}
+            {signing && progress > i + 1 && <span className="text-emerald-400">✓</span>}
+          </div>
+        ))}
+      </div>
+      <div className="text-xs text-white/50 mb-3">
+        {lang === "pt" ? "Total" : "Total"}: <span className="text-white/90 font-medium">{totals}</span>
+      </div>
+      <button
+        onClick={sign}
+        disabled={signing}
+        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+      >
+        {signing
+          ? lang === "pt" ? `Assinando ${progress}/${build.txs.length}…` : `Signing ${progress}/${build.txs.length}…`
+          : lang === "pt" ? `Assinar${build.txs.length > 1 ? ` ${build.txs.length} transações` : " e enviar"}` : `Sign${build.txs.length > 1 ? ` ${build.txs.length} transactions` : " & send"}`}
+      </button>
+      <p className="text-[11px] text-white/30 mt-2 text-center">
+        {lang === "pt" ? "Você confirma cada transação na sua carteira." : "You confirm each transaction in your wallet."}
+      </p>
+    </div>
+  );
+}
+
+// ─── ERC-20 approval card ────────────────────────────────────────────────────
+
+function ApproveCard({ tx, lang, onDone }: { tx: BuiltTx; lang: "pt" | "en"; onDone: (hash: string | null, error?: string) => void }) {
+  const [signing, setSigning] = useState(false);
+  const unlimited = /unlimited/i.test(tx.description);
+
+  async function sign() {
+    setSigning(true);
+    try {
+      await switchToChain("Pharos");
+      const hash = await sendTransaction({ to: tx.to, data: tx.data, value: tx.value });
+      onDone(hash);
+    } catch (err) {
+      onDone(null, err instanceof Error ? err.message : String(err));
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="text-sm font-semibold text-white/90 mb-2">🔓 {lang === "pt" ? "Aprovação ERC-20" : "ERC-20 Approval"}</div>
+      <div className="text-xs text-white/70 mb-2">{tx.description}</div>
+      {unlimited && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200 mb-3">
+          {lang === "pt"
+            ? "⚠️ Aprovação ILIMITADA: o contrato poderá gastar todo o seu saldo deste token. Prefira aprovar só o necessário."
+            : "⚠️ UNLIMITED approval: the contract will be able to spend your entire balance of this token. Prefer approving only what you need."}
+        </div>
+      )}
+      <button
+        onClick={sign}
+        disabled={signing}
+        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+      >
+        {signing ? (lang === "pt" ? "Assinando…" : "Signing…") : lang === "pt" ? "Assinar aprovação" : "Sign approval"}
+      </button>
+    </div>
+  );
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
@@ -2114,11 +2458,49 @@ export default function ChatPage() {
 
     // Deterministic fast path: ecosystem/dApp listing questions are answered
     // straight from the local directory — instant, complete, never dangles.
+    const fastLang: "pt" | "en" =
+      /[ãõáéíóúâêôçà]|\b(quais?|quem|lista|liste|mostr[ae]|protocolos?|projetos?|parceir|investidor|ecossistema|dispon[ií]ve|not[íi]cia|novidade|campanha|explica|essa|tem)\b/i.test(text) ? "pt" : "en";
+
     if (isDappListQuestion(text) || isPartnerQuestion(text)) {
-      const lang: "pt" | "en" =
-        /[ãõáéíóúâêôçà]|\b(quais?|quem|lista|liste|mostr[ae]|protocolos?|projetos?|parceir|investidor|ecossistema|dispon[ií]ve|tem)\b/i.test(text) ? "pt" : "en";
-      const reply = isDappListQuestion(text) ? buildDappListReply(lang) : buildPartnersReply(lang);
+      const reply = isDappListQuestion(text) ? buildDappListReply(fastLang) : buildPartnersReply(fastLang);
       updateMessage(thinkingId, { isLoading: false, text: reply });
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Tx explainer fast path: a full 66-char hash in the message → explain it
+    // straight from the RPC (works on Mainnet + Atlantic Testnet).
+    const pastedHash = extractTxHash(text);
+    if (pastedHash) {
+      updateMessage(thinkingId, { isLoading: true });
+      try {
+        const explanation = await explainTx(pastedHash, "mainnet");
+        updateMessage(thinkingId, { isLoading: false, text: formatTxExplanation(explanation, fastLang) });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        updateMessage(thinkingId, { isLoading: false, isError: true, text: `RPC error: ${msg}` });
+      }
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Live campaign tracker fast path
+    if (CAMPAIGN_QUESTION_RE.test(text) && /\b(pharos|port|ativ|active|live|rolando|running)\b/i.test(text)) {
+      updateMessage(thinkingId, { isLoading: false, isSearching: true });
+      const reply = await fetchCampaignsReply(fastLang);
+      updateMessage(thinkingId, { isSearching: false, text: reply });
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Live news feed fast path
+    if (NEWS_QUESTION_RE.test(text) && /\b(pharos|rede|network)\b/i.test(text)) {
+      updateMessage(thinkingId, { isLoading: false, isSearching: true });
+      const reply = await fetchNewsReply(fastLang);
+      updateMessage(thinkingId, { isSearching: false, text: reply });
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -2186,6 +2568,82 @@ export default function ChatPage() {
           return;
         }
 
+        // ── Payment agent: transfer PROS/ERC-20 (single or batch) ──────────
+        if (groqResult.action === "transfer") {
+          const lang = guessUserLang(messages);
+          if (!walletAddress) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt"
+                ? "Para enviar tokens, conecte sua carteira primeiro (botão 'Conectar' no topo). 🔗"
+                : "To send tokens, connect your wallet first ('Connect' at the top). 🔗",
+            });
+          } else if (!groqResult.transfers || groqResult.transfers.length === 0) {
+            updateMessage(thinkingId, { isLoading: false, text: groqResult.reply });
+          } else {
+            try {
+              const network: PharosNetworkId = /\b(testnet|atlantic)\b/i.test(text) ? "testnet" : "mainnet";
+              const build = buildTransferTxs(groqResult.transfers, network);
+              updateMessage(thinkingId, {
+                isLoading: false,
+                text: sanitizeGroqReply(groqResult.reply),
+                transferPending: build,
+              });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              updateMessage(thinkingId, { isLoading: false, isError: true, text: msg });
+            }
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // ── ERC-20 approval via natural language ───────────────────────────
+        if (groqResult.action === "approve") {
+          const lang = guessUserLang(messages);
+          if (!walletAddress) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt"
+                ? "Para aprovar tokens, conecte sua carteira primeiro (botão 'Conectar' no topo). 🔗"
+                : "To approve tokens, connect your wallet first ('Connect' at the top). 🔗",
+            });
+          } else if (!groqResult.approveToken || !groqResult.approveSpender || groqResult.approveAmount == null) {
+            updateMessage(thinkingId, { isLoading: false, text: groqResult.reply });
+          } else {
+            try {
+              const tx = buildApproveTx({
+                token: groqResult.approveToken,
+                spender: groqResult.approveSpender,
+                amount: groqResult.approveAmount,
+              });
+              updateMessage(thinkingId, { isLoading: false, text: sanitizeGroqReply(groqResult.reply), approvePending: tx });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              updateMessage(thinkingId, { isLoading: false, isError: true, text: msg });
+            }
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // ── Tx explainer (when the LLM caught the hash instead of the fast path)
+        if (groqResult.action === "explain_tx" && groqResult.txHash) {
+          const lang = guessUserLang(messages);
+          try {
+            const explanation = await explainTx(groqResult.txHash, "mainnet");
+            updateMessage(thinkingId, { isLoading: false, text: formatTxExplanation(explanation, lang) });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            updateMessage(thinkingId, { isLoading: false, isError: true, text: `RPC error: ${msg}` });
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
         const complete = isCompleteIntent(groqResult);
         const ragSources = groqResult.foundInKnowledge ? groqResult.sources : undefined;
 
@@ -2197,7 +2655,11 @@ export default function ChatPage() {
             try {
               const price = await getTokenPrice(groqResult.needsPrice);
               const block = formatPriceBlock(groqResult.needsPrice, price);
-              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply + "\n\n" + block });
+              updateMessage(thinkingId, {
+                isSearching: false,
+                text: groqResult.reply + "\n\n" + block,
+                priceChart: { symbol: groqResult.needsPrice },
+              });
             } catch (priceErr) {
               const msg = priceErr instanceof Error ? priceErr.message : String(priceErr);
               console.warn("[pharos:price] fetch failed —", msg);

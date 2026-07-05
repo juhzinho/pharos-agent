@@ -43,6 +43,13 @@ export const CHAIN_WALLET_CONFIGS: Record<string, {
     rpcUrls: ["https://rpc.pharos.xyz"],
     blockExplorerUrls: ["https://pharos.socialscan.io", "https://pharosscan.xyz"],
   },
+  PharosTestnet: {
+    chainId: "0xa82b1",
+    chainName: "Pharos Atlantic Testnet",
+    nativeCurrency: { name: "PHRS", symbol: "PHRS", decimals: 18 },
+    rpcUrls: ["https://atlantic.dplabs-internal.com"],
+    blockExplorerUrls: ["https://atlantic.pharosscan.xyz"],
+  },
   Ethereum: {
     chainId: "0x1",
     chainName: "Ethereum Mainnet",
@@ -82,6 +89,62 @@ export const CHAIN_WALLET_CONFIGS: Record<string, {
 
 // Keep for backwards compatibility
 export const PHAROS_CHAIN = CHAIN_WALLET_CONFIGS.Pharos;
+
+// ── Pharos networks (Mainnet + Atlantic Testnet) ────────────────────────────
+// DeFi actions (swap/bridge/liquidity) are mainnet-only; transfers, wallet
+// profiles and the tx explainer work on both networks.
+
+export type PharosNetworkId = "mainnet" | "testnet";
+
+export const PHAROS_NETWORKS: Record<PharosNetworkId, {
+  id: PharosNetworkId;
+  label: string;
+  chainId: number;
+  chainIdHex: string;
+  rpc: string;
+  explorer: string;
+  explorerTx: string;      // + hash
+  explorerAddress: string; // + address
+  nativeSymbol: string;
+  walletConfig: {
+    chainId: string;
+    chainName: string;
+    nativeCurrency: { name: string; symbol: string; decimals: number };
+    rpcUrls: string[];
+    blockExplorerUrls: string[];
+  };
+}> = {
+  mainnet: {
+    id: "mainnet",
+    label: "Pharos Mainnet",
+    chainId: 1672,
+    chainIdHex: "0x688",
+    rpc: "https://rpc.pharos.xyz",
+    explorer: "https://pharos.socialscan.io",
+    explorerTx: "https://pharos.socialscan.io/tx/",
+    explorerAddress: "https://pharos.socialscan.io/address/",
+    nativeSymbol: "PROS",
+    walletConfig: CHAIN_WALLET_CONFIGS.Pharos,
+  },
+  testnet: {
+    id: "testnet",
+    label: "Atlantic Testnet",
+    chainId: 688689,
+    chainIdHex: "0xa82b1",
+    rpc: "https://atlantic.dplabs-internal.com",
+    explorer: "https://atlantic.pharosscan.xyz",
+    explorerTx: "https://atlantic.pharosscan.xyz/tx/",
+    explorerAddress: "https://atlantic.pharosscan.xyz/address/",
+    nativeSymbol: "PHRS",
+    walletConfig: {
+      chainId: "0xa82b1",
+      chainName: "Pharos Atlantic Testnet",
+      nativeCurrency: { name: "PHRS", symbol: "PHRS", decimals: 18 },
+      rpcUrls: ["https://atlantic.dplabs-internal.com"],
+      blockExplorerUrls: ["https://atlantic.pharosscan.xyz"],
+    },
+  },
+};
 
 export type TokenSymbol = keyof typeof TOKENS;
 export type ChainName = keyof typeof CHAINS;

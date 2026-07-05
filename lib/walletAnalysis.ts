@@ -24,6 +24,7 @@ export interface WalletAnalysis {
   address: string;
   holdings: TokenHolding[];   // non-zero balances, sorted by USD value desc
   totalUsd: number;
+  txCount: number;            // outgoing tx count (nonce)
   explorer: string;
 }
 
@@ -81,10 +82,17 @@ export async function getWalletAnalysis(address: string): Promise<WalletAnalysis
 
   holdings.sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0));
 
+  let txCount = 0;
+  try {
+    const hex = await rpc("eth_getTransactionCount", [address, "latest"]);
+    txCount = hex && hex !== "0x" ? Number(BigInt(hex)) : 0;
+  } catch { /* non-critical */ }
+
   return {
     address,
     holdings,
     totalUsd,
+    txCount,
     explorer: `https://pharos.socialscan.io/address/${address}`,
   };
 }
@@ -114,5 +122,25 @@ export function formatWalletAnalysis(a: WalletAnalysis, lang: "pt" | "en"): stri
     return `- **${h.symbol}**: ${bal}${usd}`;
   });
   const total = a.totalUsd > 0 ? `\n\n${lang === "pt" ? "Total estimado" : "Estimated total"}: **${fmtUsd(a.totalUsd)}**` : "";
-  return `${head} \`${short(a.address)}\` (Pharos)\n\n${rows.join("\n")}${total}\n\n[${lang === "pt" ? "Ver no Pharosscan" : "View on Pharosscan"}](${a.explorer})`;
+  const txLine = `\n${lang === "pt" ? "Transações enviadas" : "Transactions sent"}: **${a.txCount.toLocaleString("en-US")}**`;
+
+  // Short profile summary based on activity + portfolio shape.
+  const top = a.holdings[0];
+  const activity =
+    a.txCount === 0
+      ? lang === "pt" ? "carteira nova, sem transações enviadas ainda" : "fresh wallet, no outgoing transactions yet"
+      : a.txCount < 10
+        ? lang === "pt" ? "usuário iniciante na rede" : "getting started on the network"
+        : a.txCount < 100
+          ? lang === "pt" ? "usuário ativo na Pharos" : "active Pharos user"
+          : lang === "pt" ? "usuário muito ativo (power user)" : "power user";
+  const concentration =
+    top && a.totalUsd > 0 && top.usdValue != null && top.usdValue / a.totalUsd > 0.8
+      ? lang === "pt" ? `, portfólio concentrado em ${top.symbol}` : `, portfolio concentrated in ${top.symbol}`
+      : a.holdings.length >= 3
+        ? lang === "pt" ? ", portfólio diversificado" : ", diversified portfolio"
+        : "";
+  const summary = `\n\n💡 _${lang === "pt" ? "Perfil" : "Profile"}: ${activity}${concentration}._`;
+
+  return `${head} \`${short(a.address)}\` (Pharos)\n\n${rows.join("\n")}${total}${txLine}${summary}\n\n[${lang === "pt" ? "Ver no explorer" : "View on explorer"}](${a.explorer})`;
 }

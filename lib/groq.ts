@@ -3,7 +3,7 @@ import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
 
 export interface GroqResult {
-  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | null;
+  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | null;
   fromToken: string | null;
   toToken: string | null;
   amount: number | null;
@@ -51,6 +51,14 @@ export interface GroqResult {
     token?: string; to?: string; amount?: string; contract?: string;
     signature?: string; args?: string; name?: string; symbol?: string; supply?: string;
   } | null;
+  // Payment agent (action="transfer"): one or many recipients in one prompt
+  transfers?: Array<{ to: string; amount: number; token: string }> | null;
+  // ERC-20 approval (action="approve")
+  approveToken?: string | null;
+  approveSpender?: string | null;
+  approveAmount?: number | "unlimited" | null;
+  // Tx explainer (action="explain_tx"): hash pasted by the user
+  txHash?: string | null;
   // Which AI provider answered (for debugging)
   _provider?: string;
 }
@@ -353,7 +361,22 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "When in doubt about a token name, guess the closest match (PRS→PROS, pros→PROS, weth→WETH).\n\n" +
     "Tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm\n" +
     "Chains: Pharos (default), Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
-    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet"\n' +
+    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet", "transfer", "approve", "explain_tx"\n' +
+    "── PAYMENT AGENT (action='transfer') ──\n" +
+    "When the user wants to SEND/PAY tokens to an address ('send 1 PROS to 0x…', 'manda 5 USDC pra 0x…', 'paga 2 PROS pro 0x…', 'transfere 0.5 PROS para 0x…'):\n" +
+    "  action='transfer', fill transfers=[{to:'0x…', amount:1, token:'PROS'}].\n" +
+    "  BATCH: multiple recipients in one prompt → one array item each: 'send 1 PROS to 0xA and 2 PROS to 0xB' → transfers=[{to:'0xA',amount:1,token:'PROS'},{to:'0xB',amount:2,token:'PROS'}].\n" +
+    "  Same amount to many: 'airdrop 0.1 PROS to 0xA, 0xB, 0xC' → three items of 0.1 each.\n" +
+    "  If NO address given: action='transfer', transfers=null — ask for the address in reply.\n" +
+    "  If NO amount: needsAmount=true, transfers=null.\n" +
+    "── ERC-20 APPROVAL (action='approve') ──\n" +
+    "When the user wants to approve a contract to spend tokens ('approve 100 USDC for 0x…', 'aprova USDC ilimitado pro contrato 0x…', 'dá allowance de 50 USDC pra 0x…'):\n" +
+    "  action='approve', approveToken='USDC', approveSpender='0x…', approveAmount=100 (number) or 'unlimited'.\n" +
+    "  'ilimitado'/'unlimited'/'max'/'infinite' → approveAmount='unlimited'. Missing spender → approveSpender=null, ask in reply.\n" +
+    "  WARN in reply about unlimited approvals (risk if spender contract is compromised).\n" +
+    "── TX EXPLAINER (action='explain_tx') ──\n" +
+    "When the user pastes a 66-char transaction hash (0x + 64 hex) or asks to explain/check a transaction ('o que é essa tx?', 'explica essa transação', 'what happened in 0x…'):\n" +
+    "  action='explain_tx', txHash='0x…'. The app fetches the tx from the RPC and explains it — your reply is just a short intro like 'Deixa eu ver essa transação…'.\n" +
     "Portuguese: para/pra/pro=to, de/da=from, ponte/manda/envia/transfere=bridge, troca/swap=swap, adicionar/fornecer/entrar liquidez/pool=add_liquidity, remover/tirar/fechar/sair liquidez/pool=remove_liquidity, ver/mostrar posições/liquidez=view_positions\n" +
     "FaroSwap is the concentrated liquidity DEX on Pharos (like Uniswap V3). 'pool' = liquidity position. 'add pool' / 'enter pool' = add_liquidity. 'remove pool' / 'exit pool' / 'close pool' = remove_liquidity.\n\n" +
 
@@ -406,7 +429,12 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "REMINDER: Your ENTIRE response must be a single JSON object. No text before {. No text after }. No markdown fences. Only JSON.\n" +
     "Return ONLY valid JSON — no markdown, no explanation:\n" +
     "{\n" +
-    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|null,\n' +
+    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|"transfer"|"approve"|"explain_tx"|null,\n' +
+    '  "transfers": [{"to":"0x...","amount":1,"token":"PROS"}]|null,\n' +
+    '  "approveToken": "USDC"|null,\n' +
+    '  "approveSpender": "0x..."|null,\n' +
+    '  "approveAmount": 100|"unlimited"|null,\n' +
+    '  "txHash": "0x..."|null,\n' +
     '  "fromToken": "PROS"|null,\n' +
     '  "toToken": "USDC"|null,\n' +
     '  "amount": 0.5|null,\n' +
@@ -498,6 +526,11 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "IMPORTANT — ONLY mention features this app actually has. Do NOT invent providers or capabilities.\n" +
     "This app's REAL capabilities:\n" +
     "- SWAP tokens on Pharos (via LI.FI/Jumper by default, or direct FaroSwap pool for PROS/WPROS ↔ USDC)\n" +
+    "- TRANSFER (payment agent): send PROS or ERC-20 tokens to any address via natural language, including BATCH sends to multiple addresses in one prompt\n" +
+    "- APPROVE: ERC-20 allowances for a spender contract via natural language\n" +
+    "- EXPLAIN TX: paste any Pharos tx hash → plain-language explanation (works on Mainnet AND Atlantic Testnet)\n" +
+    "- LIVE PROS PRICE with 24h change, market cap, volume, interactive chart and CEX trading links\n" +
+    "- LIVE CAMPAIGNS tracker and PHAROS NEWS feed\n" +
     "- BRIDGE tokens between Pharos and: Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
     "- ADD LIQUIDITY to FaroSwap V3 WPROS/USDC pool (full-range, NFT position). User gets an LP NFT.\n" +
     "- REMOVE LIQUIDITY from FaroSwap V3 WPROS/USDC pool. Show user their LP positions, let them pick one, and remove it completely or partially.\n" +
@@ -729,6 +762,30 @@ export async function parseWithGroq(
     if (!parsed.scriptOperation) parsed.scriptOperation = "balance";
     if (!parsed.scriptLanguage) parsed.scriptLanguage = "javascript";
   }
+  // Payment agent / approval / tx-explainer fields
+  parsed.transfers = Array.isArray(parsed.transfers)
+    ? parsed.transfers
+        .filter(
+          (t): t is { to: string; amount: number; token: string } =>
+            !!t && typeof t === "object" &&
+            typeof t.to === "string" && /^0x[a-fA-F0-9]{40}$/.test(t.to) &&
+            typeof t.amount === "number" && t.amount > 0 &&
+            typeof t.token === "string" && t.token.length > 0
+        )
+        .slice(0, 20)
+    : null;
+  if (parsed.transfers && parsed.transfers.length === 0) parsed.transfers = null;
+  parsed.approveToken = typeof parsed.approveToken === "string" && parsed.approveToken ? parsed.approveToken : null;
+  parsed.approveSpender =
+    typeof parsed.approveSpender === "string" && /^0x[a-fA-F0-9]{40}$/.test(parsed.approveSpender)
+      ? parsed.approveSpender
+      : null;
+  parsed.approveAmount =
+    parsed.approveAmount === "unlimited" || (typeof parsed.approveAmount === "number" && parsed.approveAmount > 0)
+      ? parsed.approveAmount
+      : null;
+  parsed.txHash =
+    typeof parsed.txHash === "string" && /^0x[a-fA-F0-9]{64}$/.test(parsed.txHash) ? parsed.txHash : null;
   parsed.foundInKnowledge = parsed.foundInKnowledge === true;
   parsed.sources = Array.isArray(parsed.sources)
     ? parsed.sources.filter((s): s is string => typeof s === "string" && s.length > 0).slice(0, 4)
