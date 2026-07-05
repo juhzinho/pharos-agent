@@ -8,7 +8,7 @@ import { type GroqResult } from "@/lib/groq";
 import { buildSwapBridge, formatReceiveAmount, resolveTokenAddressForChain, type QuoteResult } from "@/lib/lifi";
 // resolveTokenAddressForChain is used in handleProviderChoice
 import {
-  buildLiquidityTx, buildApproveCalldata, buildRemoveLiquidityTx, FAROSWAP, FEE_TIERS,
+  buildLiquidityTx, buildApproveCalldata, buildRemoveLiquidityTx, FAROSWAP, FEE_TIERS, readPoolState,
   type LiquidityBuildResult, type LiquidityParams, type FeeTier, type RemoveLiquidityBuildResult,
 } from "@/lib/liquidity";
 import { fetchUserPositions, formatPositionSummary, type V3Position } from "@/lib/positions";
@@ -966,6 +966,19 @@ function SwapWizardCard({ state, lang, onSubmit }: {
 const LIQ_FEE_TIERS = [100, 500, 3000, 10000] as const;
 const LIQ_RANGE_OPTIONS = [5, 10, 15, 30] as const;
 
+// Uniswap V3 math (human units, USDC per WPROS): given the WPROS amount and a
+// symmetric range around the current price, estimate the USDC counterpart.
+function estimateUsdcCounterpart(wpros: number, price: number, range: number | "full"): number {
+  if (!Number.isFinite(wpros) || wpros <= 0 || price <= 0) return 0;
+  if (range === "full") return wpros * price;
+  const r = Math.min(range / 100, 0.99);
+  const sp  = Math.sqrt(price);
+  const spl = Math.sqrt(price * (1 - r));
+  const spu = Math.sqrt(price * (1 + r));
+  const L = wpros * (sp * spu) / (spu - sp);
+  return L * (sp - spl);
+}
+
 function LiquidityWizardCard({ state, lang, onSubmit }: {
   state: LiquidityWizardState;
   lang: "pt" | "en";
@@ -973,17 +986,37 @@ function LiquidityWizardCard({ state, lang, onSubmit }: {
 }) {
   const [feeTier, setFeeTier] = useState<number | null>(state.preFeeTier ?? null);
   const [range, setRange] = useState<number | "full" | null>(state.preRangePercent ?? null);
+  const [customRangeStr, setCustomRangeStr] = useState("");
   const [amountStr, setAmountStr] = useState(state.preAmount != null && state.preAmount > 0 ? String(state.preAmount) : "");
+  const [poolPrice, setPoolPrice] = useState<number | null>(null);
+
+  // Live pool price for the selected fee tier → powers the USDC estimate.
+  useEffect(() => {
+    if (feeTier == null) return;
+    let alive = true;
+    setPoolPrice(null);
+    readPoolState(feeTier as FeeTier)
+      .then((s) => { if (alive) setPoolPrice(s.priceUSDCperWPROS); })
+      .catch(() => { if (alive) setPoolPrice(null); });
+    return () => { alive = false; };
+  }, [feeTier]);
 
   const wpros = state.holdings.find((h) => h.symbol === "WPROS");
+  const usdc  = state.holdings.find((h) => h.symbol === "USDC");
+  const usdcBalance = usdc?.balance ?? 0;
   const maxAmount = wpros?.balance ?? 0;
   const amount = parseFloat(amountStr.replace(",", "."));
   const amountOk = Number.isFinite(amount) && amount > 0 && amount <= maxAmount + 1e-9;
   const ready = feeTier != null && range != null && amountOk;
 
+  const usdcNeeded = ready && poolPrice != null
+    ? estimateUsdcCounterpart(amount, poolPrice, range!)
+    : null;
+  const usdcShort = usdcNeeded != null && usdcNeeded > usdcBalance + 1e-9;
+
   const t = lang === "pt"
-    ? { pair: "1 · Par de liquidez", fee: "2 · Fee tier da pool", range: "3 · Range de preço", amount: "4 · Quanto de WPROS?", max: "disponível", full: "Range completo", insufficient: "Valor maior que o saldo de WPROS", submit: "Montar posição →", noBal: "Você não tem WPROS. Faça um swap PROS → WPROS primeiro." }
-    : { pair: "1 · Liquidity pair", fee: "2 · Pool fee tier", range: "3 · Price range", amount: "4 · How much WPROS?", max: "available", full: "Full range", insufficient: "Amount exceeds WPROS balance", submit: "Build position →", noBal: "You have no WPROS. Swap PROS → WPROS first." };
+    ? { pair: "1 · Par de liquidez", fee: "2 · Fee tier da pool", range: "3 · Range de preço", amount: "4 · Quanto de WPROS?", max: "disponível", full: "Range completo", custom: "Outro", insufficient: "Valor maior que o saldo de WPROS", submit: "Montar posição →", noBal: "Você não tem WPROS. Faça um swap PROS → WPROS primeiro.", needs: "USDC necessário (estimado)", yourUsdc: "seu saldo", usdcShortWarn: "Saldo de USDC insuficiente para esse valor — reduza o WPROS ou compre USDC.", price: "Preço atual" }
+    : { pair: "1 · Liquidity pair", fee: "2 · Pool fee tier", range: "3 · Price range", amount: "4 · How much WPROS?", max: "available", full: "Full range", custom: "Custom", insufficient: "Amount exceeds WPROS balance", submit: "Build position →", noBal: "You have no WPROS. Swap PROS → WPROS first.", needs: "USDC needed (estimated)", yourUsdc: "your balance", usdcShortWarn: "Not enough USDC for this amount — lower the WPROS or buy USDC.", price: "Current price" };
 
   return (
     <div className="mt-3 px-4 py-4 rounded-2xl space-y-4"
@@ -1021,15 +1054,15 @@ function LiquidityWizardCard({ state, lang, onSubmit }: {
         </div>
       </div>
 
-      {/* Range */}
+      {/* Range — presets, full range, or a custom typed % */}
       {feeTier != null && (
         <div>
           <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(52,211,153,0.6)" }}>{t.range}</p>
           <div className="flex gap-2 flex-wrap">
             {LIQ_RANGE_OPTIONS.map((r) => {
-              const active = range === r;
+              const active = range === r && customRangeStr === "";
               return (
-                <button key={r} onClick={() => setRange(r)}
+                <button key={r} onClick={() => { setRange(r); setCustomRangeStr(""); }}
                   className="flex-1 min-w-[64px] px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
                   style={{
                     background: active ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
@@ -1040,7 +1073,7 @@ function LiquidityWizardCard({ state, lang, onSubmit }: {
                 </button>
               );
             })}
-            <button onClick={() => setRange("full")}
+            <button onClick={() => { setRange("full"); setCustomRangeStr(""); }}
               className="flex-1 min-w-[90px] px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
               style={{
                 background: range === "full" ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
@@ -1049,6 +1082,27 @@ function LiquidityWizardCard({ state, lang, onSubmit }: {
               }}>
               {t.full}
             </button>
+            {/* Custom % input */}
+            <div className="flex-1 min-w-[100px] flex items-center gap-1 px-2.5 rounded-xl"
+              style={{
+                background: customRangeStr ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${customRangeStr ? "rgba(52,211,153,0.55)" : "rgba(255,255,255,0.08)"}`,
+              }}>
+              <span className="text-xs font-semibold" style={{ color: customRangeStr ? "#6ee7b7" : "rgba(148,163,184,0.55)" }}>±</span>
+              <input
+                type="text" inputMode="decimal" value={customRangeStr}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9.,]/g, "");
+                  setCustomRangeStr(v);
+                  const n = parseFloat(v.replace(",", "."));
+                  if (Number.isFinite(n) && n > 0 && n < 100) setRange(n);
+                  else if (v === "") setRange(null);
+                }}
+                placeholder={t.custom}
+                className="w-full py-2.5 text-xs font-semibold text-white outline-none bg-transparent"
+              />
+              <span className="text-xs font-semibold" style={{ color: customRangeStr ? "#6ee7b7" : "rgba(148,163,184,0.55)" }}>%</span>
+            </div>
           </div>
         </div>
       )}
@@ -1088,6 +1142,45 @@ function LiquidityWizardCard({ state, lang, onSubmit }: {
                   </button>
                 ))}
               </div>
+
+              {/* Live USDC counterpart estimate */}
+              {amountOk && range != null && (
+                <div className="mt-3 px-3 py-2.5 rounded-xl"
+                  style={{
+                    background: usdcShort ? "rgba(251,191,36,0.07)" : "rgba(52,211,153,0.06)",
+                    border: `1px solid ${usdcShort ? "rgba(251,191,36,0.3)" : "rgba(52,211,153,0.18)"}`,
+                  }}>
+                  {poolPrice == null ? (
+                    <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.6)" }}>
+                      {lang === "pt" ? "Calculando o USDC necessário…" : "Calculating USDC needed…"}
+                    </span>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-semibold" style={{ color: usdcShort ? "rgba(251,191,36,0.9)" : "rgba(110,231,183,0.9)" }}>
+                          {t.needs}
+                        </span>
+                        <span className="text-xs font-data font-bold" style={{ color: usdcShort ? "#fbbf24" : "#6ee7b7" }}>
+                          ≈ {usdcNeeded != null ? usdcNeeded.toFixed(4) : "—"} USDC
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 mt-1">
+                        <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.5)" }}>
+                          {t.price}: 1 WPROS ≈ {poolPrice.toFixed(4)} USDC
+                        </span>
+                        <span className="text-[10px] font-data" style={{ color: "rgba(148,163,184,0.55)" }}>
+                          {t.yourUsdc}: {usdcBalance.toLocaleString("en-US", { maximumFractionDigits: 4 })} USDC
+                        </span>
+                      </div>
+                      {usdcShort && (
+                        <p className="text-[11px] mt-1.5 leading-snug" style={{ color: "rgba(251,191,36,0.85)" }}>
+                          ⚠ {t.usdcShortWarn}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -2694,10 +2787,12 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!walletAddress) return;
+    // Refetches on connect, on selected-network change, and every 5s — so the
+    // balance follows the active chain quickly after a mainnet/testnet switch.
     getBalance(walletAddress).then(setBalance);
-    const iv = setInterval(() => getBalance(walletAddress).then(setBalance), 15000);
+    const iv = setInterval(() => getBalance(walletAddress).then(setBalance), 5000);
     return () => clearInterval(iv);
-  }, [walletAddress]);
+  }, [walletAddress, selectedNetwork, chainId]);
 
   // Persist connection across reloads: if the user connected before and the
   // wallet still authorizes us, silently re-attach (no prompt) and read the chain.
@@ -2732,7 +2827,12 @@ export default function ChatPage() {
         getBalance(accounts[0]).then(setBalance);
       }
     };
-    const onChain = (...args: unknown[]) => setChainId(args[0] as string);
+    const onChain = (...args: unknown[]) => {
+      setChainId(args[0] as string);
+      // Refresh the navbar balance immediately — the old 15s poll made the
+      // testnet/mainnet balance look "stuck" right after a network switch.
+      if (walletAddress) getBalance(walletAddress).then(setBalance);
+    };
     eth.on("accountsChanged", onAccounts);
     eth.on("chainChanged", onChain);
     return () => {
