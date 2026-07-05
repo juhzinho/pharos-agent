@@ -128,11 +128,13 @@ export async function getPriceHistory(tokenId: string, days: ChartRange): Promis
   return prices;
 }
 
-// CEX trading links for PROS (per Bitget Academy: listed April 28, 2026).
+// CEX trading + market data links for PROS (per Bitget Academy: listed April 28, 2026).
 export const PROS_CEX_LINKS: Array<{ name: string; url: string }> = [
   { name: "Bitget", url: "https://www.bitget.com/spot/PROSUSDT" },
   { name: "OKX", url: "https://www.okx.com/trade-spot/pros-usdt" },
   { name: "Binance Alpha", url: "https://www.binance.com/en/alpha" },
+  { name: "CoinMarketCap", url: "https://coinmarketcap.com/currencies/pharos/" },
+  { name: "SoSoValue", url: "https://sosovalue.com/coins/pharos" },
   { name: "CoinGecko", url: "https://www.coingecko.com/en/coins/pharos-network" },
 ];
 

@@ -179,8 +179,8 @@ export default function TradePage() {
       {/* Venues */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="p-6 rounded-2xl" style={{ background: "rgba(6,12,28,0.75)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <h2 className="text-sm font-bold text-white mb-1">Trade on CEX</h2>
-          <p className="text-xs mb-4" style={{ color: "rgba(148,163,184,0.55)" }}>Centralized exchanges with PROS listings.</p>
+          <h2 className="text-sm font-bold text-white mb-1">Trade &amp; track $PROS</h2>
+          <p className="text-xs mb-4" style={{ color: "rgba(148,163,184,0.55)" }}>CEX listings and market data trackers for PROS.</p>
           <div className="flex flex-col gap-2">
             {PROS_CEX_LINKS.map((l) => (
               <a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer"
