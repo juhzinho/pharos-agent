@@ -526,7 +526,12 @@ function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
 
 // ─── position cards ────────────────────────────────────────────────────────
 
-function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRemove?: (p: V3Position) => void }) {
+// Full-range positions on FaroSwap use the extreme tick bounds
+function isFullRange(p: V3Position) {
+  return p.tickLower <= -887200 && p.tickUpper >= 887200;
+}
+
+function PositionCards({ positions, onRemove, onCollect }: { positions: V3Position[]; onRemove?: (p: V3Position) => void; onCollect?: (p: V3Position) => void }) {
   if (positions.length === 0) return null;
 
   const inRange  = positions.filter(p => p.liquidity > 0n && p.inRange);
@@ -537,87 +542,136 @@ function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRem
     const hasLiq = p.liquidity > 0n;
     const hasFees = p.feesWPROS > 0.000001 || p.feesUSDC > 0.000001;
     const inR = hasLiq && p.inRange;
-    const sc = !hasLiq ? "rgba(100,116,139,0.7)" : inR ? "#34d399" : "#fbbf24";
-    const sb = !hasLiq ? "rgba(100,116,139,0.08)" : inR ? "rgba(52,211,153,0.1)" : "rgba(251,191,36,0.1)";
+    const sc = !hasLiq ? "rgba(148,163,184,0.6)" : inR ? "#34d399" : "#fbbf24";
     const sl = !hasLiq ? "Closed" : inR ? "In Range" : "Out of Range";
+    const accentBar = !hasLiq ? "rgba(100,116,139,0.35)" : inR ? "#34d399" : "#fbbf24";
+
     return (
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(12px)" }}>
+      <div className="rounded-2xl overflow-hidden relative"
+        style={{ background: "rgba(7,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(14px)" }}>
+        {/* Status accent bar on the left */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: accentBar, opacity: 0.7 }} />
+
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(0,212,255,0.025)" }}>
-          <div className="flex items-center gap-2.5">
-            <div className="flex -space-x-1.5">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold z-10" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "1.5px solid rgba(6,13,31,0.9)" }}>W</div>
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "1.5px solid rgba(6,13,31,0.9)" }}>U</div>
+        <div className="flex items-center justify-between pl-5 pr-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex -space-x-2">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold z-10 text-white" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "2px solid rgba(7,14,30,1)" }}>W</div>
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "2px solid rgba(7,14,30,1)" }}>U</div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-white">WPROS / USDC</p>
-              <p className="text-[10px] font-data" style={{ color: "rgba(0,212,255,0.55)" }}>NFT #{String(p.tokenId)}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[13px] font-bold text-white tracking-[-0.01em]">WPROS / USDC</p>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: "rgba(0,212,255,0.09)", color: "rgba(0,212,255,0.8)", border: "1px solid rgba(0,212,255,0.16)" }}>
+                  {(p.fee / 10000).toFixed(2)}%
+                </span>
+              </div>
+              <p className="text-[10px] font-data mt-0.5" style={{ color: "rgba(100,116,139,0.6)" }}>
+                NFT #{String(p.tokenId)} · {isFullRange(p) ? "Full range" : `Ticks ${p.tickLower} → ${p.tickUpper}`}
+              </p>
             </div>
           </div>
-          <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full" style={{ color: sc, background: sb, border: `1px solid ${sc}44` }}>{sl}</span>
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0" style={{ color: sc, background: `${sc.startsWith("#") ? sc : "rgba(148,163,184,1)"}12`, border: `1px solid ${sc}35` }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc }} />
+            {sl}
+          </span>
         </div>
-        {/* Body */}
-        <div className="px-4 py-3 space-y-2">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-data">
-            <span style={{ color: "rgba(100,116,139,0.75)" }}>Fee tier</span>
-            <span className="text-right"><span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.8)", border: "1px solid rgba(0,212,255,0.15)" }}>{(p.fee / 10000).toFixed(2)}%</span></span>
-            <span style={{ color: "rgba(100,116,139,0.75)" }}>Tick range</span>
-            <span className="text-right text-gray-300 text-[11px]">{p.tickLower} → {p.tickUpper}</span>
-            {hasLiq && (<>
-              <span style={{ color: "rgba(100,116,139,0.75)" }}>WPROS</span>
-              <span className="text-right text-gray-200">{p.amount0WPROS.toFixed(6)}</span>
-              <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
-              <span className="text-right text-gray-200">{p.amount1USDC.toFixed(6)}</span>
-            </>)}
+
+        {/* Amounts */}
+        {(hasLiq || hasFees) && (
+          <div className="pl-5 pr-4 pb-3 flex flex-wrap gap-2">
+            {hasLiq && (
+              <div className="flex-1 min-w-[140px] px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(100,116,139,0.55)" }}>Liquidity</p>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.6)" }}>WPROS</span>
+                    <span className="text-[11px] font-data font-semibold text-gray-200">{p.amount0WPROS.toFixed(6)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.6)" }}>USDC</span>
+                    <span className="text-[11px] font-data font-semibold text-gray-200">{p.amount1USDC.toFixed(6)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {hasFees && (
+              <div className="flex-1 min-w-[140px] px-3 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(251,191,36,0.6)" }}>Uncollected fees</p>
+                <div className="space-y-1">
+                  {p.feesWPROS > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-data" style={{ color: "rgba(251,191,36,0.55)" }}>WPROS</span>
+                      <span className="text-[11px] font-data font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{p.feesWPROS.toFixed(6)}</span>
+                    </div>
+                  )}
+                  {p.feesUSDC > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-data" style={{ color: "rgba(251,191,36,0.55)" }}>USDC</span>
+                      <span className="text-[11px] font-data font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{p.feesUSDC.toFixed(6)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          {hasFees && (
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}>
-              <span className="text-xs font-data" style={{ color: "rgba(251,191,36,0.65)" }}>Uncollected fees</span>
-              <span className="text-xs font-data font-semibold" style={{ color: "rgba(251,191,36,0.85)" }}>
-                {p.feesWPROS > 0 ? `${p.feesWPROS.toFixed(6)} WPROS` : ""}
-                {p.feesWPROS > 0 && p.feesUSDC > 0 ? " + " : ""}
-                {p.feesUSDC > 0 ? `${p.feesUSDC.toFixed(6)} USDC` : ""}
-              </span>
-            </div>
-          )}
-          <div className="flex items-center justify-between pt-1">
-            <a href={`https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] font-medium transition-colors" style={{ color: "rgba(0,212,255,0.35)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.7)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.35)")}>
-              View NFT →
-            </a>
-            {onRemove && (hasLiq || p.feesWPROS > 0.000001 || p.feesUSDC > 0.000001) && (
-              <button onClick={() => onRemove(p)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
-                style={hasLiq
-                  ? { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "rgba(248,113,113,0.9)" }
-                  : { background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(251,191,36,0.9)" }
-                }
+        )}
+
+        {/* Footer: actions */}
+        <div className="flex items-center justify-between gap-2 pl-5 pr-4 py-2.5 border-t" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.15)" }}>
+          <a href={`https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] font-medium transition-colors shrink-0" style={{ color: "rgba(0,212,255,0.4)" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.8)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.4)")}>
+            <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M5 2H2.5A1.5 1.5 0 001 3.5v5A1.5 1.5 0 002.5 10h5A1.5 1.5 0 009 8.5V7M7 1h4v4M11 1L5.5 6.5"/></svg>
+            View NFT
+          </a>
+          <div className="flex items-center gap-2">
+            {/* Collect Fees — whenever there are uncollected fees */}
+            {onCollect && hasFees && (
+              <button onClick={() => onCollect(p)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+                style={{ background: "rgba(251,191,36,0.09)", border: "1px solid rgba(251,191,36,0.25)", color: "rgba(251,191,36,0.9)" }}
                 onMouseEnter={(e) => {
-                  const col = hasLiq ? "rgba(239,68,68," : "rgba(251,191,36,";
-                  (e.currentTarget as HTMLButtonElement).style.background = col + "0.18)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = col + "0.45)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.18)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(251,191,36,0.45)";
                   (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
                 }}
                 onMouseLeave={(e) => {
-                  const col = hasLiq ? "rgba(239,68,68," : "rgba(251,191,36,";
-                  (e.currentTarget as HTMLButtonElement).style.background = col + "0.1)";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = col + "0.25)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.09)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(251,191,36,0.25)";
                   (e.currentTarget as HTMLButtonElement).style.transform = "";
                 }}>
-                {hasLiq ? (
-                  <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                    <path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A1 1 0 004.7 12.5h4.6a1 1 0 001-.99L11 4"/>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                    <path d="M7 1v12M3 5l4-4 4 4M3 9l4 4 4-4"/>
-                  </svg>
-                )}
-                {hasLiq ? "Remove" : "Collect Fees"}
+                <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                  <path d="M7 12V2M3 6l4-4 4 4"/>
+                </svg>
+                Collect Fees
               </button>
+            )}
+            {/* Remove Liquidity — whenever the position still has liquidity */}
+            {onRemove && hasLiq && (
+              <button onClick={() => onRemove(p)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200"
+                style={{ background: "rgba(239,68,68,0.09)", border: "1px solid rgba(239,68,68,0.25)", color: "rgba(248,113,113,0.9)" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.18)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.45)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.09)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.25)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "";
+                }}>
+                <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                  <path d="M3 7h8"/>
+                </svg>
+                Remove
+              </button>
+            )}
+            {/* Closed + no fees: nothing to do */}
+            {!hasLiq && !hasFees && (
+              <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.4)" }}>Nothing to collect</span>
             )}
           </div>
         </div>
@@ -630,10 +684,12 @@ function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRem
     return (
       <div className="mb-1">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] uppercase tracking-[0.1em] font-semibold" style={{ color }}>{title}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: `${color}18`, border: `1px solid ${color}33`, color }}>{badge}</span>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+          <span className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color }}>{title}</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${color}15`, border: `1px solid ${color}30`, color }}>{badge}</span>
+          <span className="flex-1 h-px" style={{ background: `${color}12` }} />
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {items.map(p => <PositionCard key={String(p.tokenId)} p={p} />)}
         </div>
       </div>
@@ -641,10 +697,10 @@ function PositionCards({ positions, onRemove }: { positions: V3Position[]; onRem
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-3">
+    <div className="mt-4 flex flex-col gap-4">
       <Group title="In Range" badge={`${inRange.length}`} color="rgba(52,211,153,0.85)" items={inRange} />
       <Group title="Out of Range" badge={`${outRange.length}`} color="rgba(251,191,36,0.85)" items={outRange} />
-      <Group title="Closed" badge={`${closed.length}`} color="rgba(100,116,139,0.6)" items={closed} />
+      <Group title="Closed" badge={`${closed.length}`} color="rgba(148,163,184,0.55)" items={closed} />
       {positions[0]?.currentPriceUSDC > 0 && (
         <p className="text-[10px] font-data text-right" style={{ color: "rgba(100,116,139,0.45)" }}>
           Pool price: ~{positions[0].currentPriceUSDC.toFixed(4)} USDC/WPROS
@@ -868,6 +924,7 @@ function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (
 function RemovePctSelector({ position, onSelect }: { position: V3Position; onSelect: (pct: number) => void }) {
   const [hoveredPct, setHoveredPct] = useState<number | null>(null);
   const isCollectOnly = position.liquidity === 0n;
+  const hasFees = position.feesWPROS > 0.000001 || position.feesUSDC > 0.000001;
   const pcts = [
     { label: "25%", pct: 25, accent: "rgba(56,189,248,0.85)" },
     { label: "50%", pct: 50, accent: "rgba(99,102,241,0.85)" },
@@ -880,12 +937,17 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
 
   if (isCollectOnly) {
     return (
-      <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(251,191,36,0.2)" }}>
-        <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(251,191,36,0.12)", background: "rgba(251,191,36,0.03)" }}>
-          <p className="text-xs font-semibold text-white">Collect Fees — NFT #{String(position.tokenId)}</p>
-          <p className="text-[10px] mt-0.5 font-data" style={{ color: "rgba(251,191,36,0.45)" }}>
-            Closed position · {(position.fee / 10000).toFixed(2)}% fee tier
-          </p>
+      <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(7,14,30,0.85)", border: "1px solid rgba(251,191,36,0.2)", backdropFilter: "blur(14px)" }}>
+        <div className="px-4 py-3 flex items-center gap-2.5 border-b" style={{ borderColor: "rgba(251,191,36,0.1)", background: "rgba(251,191,36,0.04)" }}>
+          <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.25)" }}>
+            <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="none" stroke="rgba(251,191,36,0.9)" strokeWidth="1.7" strokeLinecap="round"><path d="M7 12V2M3 6l4-4 4 4"/></svg>
+          </span>
+          <div>
+            <p className="text-xs font-bold text-white">Collect Fees</p>
+            <p className="text-[10px] font-data" style={{ color: "rgba(251,191,36,0.5)" }}>
+              NFT #{String(position.tokenId)} · Closed · {(position.fee / 10000).toFixed(2)}% tier
+            </p>
+          </div>
         </div>
         <div className="px-4 py-3 space-y-3">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs font-data">
@@ -896,7 +958,7 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
               <span className="text-right font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{position.feesUSDC.toFixed(6)}</span>
             </>)}
           </div>
-          <button onClick={() => onSelect(100)}
+          <button onClick={() => onSelect(0)}
             className="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
             style={{ background: "linear-gradient(135deg,#d97706,#fbbf24,#b45309)", boxShadow: "0 4px 16px rgba(251,191,36,0.28)", color: "#000" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
@@ -909,12 +971,17 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
   }
 
   return (
-    <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(8,16,32,0.75)", border: "1px solid rgba(239,68,68,0.18)" }}>
-      <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(239,68,68,0.1)", background: "rgba(239,68,68,0.04)" }}>
-        <p className="text-xs font-semibold text-white">Remove Liquidity — NFT #{String(position.tokenId)}</p>
-        <p className="text-[10px] mt-0.5 font-data" style={{ color: "rgba(239,68,68,0.45)" }}>
-          WPROS / USDC · {(position.fee / 10000).toFixed(2)}% fee · {position.inRange ? "In Range" : "Out of Range"}
-        </p>
+    <div className="mt-4 rounded-2xl overflow-hidden" style={{ background: "rgba(7,14,30,0.85)", border: "1px solid rgba(239,68,68,0.18)", backdropFilter: "blur(14px)" }}>
+      <div className="px-4 py-3 flex items-center gap-2.5 border-b" style={{ borderColor: "rgba(239,68,68,0.1)", background: "rgba(239,68,68,0.04)" }}>
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
+          <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="none" stroke="rgba(248,113,113,0.9)" strokeWidth="1.7" strokeLinecap="round"><path d="M3 7h8"/></svg>
+        </span>
+        <div>
+          <p className="text-xs font-bold text-white">Remove Liquidity</p>
+          <p className="text-[10px] font-data" style={{ color: "rgba(239,68,68,0.5)" }}>
+            NFT #{String(position.tokenId)} · {(position.fee / 10000).toFixed(2)}% tier · {position.inRange ? "In Range" : "Out of Range"}
+          </p>
+        </div>
       </div>
 
       {/* Preview */}
@@ -927,11 +994,11 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
           <span className="text-right font-semibold text-gray-200">{previewWpros}</span>
           <span style={{ color: "rgba(100,116,139,0.75)" }}>USDC</span>
           <span className="text-right font-semibold text-gray-200">{previewUsdc}</span>
-          {(position.feesWPROS > 0.000001 || position.feesUSDC > 0.000001) && (<>
+          {hasFees && (
             <span className="col-span-2 mt-1" style={{ color: "rgba(251,191,36,0.55)", fontSize: "10px" }}>
               + all uncollected fees: {position.feesWPROS.toFixed(6)} WPROS + {position.feesUSDC.toFixed(6)} USDC
             </span>
-          </>)}
+          )}
         </div>
       </div>
 
@@ -960,6 +1027,24 @@ function RemovePctSelector({ position, onSelect }: { position: V3Position; onSel
             </button>
           ))}
         </div>
+
+        {/* Collect fees only — keep liquidity, just claim earnings */}
+        {hasFees && (
+          <button onClick={() => onSelect(0)}
+            className="mt-2 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200"
+            style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.22)", color: "rgba(251,191,36,0.9)" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.14)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(251,191,36,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(251,191,36,0.07)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(251,191,36,0.22)";
+            }}>
+            <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M7 12V2M3 6l4-4 4 4"/></svg>
+            Collect fees only — keep liquidity
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1290,35 +1375,65 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
           const r = msg.removeLiquidityPending!.result;
           const faroswapUrl = `https://faroswap.xyz/#/pool/${String(r.tokenId)}`;
           const scanUrl = `https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(r.tokenId)}`;
+          const accentCol = r.simulationFailed ? "245,158,11" : r.collectOnly ? "251,191,36" : "239,68,68";
           return (
-            <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.9)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}`, backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
-              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)"}`, background: r.simulationFailed ? "rgba(245,158,11,0.04)" : "rgba(239,68,68,0.04)" }}>
-                <div>
-                  <p className="text-xs font-bold text-white">
-                    {r.collectOnly ? "⬆ Collect Fees" : "🔴 Remove Liquidity"}
-                  </p>
-                  <p className="text-[10px] mt-0.5 font-data" style={{ color: r.simulationFailed ? "rgba(245,158,11,0.6)" : "rgba(239,68,68,0.55)" }}>NFT #{String(r.tokenId)} · FaroSwap V3</p>
+            <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(7,14,30,0.9)", border: `1px solid rgba(${accentCol},0.22)`, backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid rgba(${accentCol},0.1)`, background: `rgba(${accentCol},0.04)` }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `rgba(${accentCol},0.1)`, border: `1px solid rgba(${accentCol},0.25)` }}>
+                    {r.collectOnly ? (
+                      <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="none" stroke={`rgba(${accentCol},0.9)`} strokeWidth="1.7" strokeLinecap="round"><path d="M7 12V2M3 6l4-4 4 4"/></svg>
+                    ) : (
+                      <svg viewBox="0 0 14 14" className="w-3.5 h-3.5" fill="none" stroke={`rgba(${accentCol},0.9)`} strokeWidth="1.7" strokeLinecap="round"><path d="M3 7h8"/></svg>
+                    )}
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold text-white">
+                      {r.collectOnly ? "Collect Fees" : "Remove Liquidity"}
+                    </p>
+                    <p className="text-[10px] mt-0.5 font-data" style={{ color: `rgba(${accentCol},0.55)` }}>NFT #{String(r.tokenId)} · FaroSwap V3</p>
+                  </div>
                 </div>
-                <span className="text-[10px] px-2 py-1 rounded-full font-medium" style={{ background: r.simulationFailed ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)", color: r.simulationFailed ? "rgba(245,158,11,0.8)" : "rgba(239,68,68,0.7)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}` }}>
+                <span className="text-[10px] px-2 py-1 rounded-full font-semibold" style={{ background: `rgba(${accentCol},0.1)`, color: `rgba(${accentCol},0.85)`, border: `1px solid rgba(${accentCol},0.22)` }}>
                   {(r.feeTier / 10000).toFixed(2)}% pool
                 </span>
               </div>
               <div className="px-4 py-3 space-y-2.5">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-data">
-                  {!r.collectOnly && (<>
-                    <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity WPROS</span>
-                    <span className="text-right font-semibold text-gray-200">{r.amount0WPROS.toFixed(6)}</span>
-                    <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity USDC</span>
-                    <span className="text-right font-semibold text-gray-200">{r.amount1USDC.toFixed(6)}</span>
-                  </>)}
-                  {r.feesWPROS > 0 && (<>
-                    <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees WPROS</span>
-                    <span className="text-right font-semibold text-amber-300">{r.feesWPROS.toFixed(6)}</span>
-                  </>)}
-                  {r.feesUSDC > 0 && (<>
-                    <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees USDC</span>
-                    <span className="text-right font-semibold text-amber-300">{r.feesUSDC.toFixed(6)}</span>
-                  </>)}
+                <div className="flex flex-wrap gap-2">
+                  {!r.collectOnly && (
+                    <div className="flex-1 min-w-[140px] px-3 py-2.5 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(100,116,139,0.55)" }}>Liquidity</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.6)" }}>WPROS</span>
+                          <span className="text-[11px] font-data font-semibold text-gray-200">{r.amount0WPROS.toFixed(6)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.6)" }}>USDC</span>
+                          <span className="text-[11px] font-data font-semibold text-gray-200">{r.amount1USDC.toFixed(6)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {(r.feesWPROS > 0 || r.feesUSDC > 0) && (
+                    <div className="flex-1 min-w-[140px] px-3 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                      <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(251,191,36,0.6)" }}>Fees to collect</p>
+                      <div className="space-y-1">
+                        {r.feesWPROS > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-data" style={{ color: "rgba(251,191,36,0.55)" }}>WPROS</span>
+                            <span className="text-[11px] font-data font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{r.feesWPROS.toFixed(6)}</span>
+                          </div>
+                        )}
+                        {r.feesUSDC > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-data" style={{ color: "rgba(251,191,36,0.55)" }}>USDC</span>
+                            <span className="text-[11px] font-data font-semibold" style={{ color: "rgba(251,191,36,0.9)" }}>{r.feesUSDC.toFixed(6)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {r.simulationFailed && (
@@ -1389,7 +1504,13 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
           </div>
         )}
 
-        {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} onRemove={(pos) => onPositionSelect(msg.id, pos)} />}
+        {msg.positions && !msg.removeMode && (
+          <PositionCards
+            positions={msg.positions}
+            onRemove={(pos) => onPositionSelect(msg.id, pos)}
+            onCollect={(pos) => onPctSelect(msg.id, pos, 0)}
+          />
+        )}
 
         {msg.positions && msg.removeMode && (
           <RemovePositionSelector positions={msg.positions} onSelect={(pos) => onPositionSelect(msg.id, pos)} />
@@ -1641,7 +1762,7 @@ export default function ChatPage() {
   async function handlePositionSelect(msgId: string, position: V3Position) {
     // Closed position (liquidity=0): skip pct picker — go straight to collect fees
     if (position.liquidity === 0n) {
-      await handlePctSelect(msgId, position, 100);
+      await handlePctSelect(msgId, position, 0);
       return;
     }
     // Active position: show percentage picker
@@ -1652,11 +1773,15 @@ export default function ChatPage() {
     });
   }
 
+  // pct = 0 means "collect fees only" (no liquidity removal), even on active positions
   async function handlePctSelect(msgId: string, position: V3Position, pct: number) {
     const lang = guessUserLang(messages);
+    const isCollectOnly = pct === 0 || position.liquidity === 0n;
     updateMessage(msgId, {
       removePctPending: undefined,
-      text: lang === "pt" ? "Preparando remoção de liquidez…" : "Building remove liquidity transaction…",
+      text: lang === "pt"
+        ? (isCollectOnly ? "Preparando coleta de fees…" : "Preparando remoção de liquidez…")
+        : (isCollectOnly ? "Building collect-fees transaction…" : "Building remove liquidity transaction…"),
       isLoading: true,
     });
     try {
@@ -1668,10 +1793,10 @@ export default function ChatPage() {
         : validTiers.reduce((prev, curr) => Math.abs(curr - position.fee) < Math.abs(prev - position.fee) ? curr : prev)
       ) as import("@/lib/liquidity").FeeTier;
 
-      // Scale liquidity by percentage
-      const scaledLiquidity = position.liquidity * BigInt(pct) / 100n;
-      const scaledWpros     = position.amount0WPROS * pct / 100;
-      const scaledUsdc      = position.amount1USDC  * pct / 100;
+      // Scale liquidity by percentage (0 = collect fees only)
+      const scaledLiquidity = isCollectOnly ? 0n : position.liquidity * BigInt(pct) / 100n;
+      const scaledWpros     = isCollectOnly ? 0  : position.amount0WPROS * pct / 100;
+      const scaledUsdc      = isCollectOnly ? 0  : position.amount1USDC  * pct / 100;
       // Always collect all accrued fees regardless of removal %
       const result = await buildRemoveLiquidityTx(
         position.tokenId,
@@ -1685,10 +1810,9 @@ export default function ChatPage() {
         position.tokensOwed0,
         position.tokensOwed1,
       );
-      const pctLabel = pct === 100 && position.liquidity === 0n ? "fees" : pct === 100 ? "all" : `${pct}%`;
+      const pctLabel = pct === 100 ? "all" : `${pct}%`;
       const totalWPROS = (result.amount0WPROS + result.feesWPROS).toFixed(6);
       const totalUSDC  = (result.amount1USDC  + result.feesUSDC).toFixed(6);
-      const isCollectOnly = position.liquidity === 0n;
       const confirmText = lang === "pt"
         ? isCollectOnly
           ? `Coletando fees da posição NFT #${String(position.tokenId)}.\n\nVocê receberá:\n• **${totalWPROS} WPROS**\n• **${totalUSDC} USDC**\n\nConfirme na sua carteira.`

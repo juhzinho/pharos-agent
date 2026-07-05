@@ -27,14 +27,14 @@ const MAX_TICK = 887272;
 
 // ── RPC helpers ──────────────────────────────────────────────────────────────
 
-async function ethCallRpc(to: string, data: string): Promise<string> {
+async function ethCallRpc(to: string, data: string, from?: string): Promise<string> {
   const res = await fetch(PHAROS_RPC, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       jsonrpc: "2.0", id: 1,
       method: "eth_call",
-      params: [{ to, data }, "latest"],
+      params: [from ? { from, to, data } : { to, data }, "latest"],
     }),
   });
   const j = await res.json();
@@ -466,14 +466,12 @@ export async function buildRemoveLiquidityTx(
 
   // Simulate the collect call before returning — if it reverts we mark simulationFailed
   // so the UI can warn the user and link to FaroSwap directly instead of wasting gas.
+  // The `from` MUST be the position owner, otherwise the NPM authorization check
+  // always reverts and we'd wrongly flag every position as uncollectable.
   let simulationFailed = false;
   if (collectOnly) {
     try {
-      const simResult = await ethCallRpc(FAROSWAP.NPM, collectCalldata);
-      // A successful call returns non-empty data; "0x" means no return or call failed
-      if (!simResult || simResult === "0x" || simResult === "0x" + "0".repeat(128)) {
-        // empty return is suspicious but not necessarily a revert — don't fail yet
-      }
+      await ethCallRpc(FAROSWAP.NPM, collectCalldata, userAddress);
     } catch {
       simulationFailed = true;
     }
