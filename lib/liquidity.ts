@@ -49,6 +49,12 @@ async function checkAllowanceRpc(token: string, owner: string, spender: string):
   return result === "0x" ? 0n : BigInt(result);
 }
 
+async function balanceOfRpc(token: string, owner: string): Promise<bigint> {
+  const ownerPad = owner.slice(2).padStart(64, "0");
+  const result = await ethCallRpc(token, `0x70a08231${ownerPad}`);
+  return result === "0x" ? 0n : BigInt(result);
+}
+
 // ── Pool lookup ──────────────────────────────────────────────────────────────
 
 export async function findPool(fee: FeeTier): Promise<string | null> {
@@ -353,6 +359,72 @@ export async function buildLiquidityTx(params: LiquidityParams): Promise<Liquidi
     rangeMode,
     rangePercent: params.rangePercent,
   };
+}
+
+// ── Mint preflight ───────────────────────────────────────────────────────────
+//
+// A liquidity card can be built for wallet A and signed later by wallet B
+// (account switch), or sit open past the 30-min deadline. Both cause on-chain
+// reverts ("STF" / "Transaction too old"). This re-validates EVERYTHING for
+// the wallet that is actually signing, right before the mint:
+//   1. live balance check (friendly error instead of an STF revert)
+//   2. live allowance check (fresh needsApproval flags)
+//   3. calldata rebuilt with the signer as recipient + a fresh deadline
+
+export interface MintPreflight {
+  ok: boolean;
+  errorToken?: "WPROS" | "USDC";
+  have?: number;
+  need?: number;
+  needsApproval0: boolean;
+  needsApproval1: boolean;
+  mintCalldata: string;
+}
+
+export async function preflightMint(
+  build: LiquidityBuildResult,
+  signerAddress: string,
+): Promise<MintPreflight> {
+  const { wprosRaw, usdcRaw, feeTier, tickLower, tickUpper } = build;
+
+  const [bal0, bal1, allow0, allow1] = await Promise.all([
+    wprosRaw > 0n ? balanceOfRpc(FAROSWAP.WPROS, signerAddress) : Promise.resolve(0n),
+    usdcRaw  > 0n ? balanceOfRpc(FAROSWAP.USDC,  signerAddress) : Promise.resolve(0n),
+    checkAllowanceRpc(FAROSWAP.WPROS, signerAddress, FAROSWAP.NPM),
+    checkAllowanceRpc(FAROSWAP.USDC,  signerAddress, FAROSWAP.NPM),
+  ]);
+
+  const fail = (token: "WPROS" | "USDC", haveRaw: bigint, needRaw: bigint, dec: number): MintPreflight => ({
+    ok: false,
+    errorToken: token,
+    have: Number(haveRaw) / 10 ** dec,
+    need: Number(needRaw) / 10 ** dec,
+    needsApproval0: false,
+    needsApproval1: false,
+    mintCalldata: "",
+  });
+
+  if (wprosRaw > 0n && bal0 < wprosRaw) return fail("WPROS", bal0, wprosRaw, 18);
+  if (usdcRaw  > 0n && bal1 < usdcRaw)  return fail("USDC",  bal1, usdcRaw,  6);
+
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
+  const mintCalldata = buildMintCalldata(
+    feeTier, tickLower, tickUpper, wprosRaw, usdcRaw, signerAddress, deadline,
+  );
+
+  return {
+    ok: true,
+    needsApproval0: wprosRaw > 0n && allow0 < wprosRaw,
+    needsApproval1: usdcRaw  > 0n && allow1 < usdcRaw,
+    mintCalldata,
+  };
+}
+
+/** ownerOf(uint256) on the NPM — LP positions are ERC-721 NFTs. */
+export async function ownerOfPosition(tokenId: bigint): Promise<string> {
+  const data = "0x6352211e" + tokenId.toString(16).padStart(64, "0");
+  const result = await ethCallRpc(FAROSWAP.NPM, data);
+  return result === "0x" ? "" : "0x" + result.slice(-40);
 }
 
 // ── Remove liquidity builders ──────────────────────────────────────────────

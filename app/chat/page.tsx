@@ -8,7 +8,7 @@ import { type GroqResult } from "@/lib/groq";
 import { buildSwapBridge, formatReceiveAmount, resolveTokenAddressForChain, type QuoteResult } from "@/lib/lifi";
 // resolveTokenAddressForChain is used in handleProviderChoice
 import {
-  buildLiquidityTx, buildApproveCalldata, buildRemoveLiquidityTx, FAROSWAP, FEE_TIERS, readPoolState,
+  buildLiquidityTx, buildApproveCalldata, buildRemoveLiquidityTx, preflightMint, ownerOfPosition, FAROSWAP, FEE_TIERS, readPoolState,
   type LiquidityBuildResult, type LiquidityParams, type FeeTier, type RemoveLiquidityBuildResult,
 } from "@/lib/liquidity";
 import { fetchUserPositions, formatPositionSummary, type V3Position } from "@/lib/positions";
@@ -1256,6 +1256,16 @@ function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
     try {
       setStep("switching");
       await switchToChain(fromChain);
+      // The route/calldata was quoted for a specific from-address (receiver,
+      // allowance checks). If the user switched accounts since this card was
+      // built, signing it would revert (STF) or send funds to the old wallet.
+      const builtFor = pending.quote?.transactionRequest?.from
+        ?? (pending.faroswap?.txRequest as { from?: string } | undefined)?.from;
+      if (builtFor && builtFor.toLowerCase() !== walletAddress.toLowerCase()) {
+        setStep("idle");
+        onError("This transaction was built for a different wallet account. Ask for the swap/bridge again and I'll rebuild it for the active wallet.");
+        return;
+      }
       if (pending.needsApproval && pending.approvalData) {
         setStep("approving");
         const { tokenAddress, spender, amount } = pending.approvalData;
@@ -1587,14 +1597,30 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
       await switchToChain("Pharos");
       const ethersProvider = getBrowserProvider();
       const signer = await ethersProvider.getSigner();
-      if (result.needsApproval0) {
+
+      // Re-validate for the wallet that is ACTUALLY signing (the user may have
+      // switched accounts after this card was built, or the deadline expired).
+      // Fresh balances, fresh allowances, calldata rebuilt for the signer.
+      const signerAddr = await signer.getAddress();
+      const pre = await preflightMint(result, signerAddr);
+      if (!pre.ok) {
+        setStep("idle");
+        onError(
+          `Insufficient ${pre.errorToken} in the active wallet (${signerAddr.slice(0, 6)}…${signerAddr.slice(-4)}): ` +
+          `you have ${(pre.have ?? 0).toFixed(6)} but this position needs ${(pre.need ?? 0).toFixed(6)}. ` +
+          `Restart the liquidity flow ("add liquidity") so I rebuild it with this wallet's balances.`
+        );
+        return;
+      }
+
+      if (pre.needsApproval0) {
         setStep("approving_wpros");
         const approveData = buildApproveCalldata(FAROSWAP.NPM, result.wprosRaw);
         const tx0 = await signer.sendTransaction({ to: FAROSWAP.WPROS, data: approveData });
         setStep("confirming_wpros");
         await tx0.wait(1);
       }
-      if (result.needsApproval1) {
+      if (pre.needsApproval1) {
         setStep("approving_usdc");
         const approveData = buildApproveCalldata(FAROSWAP.NPM, result.usdcRaw);
         const tx1 = await signer.sendTransaction({ to: FAROSWAP.USDC, data: approveData });
@@ -1602,7 +1628,7 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
         await tx1.wait(1);
       }
       setStep("minting");
-      const mintTx = await signer.sendTransaction({ to: FAROSWAP.NPM, data: result.mintCalldata, value: 0n });
+      const mintTx = await signer.sendTransaction({ to: FAROSWAP.NPM, data: pre.mintCalldata, value: 0n });
       const receipt = await mintTx.wait(1);
       if (receipt && receipt.status === 1) {
         setStep("done");
@@ -1663,6 +1689,20 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
       await switchToChain("Pharos");
       const ethersProvider = getBrowserProvider();
       const signer = await ethersProvider.getSigner();
+
+      // These txs use a manual gasLimit (no estimateGas safety net), so a
+      // wrong-wallet signer would burn real gas on a guaranteed revert.
+      // Verify the ACTIVE wallet still owns this LP NFT before sending.
+      const signerAddr = (await signer.getAddress()).toLowerCase();
+      const owner = (await ownerOfPosition(result.tokenId)).toLowerCase();
+      if (owner && owner !== signerAddr) {
+        setStep("idle");
+        onError(
+          `The active wallet (${signerAddr.slice(0, 6)}…${signerAddr.slice(-4)}) does not own position #${result.tokenId}. ` +
+          `Switch back to the wallet that owns it, or ask "show my liquidity positions" to list this wallet's positions.`
+        );
+        return;
+      }
 
       if (!isCollectOnly) {
         setStep("decreasing");
@@ -3278,10 +3318,21 @@ export default function ChatPage() {
   // and refresh every open flow in place (bridge/swap/liquidity wizards +
   // amount queries), so all on-chain functions follow the active wallet.
   async function refreshOpenFlowsFor(newAddr: string) {
+    // Built tx cards (swap/bridge/liquidity/transfer/approve) embed calldata,
+    // amounts, approvals and recipients computed for the PREVIOUS wallet —
+    // signing them with the new one causes on-chain reverts ("STF" etc.) or,
+    // worse, mints/sends to the wrong address. They are invalidated here;
+    // wizard cards (not yet built) just get their balances refreshed.
+    const isStaleBuiltCard = (m: Message) =>
+      !!(m.pending || m.liquidityPending || m.removeLiquidityPending ||
+         m.removePctPending || m.positions || m.bridgeChoice ||
+         m.transferPending || m.approvePending);
     const hasOpenFlow = messagesRef.current.some(
-      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.amountQuery
+      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.amountQuery || isStaleBuiltCard(m)
     );
     if (!hasOpenFlow) return;
+    const hadBuiltCards = messagesRef.current.some(isStaleBuiltCard);
+    const lang = guessUserLang(messagesRef.current);
     try {
       const network = getSelectedNetwork();
       const balances = await getTokenBalancesFast(newAddr, network);
@@ -3289,18 +3340,34 @@ export default function ChatPage() {
       const balFor = (sym: string) =>
         balances.find((b) => b.symbol.toUpperCase() === sym.toUpperCase())?.balance ?? 0;
       setMessages((prev) => prev.map((m) => {
+        if (isStaleBuiltCard(m)) {
+          return {
+            ...m,
+            pending: undefined,
+            liquidityPending: undefined,
+            removeLiquidityPending: undefined,
+            removePctPending: undefined,
+            positions: undefined,
+            removeMode: undefined,
+            bridgeChoice: undefined,
+            transferPending: undefined,
+            approvePending: undefined,
+          };
+        }
         if (m.bridgeWizard) return { ...m, bridgeWizard: { ...m.bridgeWizard, holdings } };
         if (m.swapWizard) return { ...m, swapWizard: { ...m.swapWizard, holdings } };
         if (m.liquidityWizard) return { ...m, liquidityWizard: { ...m.liquidityWizard, holdings } };
         if (m.amountQuery) return { ...m, amountQuery: { ...m.amountQuery, balance: balFor(m.amountQuery.token) } };
         return m;
       }));
-      const lang = guessUserLang(messagesRef.current);
+      const short = `\`${newAddr.slice(0, 6)}…${newAddr.slice(-4)}\``;
       addMessage({
         role: "agent",
         text: lang === "pt"
-          ? `🔄 Carteira trocada para \`${newAddr.slice(0, 6)}…${newAddr.slice(-4)}\` — atualizei os saldos nos cards abertos.`
-          : `🔄 Wallet switched to \`${newAddr.slice(0, 6)}…${newAddr.slice(-4)}\` — I refreshed the balances in the open cards.`,
+          ? `🔄 Carteira trocada para ${short} — atualizei os saldos nos cards abertos.` +
+            (hadBuiltCards ? " As transações que estavam prontas foram canceladas porque foram montadas para a carteira anterior — é só pedir de novo que eu remonto com os saldos desta carteira." : "")
+          : `🔄 Wallet switched to ${short} — I refreshed the balances in the open cards.` +
+            (hadBuiltCards ? " Pending transaction cards were cancelled because they were built for the previous wallet — just ask again and I'll rebuild them with this wallet's balances." : ""),
       });
     } catch {
       // Balance refresh is best-effort; the wizards re-read on next open anyway.
@@ -4547,8 +4614,46 @@ export default function ChatPage() {
     }));
   }
 
+  // Translate raw EVM revert reasons into actionable, human explanations.
+  // Covers every on-chain flow (swap, bridge, liquidity, transfer, approve).
+  function friendlyTxError(err: string, lang: "pt" | "en"): string {
+    const pt = lang === "pt";
+    if (/\bSTF\b|safeTransferFrom|TRANSFER_FROM_FAILED/i.test(err)) {
+      return pt
+        ? "❌ **A transação falharia (STF — transferência de token recusada).** Isso acontece quando a carteira ativa não tem saldo ou aprovação suficiente do token — geralmente porque a transação foi montada para outra carteira. Peça a operação de novo que eu remonto tudo com os saldos da carteira atual."
+        : "❌ **The transaction would fail (STF — token transfer refused).** This happens when the active wallet lacks the token balance or approval — usually because the transaction was built for a different wallet. Ask for the operation again and I'll rebuild it with the current wallet's balances.";
+    }
+    if (/price slippage check|slippage/i.test(err)) {
+      return pt
+        ? "❌ **Falha por slippage:** o preço da pool se moveu desde que a transação foi montada. Peça a operação de novo que eu recalculo com o preço atual."
+        : "❌ **Slippage check failed:** the pool price moved since the transaction was built. Ask again and I'll rebuild it with the current price.";
+    }
+    if (/transaction too old|expired|deadline/i.test(err)) {
+      return pt
+        ? "❌ **Transação expirada:** o card ficou aberto por mais de 30 minutos e o prazo on-chain venceu. Peça a operação de novo que eu monto uma nova."
+        : "❌ **Transaction expired:** the card sat open for more than 30 minutes and the on-chain deadline passed. Ask again and I'll build a fresh one.";
+    }
+    if (/insufficient funds/i.test(err)) {
+      return pt
+        ? "❌ **Saldo de PROS insuficiente para o gas.** A carteira ativa não tem PROS nativo suficiente para pagar a taxa da transação."
+        : "❌ **Insufficient PROS for gas.** The active wallet doesn't have enough native PROS to pay the transaction fee.";
+    }
+    if (/insufficient (?!funds)/i.test(err)) {
+      return pt
+        ? `❌ **Saldo insuficiente na carteira ativa.**\n\n${err}`
+        : `❌ **Insufficient balance in the active wallet.**\n\n${err}`;
+    }
+    if (/nonce/i.test(err)) {
+      return pt
+        ? "❌ **Conflito de nonce na carteira.** Há outra transação pendente ou o nonce está fora de ordem — verifique a atividade na sua carteira e tente novamente."
+        : "❌ **Wallet nonce conflict.** Another transaction is pending or the nonce is out of order — check your wallet activity and try again.";
+    }
+    return pt ? `Transação falhou: ${err}` : `Transaction failed: ${err}`;
+  }
+
   function handleTxError(id: string, err: string) {
-    addMessage({ role: "agent", text: `Transaction failed: ${err}`, isError: true });
+    const lang = guessUserLang(messages);
+    addMessage({ role: "agent", text: friendlyTxError(err, lang), isError: true });
     void id;
   }
 
