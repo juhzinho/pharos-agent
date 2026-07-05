@@ -22,7 +22,9 @@ interface VectorIndex {
 }
 
 const INDEX = vectorIndex as VectorIndex;
-const EMBED_TIMEOUT_MS = 8_000;
+// Short timeout: if the embedding provider is slow we'd rather fall back to
+// the instant keyword-matched knowledge than keep the user waiting.
+const EMBED_TIMEOUT_MS = 3_500;
 
 // Small cache so repeated/refined questions don't re-pay the embedding call.
 const queryCache = new Map<string, number[]>();

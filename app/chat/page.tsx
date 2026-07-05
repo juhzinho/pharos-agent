@@ -49,6 +49,7 @@ import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -2898,15 +2899,16 @@ export default function ChatPage() {
 
   const hasMessages = messages.length > 1;
 
+  // Returning-user stats: shown as a small corner toast (not a chat message).
+  const [welcomeToast, setWelcomeToast] = useState<string | null>(null);
   useEffect(() => {
     const s = getStats();
     setStats(s);
     if (s.totalCount > 0) {
-      const fav = s.favoriteToken ? ` Your most-used token: ${s.favoriteToken}.` : "";
-      setMessages([{
-        id: "welcome", role: "agent",
-        text: `Welcome back! You've completed ${s.totalCount} transaction${s.totalCount === 1 ? "" : "s"}.${fav}\n\nWhat would you like to do today?`,
-      }]);
+      const fav = s.favoriteToken ? ` · Most-used token: ${s.favoriteToken}` : "";
+      setWelcomeToast(`👋 Welcome back — ${s.totalCount} tx${s.totalCount === 1 ? "" : "s"} completed${fav}`);
+      const t = setTimeout(() => setWelcomeToast(null), 8000);
+      return () => clearTimeout(t);
     }
   }, []);
 
@@ -3235,6 +3237,9 @@ export default function ChatPage() {
   // sequence at start and bails out silently if the user cancelled meanwhile.
   const opSeqRef = useRef(0);
 
+  // Pending transfer waiting for an amount (recipient + token already known).
+  const pendingTransferRef = useRef<{ to: string; token: string; network: PharosNetworkId } | null>(null);
+
   function cancelActiveFlows() {
     opSeqRef.current++;
     const lang = guessUserLang(messages);
@@ -3256,6 +3261,17 @@ export default function ChatPage() {
 
   // Short "cancel"-style messages abort active flows instantly, no LLM round-trip.
   const CANCEL_RE = /^\s*(cancela(r)?|cancel|stop|para|parar|aborta(r)?|esquece|deixa)\s*[.!]?\s*$/i;
+
+  // Reset the conversation to a clean slate (keeps wallet connection).
+  function handleResetChat() {
+    opSeqRef.current++;
+    setInput("");
+    setMessages([{
+      id: "welcome",
+      role: "agent",
+      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
+    }]);
+  }
 
   // DeFi contracts (FaroSwap V3, LI.FI, CCIP/CCTP) only exist on Pharos
   // Mainnet — on Atlantic Testnet those flows stop early with a clear
@@ -3849,6 +3865,95 @@ export default function ChatPage() {
       setIsSending(false);
       inputRef.current?.focus();
       return;
+    }
+
+    // ── Transfer fast path (deterministic, no LLM) ──────────────────────
+    // "envie 2 PROS para 0x…" → payment card instantly.
+    // "envie pros para 0x…" (NO amount) → ask how much, with balance + % picks.
+    const transferMatch =
+      /\b(envi[ae]r?|manda[r]?|transfer(?:e|ir)?|send|pag(?:a|ar|ue)|pay)\b/i.test(text) &&
+      typedAddresses.length === 1 &&
+      !/\b(bridge|ponte|swap|troca|liquidez|liquidity|score|approve|aprova)\b/i.test(text);
+    if (transferMatch) {
+      const network: PharosNetworkId = /\b(testnet|atlantic)\b/i.test(text) ? "testnet"
+        : /\bmainnet\b/i.test(text) ? "mainnet" : selectedNetwork;
+      const nativeSym = network === "testnet" ? "PHRS" : "PROS";
+      const tokenMatch = text.match(/\b(PROS|PHRS|WPROS|USDC|WETH|LINK|PGOLD|USDPM)\b/i);
+      const token = tokenMatch ? tokenMatch[1].toUpperCase() : nativeSym;
+      // Amount = a standalone number that is NOT part of the 0x address.
+      const textNoAddr = text.replace(/0x[a-fA-F0-9]{40}/g, " ");
+      const amountMatch = textNoAddr.match(/(\d+(?:[.,]\d+)?)/);
+      const to = typedAddresses[0];
+
+      if (!walletAddress) {
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: fastLang === "pt"
+            ? "Para enviar tokens, conecte sua carteira primeiro (botão 'Conectar' no topo). 🔗"
+            : "To send tokens, connect your wallet first ('Connect' at the top). 🔗",
+        });
+      } else if (amountMatch) {
+        const amount = parseFloat(amountMatch[1].replace(",", "."));
+        try {
+          const build = buildTransferTxs([{ to, amount, token }], network);
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: fastLang === "pt"
+              ? `Pronto! Vou enviar **${amount} ${token}** para \`${to.slice(0, 6)}…${to.slice(-4)}\`. Confirme na sua carteira.`
+              : `Ready! Sending **${amount} ${token}** to \`${to.slice(0, 6)}…${to.slice(-4)}\`. Confirm in your wallet.`,
+            transferPending: build,
+          });
+        } catch (err) {
+          updateMessage(thinkingId, { isLoading: false, isError: true, text: err instanceof Error ? err.message : String(err) });
+        }
+      } else {
+        // No amount given — NEVER default. Ask, showing the live balance.
+        try {
+          const balances = await getTokenBalancesFast(walletAddress, network);
+          const bal = balances.find((b) => b.symbol.toUpperCase() === token)?.balance ?? 0;
+          pendingTransferRef.current = { to, token, network };
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: fastLang === "pt"
+              ? `Quanto de **${token}** você quer enviar para \`${to.slice(0, 6)}…${to.slice(-4)}\`? Escolha uma porcentagem ou digite o valor (ex.: "0.5").`
+              : `How much **${token}** do you want to send to \`${to.slice(0, 6)}…${to.slice(-4)}\`? Pick a percentage or type the amount (e.g. "0.5").`,
+            amountQuery: { token, balance: bal, chain: PHAROS_NETWORKS[network].label },
+          });
+        } catch (err) {
+          updateMessage(thinkingId, { isLoading: false, isError: true, text: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Follow-up: a pending transfer is waiting for an amount and the user
+    // typed just a number ("0.5" or "0.5 PROS") → build the payment directly.
+    if (pendingTransferRef.current) {
+      const pend = pendingTransferRef.current;
+      const numOnly = text.replace(new RegExp(`\\b${pend.token}\\b`, "i"), "").trim().match(/^(\d+(?:[.,]\d+)?)$/);
+      if (numOnly) {
+        const amount = parseFloat(numOnly[1].replace(",", "."));
+        pendingTransferRef.current = null;
+        try {
+          const build = buildTransferTxs([{ to: pend.to, amount, token: pend.token }], pend.network);
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: fastLang === "pt"
+              ? `Pronto! Vou enviar **${amount} ${pend.token}** para \`${pend.to.slice(0, 6)}…${pend.to.slice(-4)}\`. Confirme na sua carteira.`
+              : `Ready! Sending **${amount} ${pend.token}** to \`${pend.to.slice(0, 6)}…${pend.to.slice(-4)}\`. Confirm in your wallet.`,
+            transferPending: build,
+          });
+        } catch (err) {
+          updateMessage(thinkingId, { isLoading: false, isError: true, text: err instanceof Error ? err.message : String(err) });
+        }
+        setIsSending(false);
+        inputRef.current?.focus();
+        return;
+      }
+      // User changed the subject — drop the pending transfer.
+      pendingTransferRef.current = null;
     }
 
     // Live campaign tracker fast path
@@ -4480,12 +4585,41 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* Returning-user toast — bottom-right corner, auto-dismisses */}
+      {welcomeToast && (
+        <div className="fixed bottom-6 right-5 z-50 max-w-xs px-4 py-3 rounded-2xl text-xs font-medium flex items-start gap-2"
+          style={{
+            background: "rgba(6,14,32,0.92)", border: "1px solid rgba(0,212,255,0.25)",
+            color: "rgba(226,232,240,0.92)", backdropFilter: "blur(16px)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
+            animation: "heroFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both",
+          }}>
+          <span className="flex-1 leading-relaxed">{welcomeToast}</span>
+          <button onClick={() => setWelcomeToast(null)} aria-label="Dismiss"
+            className="shrink-0 opacity-50 hover:opacity-100 transition-opacity">✕</button>
+        </div>
+      )}
+
       {/* Body: sidebar + chat */}
       <div className="flex flex-1 min-h-0 relative z-10">
 
         {/* ── Left sidebar (desktop only) ────────────────────────────────── */}
         <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r py-5 px-3 overflow-y-auto"
           style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(3,7,18,0.6)", backdropFilter: "blur(20px)" }}>
+
+          {/* Home + New chat */}
+          <div className="flex gap-1.5 mb-5 px-0.5">
+            <Link href="/"
+              className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border transition-all hover:border-cyan-400/40"
+              style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.8)" }}>
+              ⌂ Home
+            </Link>
+            <button onClick={handleResetChat}
+              className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border transition-all hover:border-cyan-400/40"
+              style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.8)" }}>
+              ↺ New chat
+            </button>
+          </div>
 
           {/* Quick actions */}
           <div className="mb-6">
@@ -4577,6 +4711,18 @@ export default function ChatPage() {
 
         {/* ── Main chat area ──────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
+
+          {/* Mobile-only: Home + New chat strip */}
+          <div className="lg:hidden flex items-center gap-2 px-4 pt-2">
+            <Link href="/" className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border"
+              style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.75)" }}>
+              ⌂ Home
+            </Link>
+            <button onClick={handleResetChat} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border"
+              style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.75)" }}>
+              ↺ New chat
+            </button>
+          </div>
 
           {/* Chat area */}
           <main className="flex-1 overflow-y-auto scroll-smooth">
@@ -4676,11 +4822,33 @@ export default function ChatPage() {
               onSwapChoice={handleSwapChoice}
               onWalletChoice={(id, opt) => { void id; connectTo(opt); }}
               onAmountPicked={(amount, token) => {
-                // Gas buffer: leave ~0.01 PROS for gas when using 100% of native balance
-                const isNativePros = token === "PROS";
+                // Gas buffer: leave ~0.01 for gas when using 100% of native balance
+                const isNative = token === "PROS" || token === "PHRS";
                 const amountQuery = messages.find(m => m.amountQuery?.token === token)?.amountQuery;
                 const isMax = amountQuery && Math.abs(amount - amountQuery.balance) < 0.0001;
-                const finalAmount = (isNativePros && isMax) ? Math.max(0, amount - 0.01) : amount;
+                const finalAmount = (isNative && isMax) ? Math.max(0, amount - 0.01) : amount;
+
+                // Pending transfer? Build the payment card straight away.
+                const pend = pendingTransferRef.current;
+                if (pend && pend.token === token) {
+                  pendingTransferRef.current = null;
+                  const lang = guessUserLang(messages);
+                  setMessages((prev) => prev.map((m) => m.amountQuery ? { ...m, amountQuery: undefined } : m));
+                  try {
+                    const build = buildTransferTxs([{ to: pend.to, amount: finalAmount, token }], pend.network);
+                    addMessage({
+                      role: "agent",
+                      text: lang === "pt"
+                        ? `Pronto! Vou enviar **${finalAmount.toFixed(4)} ${token}** para \`${pend.to.slice(0, 6)}…${pend.to.slice(-4)}\`. Confirme na sua carteira.`
+                        : `Ready! Sending **${finalAmount.toFixed(4)} ${token}** to \`${pend.to.slice(0, 6)}…${pend.to.slice(-4)}\`. Confirm in your wallet.`,
+                      transferPending: build,
+                    });
+                  } catch (err) {
+                    addMessage({ role: "agent", isError: true, text: err instanceof Error ? err.message : String(err) });
+                  }
+                  return;
+                }
+
                 setInput(`${finalAmount.toFixed(4)} ${token}`);
                 inputRef.current?.focus();
               }}

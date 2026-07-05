@@ -1,6 +1,7 @@
 // Live campaign tracker — proxies the official Pharos Port API (server-side,
 // because api.pharosnetwork.xyz requires a Referer header and blocks CORS).
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export interface Campaign {
   name: string;
@@ -17,7 +18,9 @@ interface RawActivity {
   url?: string;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = checkRateLimit(req, 30);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
   try {
     const res = await fetch("https://api.pharosnetwork.xyz/omni_port/activities", {
       headers: {

@@ -368,7 +368,9 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  BATCH: multiple recipients in one prompt → one array item each: 'send 1 PROS to 0xA and 2 PROS to 0xB' → transfers=[{to:'0xA',amount:1,token:'PROS'},{to:'0xB',amount:2,token:'PROS'}].\n" +
     "  Same amount to many: 'airdrop 0.1 PROS to 0xA, 0xB, 0xC' → three items of 0.1 each.\n" +
     "  If NO address given: action='transfer', transfers=null — ask for the address in reply.\n" +
-    "  If NO amount: needsAmount=true, transfers=null.\n" +
+    "  If NO amount: transfers=null, needsAmount=true, and ASK how much in reply. NEVER invent or default an amount:\n" +
+    "  'envie pros para 0x…' has NO amount (pros = the token, not a quantity) → ask 'Quanto de PROS você quer enviar?'.\n" +
+    "  Only fill transfers[].amount with a number the user EXPLICITLY wrote.\n" +
     "── ERC-20 APPROVAL (action='approve') ──\n" +
     "When the user wants to approve a contract to spend tokens ('approve 100 USDC for 0x…', 'aprova USDC ilimitado pro contrato 0x…', 'dá allowance de 50 USDC pra 0x…'):\n" +
     "  action='approve', approveToken='USDC', approveSpender='0x…', approveAmount=100 (number) or 'unlimited'.\n" +

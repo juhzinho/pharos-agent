@@ -2,9 +2,12 @@
 // Each provider gets PROVIDER_RETRIES attempts before the cascade moves on.
 // callAI() returns the raw text content from whichever provider answered.
 
-const PROVIDER_RETRIES = 2;
-const PROVIDER_RETRY_DELAY_MS = 800;
-const REQUEST_TIMEOUT_MS = 20_000;
+// Tuned for snappy failover: one retry per provider (the cascade itself is the
+// real redundancy — 6 providers deep), shorter retry pause, and a 12s cap so a
+// hung provider can't stall the whole reply.
+const PROVIDER_RETRIES = 1;
+const PROVIDER_RETRY_DELAY_MS = 400;
+const REQUEST_TIMEOUT_MS = 12_000;
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 

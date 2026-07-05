@@ -6,6 +6,7 @@
 //   • Pharos Port API: RWA products (harbor) — current TVL per asset
 // Cached for 30 minutes.
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export interface SeriesPoint { date: string; value: number }
 export interface ChartSeries {
@@ -114,7 +115,9 @@ async function fetchRwa(): Promise<{ items: ChartsPayload["rwa"]; total: number 
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = checkRateLimit(req, 30);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
   if (cache && Date.now() - cache.at < TTL) {
     return NextResponse.json(cache.data);
   }

@@ -6,6 +6,7 @@
 // timeline forever even after they rotate out upstream.
 import { NextResponse } from "next/server";
 import { mergeIntoArchive, readArchive } from "@/lib/newsArchive";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export interface Tweet {
   id: string;
@@ -78,7 +79,9 @@ async function fetchTimelineHtml(): Promise<string> {
   return proxied.text();
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = checkRateLimit(req, 30);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
   try {
     const html = await fetchTimelineHtml();
 

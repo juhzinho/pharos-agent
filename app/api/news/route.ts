@@ -7,6 +7,7 @@
 // upstream page NEVER disappear from our feed.
 import { NextResponse } from "next/server";
 import { mergeIntoArchive, readArchive } from "@/lib/newsArchive";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export interface NewsItem {
   title: string;
@@ -32,7 +33,9 @@ const BLOG_RE =
 const NEWS_RE =
   /class="link-block-9 news">\s*<img src="([^"]+)"[\s\S]*?class="text-block-20">([\s\S]*?)<\/div>\s*<div class="blog-time">([^<]+)<\/div>[\s\S]*?<a href="([^"]+)"[^>]*class="blog-more-text/g;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const rl = checkRateLimit(req, 30);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
   try {
     const res = await fetch("https://www.pharos.xyz/resources", {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36" },
