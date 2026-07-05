@@ -432,8 +432,28 @@ export async function buildRemoveLiquidityTx(
   // decreaseLiquidity is skipped when liquidity=0 (closed position — collect fees only)
   let decreaseCalldata = "";
   if (!collectOnly) {
-    const amount0Min = BigInt(Math.floor(expectedAmount0 * 1e18 * 0.99));
-    const amount1Min = BigInt(Math.floor(expectedAmount1 * 1e6 * 0.99));
+    // Off-chain liquidity math is approximate and can overestimate one side,
+    // making min = 99%·estimate exceed the real output → "Price slippage check"
+    // revert. Probe the contract with min=0 to get the EXACT amounts, then set
+    // slippage mins from those.
+    let amount0Min = 0n;
+    let amount1Min = 0n;
+    try {
+      const probe = buildDecreaseCalldata(tokenId, liquidity, 0n, 0n, deadline);
+      const ret = await ethCallRpc(FAROSWAP.NPM, probe, userAddress);
+      if (ret && ret.length >= 2 + 128) {
+        const actual0 = BigInt("0x" + ret.slice(2, 66));
+        const actual1 = BigInt("0x" + ret.slice(66, 130));
+        amount0Min = actual0 * 99n / 100n;
+        amount1Min = actual1 * 99n / 100n;
+        // Use on-chain amounts for the display too — they're exact
+        expectedAmount0 = Number(actual0) / 1e18;
+        expectedAmount1 = Number(actual1) / 1e6;
+      }
+    } catch {
+      // Probe failed (RPC hiccup) — keep mins at 0 rather than risk a false
+      // slippage revert; amounts shown fall back to the off-chain estimate.
+    }
     decreaseCalldata = buildDecreaseCalldata(
       tokenId,
       liquidity,
@@ -448,22 +468,14 @@ export async function buildRemoveLiquidityTx(
   // Max is 2^128 - 1 as per standard Uniswap V3 NPM.
   const MAX_UINT128 = (BigInt(2) ** BigInt(128)) - 1n;
 
-  let amount0Max: bigint;
-  let amount1Max: bigint;
-  if (collectOnly) {
-    // Use MAX_UINT128 so the contract collects everything it owes without arithmetic issues
-    amount0Max = MAX_UINT128;
-    amount1Max = MAX_UINT128;
-  } else {
-    amount0Max = BigInt(Math.floor((expectedAmount0 + feesAmount0) * 1e18)) + 1n;
-    amount1Max = BigInt(Math.floor((expectedAmount1 + feesAmount1) * 1e6)) + 1n;
-  }
-
+  // Always MAX_UINT128 — the standard Uniswap V3 approach. The contract caps the
+  // payout at tokensOwed, so there's no risk of over-collecting, and computed
+  // maxes can undershoot (rounding) and strand dust in the position.
   const collectCalldata = buildCollectCalldata(
     tokenId,
     userAddress,
-    amount0Max,
-    amount1Max,
+    MAX_UINT128,
+    MAX_UINT128,
   );
 
   // Simulate the collect call before returning — if it reverts we mark simulationFailed
