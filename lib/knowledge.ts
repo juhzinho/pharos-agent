@@ -589,8 +589,23 @@ PNS — Pharos Name Service: human-readable names for Pharos addresses (e.g. a "
 Use cases: simpler payments, on-chain identity/profile, and integration across Pharos dapps and agents. Register/manage names via the PNS app in the Pharos ecosystem (see port.pharos.xyz/ecosystem for the current link).
 `,
   agent_center: `
-Pharos Agent Center (pharos.xyz/agent-center): the hub to explore and install "Skills" for on-chain agents on Pharos. It builds on the official pharos-skill-engine toolkit (github.com/PharosNetwork) — cast/forge-based Skills with networks.json + tokens.json configs.
-The vision: composable AI agents that can read state and propose/execute on-chain actions on Pharos. This Pharos Agent is aligned with that direction (RAG knowledge + swap/bridge/liquidity skills, non-custodial). Developers can publish Skills; users can discover them in the Agent Center.
+PHAROS AGENT CENTER (pharos.xyz/agent-center) — "One skill. Full on-chain power":
+Install: npx skills add https://github.com/PharosNetwork/pharos-skill-engine (npm/pnpm/bun) | License: MIT-0 (free to use/modify/redistribute, no attribution)
+PHAROS SKILL ENGINE — 11 CAPABILITIES:
+  1. Check Balance — native + ERC-20 balances via JSON-RPC
+  2. Check Transaction Status — confirmation status + execution result by tx hash
+  3. Read Contract — read-only contract calls (no transaction)
+  4. Send Transaction — signed transfers + contract invocations
+  5. Gas Estimation — simulate transactions to estimate gas / reduce failure risk
+  6. Deploy Contract — deploy via compiled bytecode + ABI
+  7. Verify Contract — verify source code on explorer
+  8. Quick Deploy ERC20 — configurable ERC-20 token with standard params
+  9. Batch Transfer — airdrop tokens to multiple addresses in one workflow
+  10. Wallet Asset Aggregation — consolidated portfolio view across contracts
+  11. Contract Script Generator — auto-generate ethers.js/web3.js scripts
+SKILL STORAGE PATHS: OpenClaw ~/.openclaw/skills/ | Claude Code ~/.claude/skills/ | Codex ~/.codex/skills/ (verify with "openclaw skills list" or /skills)
+FLOW: user writes natural prompt → agent auto-detects which skill to invoke → skill executes specialized logic and returns results.
+The vision: composable AI agents that read state and propose/execute on-chain actions on Pharos. This Pharos Agent follows the same direction (RAG knowledge + swap/bridge/liquidity skills, non-custodial).
 `,
   research: `
 Pharos Research (pharos.xyz/research): the official research hub publishing deep dives on RealFi, RWA tokenization, the Pharos architecture (parallel execution, AsyncBFT, SPNs), and ecosystem analysis. Pair it with docs.pharosnetwork.xyz for technical specs and pharos.xyz/resources for blog/news.
@@ -614,14 +629,29 @@ PHAROS PORT (port.pharos.xyz) — Official All-in-One RealFi Entry Hub:
 • Ecosystem Directory: full list of projects building on Pharos (DEXes, lending, RWA, wallets, infra, AI agents)
 • AI Agent Carnival: create/manage agents, add friends, transfer, climb leaderboard (July 2026)
 • Connect wallets: MetaMask, OKX Wallet, Rabby, Safe, and EIP-6963 compatible wallets
+
+HARBOR — LIVE RWA PRODUCTS (data from official Port API, July 2026):
+  • pAlpha (Ember): 14% APY | $51.3M TVL | min $0.10 | Fixed Income & Credit | deposit at port.pharos.xyz/deposit
+  • VRPC-Weekly (R25): 8% APY | $2.15M TVL | min $1 | Fixed Income & Credit | weekly redemption
+  • VRPC-SemiYearly (R25): 15% APY | $10.2M TVL | min $100 | Fixed Income & Credit | semi-annual redemption
+  • tulPRWA (Tulipa Capital): target 14% APY | $567K TVL | min $1 | Real Estate
+
+ACTIVE CAMPAIGNS ON PORT (July 2026):
+  • Agent Carnival (June 26 – July 26): port.pharos.xyz/agent-carnival
+  • Anvita Cyber Cup (June 20 – July 19): flow.anvita.xyz/activities/cyber-cup
+  • TopNod Cup (June 11 – July 20): via TopNod app
+  • AquaFlux Campaign (May 19 – July 31): app.aquaflux.pro/campaign
 `,
   pharos_foundation: `
-PHAROS FOUNDATION (pharosfoundation.xyz):
-• Independent entity governing Pharos ecosystem long-term sustainability
-• Manages grants program for builders contributing to Pharos ecosystem
+PHAROS FOUNDATION (pharosfoundation.xyz) — launched November 24, 2025:
+• Non-profit, Asia-led, compliance-ready NEUTRAL governance body stewarding the RealFi and open finance ecosystem on Pharos
+• FOUR PILLARS: (1) Ecosystem Support — grants + technical programs for developers | (2) Technology Development — frameworks and documentation | (3) Governance & Transparency — clear reporting, funding oversight | (4) Education — open finance research, collaboration with TradFi institutions
+• OPERATING LIMITS: does NOT provide investment advice, does NOT comment on token price, does NOT favor any single protocol
+• Publishes transparency reports (grants issued, governance decisions, fund deployment) + a public "Foundation Charter" (mandate, governance model, operating limits)
 • Oversees $PROS tokenomics and inflation schedule (no inflation for 6 months post-mainnet, then ~5% annual)
 • Coordinates RealFi Alliance membership and ecosystem incubation ($10M Incubation Fund)
-• Partners: Dragon Draper, Lightspeed, Hack VC, Faction VC, Sumitomo Corporation, Flow Traders, SNZ, GCL New Energy (~$1B valuation investment March 2026)
+• Leadership: Wish Wu (Co-Founder & CEO of Pharos Network) emphasized foundation neutrality as key to ecosystem integrity
+• Partners/investors around the ecosystem: Dragon Draper, Lightspeed, Hack VC, Faction VC, Sumitomo Corporation, Flow Traders, SNZ, GCL New Energy (~$1B valuation investment March 2026)
 • Foundation also supports community programs: Lighthouse Keeper, Storyteller Program, Pharos Meetups
 `,
   devhub_tools: `
@@ -688,7 +718,9 @@ PHAROS INCUBATOR / ECOSYSTEM PROGRAM (pharos.xyz/ecosystem):
 • Innovation paths: RWA/Payments | DeFi | Innovative Infrastructure
 • Benefits: Capital (up to $10M fund access) | Technology (direct core team mentorship) | Go-to-Market (launch + user growth support) | Fundraising (next round connections) | Financial & Legal (Web3 legal/finance expert advice)
 • Application process: Submit application → Internal review → Approval → Milestone setting (measurable milestones for fund utilization)
-• First incubation project: Faroo (@Farooxyz) — selected July 2, 2026 as first Pharos Incubator project
+• Program launched February 2026 with mandate to bridge RWA with on-chain finance and empower early-stage RWA/DeFi teams
+• First incubation project: Faroo (@Farooxyz) — announced June 29 / July 2, 2026, backed at a confirmed $10M valuation, with full investment + resource support
+• Faroo simultaneously launched its RWA Hybrid Vault: stake PROS → lock staked PROS to earn native staking rewards + returns tied to enterprise RWA partners' performance
 • Apply at: pharos.xyz/ecosystem
 `,
   pharos_community: `
@@ -714,7 +746,25 @@ PHAROS LATEST NEWS (July 2026):
 • $44M Series A announced April 8, 2026 (total $52M raised)
 • USDC + CCTP integration launched April 28, 2026
 • GCL New Energy strategic investment at ~$1B valuation (March 14, 2026)
+• Faroo backed at confirmed $10M valuation by the Pharos Incubator; RWA Hybrid Vault live (July 2, 2026)
 • Top news: "PROS Never Sleeps: The Pharos Alpha Summer Begins" (June 10) | "The RealFi Inflection" (May 6) | "Architecting Global RealFi: Pharos Mainnet Officially Integrates USDC and CCTP" (April 28)
+
+FULL NEWS TIMELINE (pharos.xyz/resources):
+  2026-04-28: Pacific Ocean Mainnet launch (RWA distribution, less liquidity fragmentation) + USDC/CCTP integration live
+  2026-04-20: RealFi Access Program introduced | $PROS Tokenomics published (long-term alignment, scarcity)
+  2026-04-15: Joint research with University of Hong Kong SCF FinTech Academy — prediction markets + AI decision-making
+  2026-04-08: $44M Series A announced (total $52M)
+  2026-03-27: Circle partnership — USDC + CCTP on mainnet (RealFi settlement layer)
+  2026-03-14: GCL New Energy strategic investment (~$1B valuation)
+  2026-03-13: RealFi Alliance expanded (RWA transparency gap)
+  2026-02-23: RealFi Alliance formed (institutional RWA execution standard)
+  2026-02-18: Centrifuge partnership (institutional asset distribution)
+  2026-02-03: $10M+ RealFi Incubator launched with Dragon Draper + Lightspeed
+  2025-11-24: Pharos Foundation launched
+  2025-10-27: Chainlink CCIP adopted as canonical cross-chain infra + Data Streams for RWA markets
+  2025-10-21: AtlanticOcean Testnet launched
+  2025-09-29: Concero integration (cross-chain composability for RWAs)
+  2024-11-08: $8M seed round (Lightspeed Faction + Hack VC)
 `,
   pharos_team: `
 PHAROS FOUNDING TEAM:
@@ -997,7 +1047,8 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["agent center", "install skill", "skills", "on-chain agent", "ai agent", "agentes"], section: "agent_center" },
   { keys: ["agent carnival", "ai agent carnival", "hackathon", "dorahacks", "fase 1", "fase 2", "phase 1", "phase 2", "skill hackathon", "agent arena", "50000 pros", "50k pros", "prize pool"], section: "agent_carnival" },
   { keys: ["incubator", "incubadora", "10m fund", "$10m", "dragon draper", "lightspeed", "grant", "aplicar", "milestone"], section: "pharos_incubator" },
-  { keys: ["pharos port", "port.pharos.xyz", "harbor", "staking pros", "campaigns", "rewards", "port hub", "realfi hub", "portfolio", "port pharos"], section: "pharos_port" },
+  { keys: ["pharos port", "port.pharos.xyz", "harbor", "staking pros", "campaigns", "rewards", "port hub", "realfi hub", "portfolio", "port pharos", "palpha apy", "vrpc", "tulprwa", "melhor apy", "best apy", "rwa yield products", "onde render", "where to earn"], section: "pharos_port" },
+  { keys: ["dtvm", "smartcogent", "stylus", "cargo-stylus", "concero", "gcl", "hku", "hong kong university", "scf fintech", "realfi access program", "news timeline", "linha do tempo", "noticias da pharos", "pharos news"], section: "pharos_latest" },
   { keys: ["pharos foundation", "pharosfoundation", "governance grant", "foundation grant", "community grant"], section: "pharos_foundation" },
   { keys: ["devhub", "developer hub", "dev hub", "hemera", "zan rpc", "nirvana rpc", "goldsky", "supra oracle", "fordefi", "build tools", "templates dapp", "1 gwei gas price"], section: "devhub_tools" },
   { keys: ["realfi alliance", "realfi member", "alliance member", "ember protocol", "aquaflux", "agra", "asseto", "centrifuge", "vishwa", "kun", "termmax", "avalon finance", "primus labs", "tulipa capital"], section: "realfi_alliance_full" },
