@@ -1125,302 +1125,293 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
 }) {
   const isUser = msg.role === "user";
 
-  return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-5 msg-enter`}>
-
-      {/* Agent avatar */}
-      {!isUser && (
-        <div className="shrink-0 mr-3 mt-1">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center relative"
+  /* ── User message ────────────────────────────────────────────────────── */
+  if (isUser) {
+    return (
+      <div className="flex justify-end mb-6 msg-enter px-2">
+        <div className="max-w-[72%]">
+          <div className="px-4 py-3 rounded-2xl rounded-br-sm text-sm leading-[1.7]"
             style={{
-              background: "radial-gradient(circle at 35% 30%, rgba(0,212,255,0.22), rgba(2,8,22,1))",
-              border: "1.5px solid rgba(0,212,255,0.3)",
-              boxShadow: "0 0 18px rgba(0,212,255,0.18), 0 0 6px rgba(0,212,255,0.12)",
+              background: "linear-gradient(135deg, rgba(0,130,200,0.32) 0%, rgba(0,70,170,0.24) 100%)",
+              border: "1px solid rgba(0,212,255,0.2)",
+              color: "rgba(228,242,255,0.96)",
+              boxShadow: "0 2px 16px rgba(0,80,180,0.18)",
+              backdropFilter: "blur(10px)",
             }}>
-            <svg viewBox="0 0 32 32" className="w-full h-full" fill="none">
-              <circle cx="16" cy="16" r="4.5" fill="rgba(0,212,255,0.95)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
-              <circle cx="16" cy="16" r="10" stroke="rgba(0,212,255,0.18)" strokeWidth="0.8" />
-              <circle cx="16" cy="16" r="14.5" stroke="rgba(0,212,255,0.07)" strokeWidth="0.6" />
-            </svg>
+            {msg.text}
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      <div className={`${isUser ? "max-w-[78%]" : "max-w-[88%] w-full"}`}>
+  /* ── Agent message ───────────────────────────────────────────────────── */
+  return (
+    <div className="flex gap-3 mb-7 msg-enter group">
 
-        {/* User bubble */}
-        {isUser && (
-          <div>
-            <p className="text-[10px] font-medium mb-1.5 text-right" style={{ color: "rgba(148,163,184,0.35)" }}>You</p>
-            <div className="rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-[1.7] text-right ml-auto inline-block"
-              style={{
-                background: "linear-gradient(135deg, rgba(0,140,200,0.35) 0%, rgba(0,80,180,0.28) 100%)",
-                border: "1px solid rgba(0,212,255,0.25)",
-                color: "rgba(230,242,255,0.95)",
-                boxShadow: "0 2px 20px rgba(0,100,200,0.15), inset 0 1px 0 rgba(255,255,255,0.08)",
-                backdropFilter: "blur(8px)",
-              }}>
-              {msg.text}
-            </div>
+      {/* Avatar */}
+      <div className="shrink-0 mt-0.5">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{
+            background: "radial-gradient(circle at 35% 30%, rgba(0,212,255,0.2), rgba(2,8,22,1))",
+            border: "1.5px solid rgba(0,212,255,0.28)",
+            boxShadow: "0 0 14px rgba(0,212,255,0.15)",
+          }}>
+          <svg viewBox="0 0 28 28" className="w-full h-full" fill="none">
+            <circle cx="14" cy="14" r="4" fill="rgba(0,212,255,0.95)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
+            <circle cx="14" cy="14" r="9" stroke="rgba(0,212,255,0.15)" strokeWidth="0.75" />
+            <circle cx="14" cy="14" r="13" stroke="rgba(0,212,255,0.06)" strokeWidth="0.6" />
+          </svg>
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0">
+
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="text-[11px] font-semibold" style={{ color: "rgba(0,212,255,0.55)" }}>Pharos Agent</span>
+          <span className="w-1 h-1 rounded-full" style={{ background: "rgba(0,212,255,0.2)" }} />
+          <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.4)" }}>AI DeFi Copilot</span>
+        </div>
+
+        {/* Text content — clean, no heavy background */}
+        {(msg.text || msg.isLoading) && (
+          <div className={`text-sm leading-[1.8] mb-1 ${msg.isError ? "p-4 rounded-2xl" : ""}`}
+            style={msg.isError ? {
+              background: "rgba(239,68,68,0.06)",
+              border: "1px solid rgba(239,68,68,0.18)",
+            } : {}}>
+            {msg.isLoading ? (
+              <div className="flex items-center gap-3 py-1" style={{ color: "rgba(148,163,184,0.55)" }}>
+                <Spinner />
+                <span className="text-sm">{msg.text || "Thinking…"}</span>
+              </div>
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  p: ({ children }) => (
+                    <p className="mb-3 last:mb-0 text-sm leading-[1.8]" style={{ color: "rgba(215,230,248,0.88)" }}>{children}</p>
+                  ),
+                  strong: ({ children }) => {
+                    const text = String(children);
+                    const isHead = /^[A-Z0-9 _\-&]{4,}$/.test(text);
+                    return isHead ? (
+                      <strong style={{
+                        display: "block", fontFamily: MD_FONT_DISPLAY, fontWeight: 800,
+                        fontSize: "0.68rem", letterSpacing: "0.1em",
+                        color: "rgba(0,212,255,0.7)", marginBottom: "0.4rem", marginTop: "0.75rem",
+                        textTransform: "uppercase",
+                      }}>{children}</strong>
+                    ) : (
+                      <strong style={{ fontWeight: 700, color: "rgba(255,255,255,0.97)" }}>{children}</strong>
+                    );
+                  },
+                  em: ({ children }) => <em className="italic" style={{ color: "rgba(186,207,230,0.75)" }}>{children}</em>,
+                  ul: ({ children }) => <ul className="mb-3 mt-1 space-y-1.5 list-none pl-0">{children}</ul>,
+                  ol: ({ children }) => <ol className="mb-3 mt-1 pl-5 space-y-1.5 list-decimal" style={{ color: "rgba(215,228,245,0.85)" }}>{children}</ol>,
+                  li: ({ children }) => (
+                    <li className="flex items-start gap-2.5 text-sm leading-[1.7]" style={{ color: "rgba(215,228,245,0.85)" }}>
+                      <span className="shrink-0 mt-[0.5em] w-[5px] h-[5px] rounded-full" style={{ background: "rgba(0,212,255,0.5)" }} />
+                      <span>{children}</span>
+                    </li>
+                  ),
+                  h1: ({ children }) => <h1 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 800, fontSize: "1rem", color: "#7dd3fc", marginBottom: "0.5rem", marginTop: "1rem" }}>{children}</h1>,
+                  h2: ({ children }) => <h2 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 700, fontSize: "0.875rem", color: "#7dd3fc", marginBottom: "0.4rem", marginTop: "0.85rem" }}>{children}</h2>,
+                  h3: ({ children }) => <h3 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 700, fontSize: "0.8rem", color: "#93c5fd", marginBottom: "0.3rem", marginTop: "0.7rem" }}>{children}</h3>,
+                  code: ({ children }) => (
+                    <code className="px-1.5 py-0.5 rounded-md text-[11.5px] font-mono" style={{ background: "rgba(0,212,255,0.07)", color: "rgba(0,212,255,0.9)", border: "1px solid rgba(0,212,255,0.13)" }}>{children}</code>
+                  ),
+                  pre: ({ children }) => (
+                    <pre className="my-3 px-4 py-3 rounded-xl overflow-x-auto text-[11.5px] font-mono leading-relaxed" style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(200,218,240,0.9)" }}>{children}</pre>
+                  ),
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer"
+                      className="underline underline-offset-2 transition-colors" style={{ color: "rgba(56,189,248,0.85)" }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "#38bdf8")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(56,189,248,0.85)")}>
+                      {children}
+                    </a>
+                  ),
+                  hr: () => <hr className="my-4" style={{ borderColor: "rgba(255,255,255,0.06)" }} />,
+                  blockquote: ({ children }) => (
+                    <blockquote className="pl-4 my-3 italic" style={{ borderLeft: "2px solid rgba(0,212,255,0.25)", color: "rgba(148,163,184,0.7)" }}>{children}</blockquote>
+                  ),
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-3 rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <table className="w-full text-xs border-collapse">{children}</table>
+                    </div>
+                  ),
+                  th: ({ children }) => <th className="px-3 py-2.5 text-left font-semibold text-[10px] uppercase tracking-widest" style={{ background: "rgba(0,212,255,0.07)", color: "rgba(0,212,255,0.65)", borderBottom: "1px solid rgba(0,212,255,0.12)" }}>{children}</th>,
+                  td: ({ children }) => <td className="px-3 py-2.5 text-sm" style={{ color: "rgba(215,228,245,0.78)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>{children}</td>,
+                }}
+              >
+                {safeText(msg.text ?? "")}
+              </ReactMarkdown>
+            )}
           </div>
         )}
 
-        {/* Agent bubble */}
-        {!isUser && (
-          <div>
-            <p className="text-[10px] font-medium mb-1.5 flex items-center gap-1.5" style={{ color: "rgba(0,212,255,0.4)" }}>
-              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "rgba(0,212,255,0.6)" }} />
-              Pharos Agent
-            </p>
+        {/* Sources */}
+        {msg.sources && msg.sources.length > 0 && (
+          <div className="mt-2.5 mb-1 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[9px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(100,116,139,0.35)" }}>Sources</span>
+            {msg.sources.map((s, i) => (
+              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.1)", color: "rgba(0,212,255,0.45)" }}>
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
 
-            {/* Text content */}
-            {(msg.text || msg.isLoading) && (
-              <div className={`rounded-2xl rounded-bl-sm px-5 py-4 text-sm leading-[1.75] ${msg.isError ? "border border-red-500/25" : ""}`}
-                style={{
-                  background: msg.isError
-                    ? "rgba(239,68,68,0.07)"
-                    : "rgba(10,18,38,0.7)",
-                  border: msg.isError
-                    ? "1px solid rgba(239,68,68,0.2)"
-                    : "1px solid rgba(255,255,255,0.07)",
-                  backdropFilter: "blur(12px)",
-                  boxShadow: "0 2px 24px rgba(0,0,0,0.25)",
-                }}>
-                {msg.isLoading ? (
-                  <div className="flex items-center gap-3" style={{ color: "rgba(148,163,184,0.6)" }}>
-                    <Spinner />
-                    <span className="text-sm">{msg.text || "Thinking…"}</span>
+        {/* Action items - only on agent messages */}
+        {msg.providerChoice && walletAddress && (
+          <ProviderChoiceButtons choice={msg.providerChoice} onChoose={(provider) => onProviderChoice(msg.id, msg.providerChoice!.intent, provider)} />
+        )}
+
+        {msg.swapChoice && walletAddress && (
+          <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
+        )}
+
+        {msg.pending && walletAddress && (
+          <div className="mt-3 px-4 py-3.5 rounded-2xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.14)", backdropFilter: "blur(8px)" }}>
+            <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
+            <p className="text-xs font-data leading-relaxed mb-2" style={{ color: "rgba(148,163,184,0.65)" }}>{msg.pending.description}</p>
+            <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
+          </div>
+        )}
+
+        {msg.liquidityPending && walletAddress && (
+          <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
+        )}
+
+        {msg.removeLiquidityPending && walletAddress && (() => {
+          const r = msg.removeLiquidityPending!.result;
+          const faroswapUrl = `https://faroswap.xyz/#/pool/${String(r.tokenId)}`;
+          const scanUrl = `https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(r.tokenId)}`;
+          return (
+            <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.9)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}`, backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)"}`, background: r.simulationFailed ? "rgba(245,158,11,0.04)" : "rgba(239,68,68,0.04)" }}>
+                <div>
+                  <p className="text-xs font-bold text-white">
+                    {r.collectOnly ? "⬆ Collect Fees" : "🔴 Remove Liquidity"}
+                  </p>
+                  <p className="text-[10px] mt-0.5 font-data" style={{ color: r.simulationFailed ? "rgba(245,158,11,0.6)" : "rgba(239,68,68,0.55)" }}>NFT #{String(r.tokenId)} · FaroSwap V3</p>
+                </div>
+                <span className="text-[10px] px-2 py-1 rounded-full font-medium" style={{ background: r.simulationFailed ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)", color: r.simulationFailed ? "rgba(245,158,11,0.8)" : "rgba(239,68,68,0.7)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}` }}>
+                  {(r.feeTier / 10000).toFixed(2)}% pool
+                </span>
+              </div>
+              <div className="px-4 py-3 space-y-2.5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-data">
+                  {!r.collectOnly && (<>
+                    <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity WPROS</span>
+                    <span className="text-right font-semibold text-gray-200">{r.amount0WPROS.toFixed(6)}</span>
+                    <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity USDC</span>
+                    <span className="text-right font-semibold text-gray-200">{r.amount1USDC.toFixed(6)}</span>
+                  </>)}
+                  {r.feesWPROS > 0 && (<>
+                    <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees WPROS</span>
+                    <span className="text-right font-semibold text-amber-300">{r.feesWPROS.toFixed(6)}</span>
+                  </>)}
+                  {r.feesUSDC > 0 && (<>
+                    <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees USDC</span>
+                    <span className="text-right font-semibold text-amber-300">{r.feesUSDC.toFixed(6)}</span>
+                  </>)}
+                </div>
+
+                {r.simulationFailed && (
+                  <div className="flex items-start gap-2.5 px-3 py-3 rounded-xl" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                    <span style={{ color: "rgba(245,158,11,0.9)" }} className="shrink-0 text-sm mt-0.5">⚠</span>
+                    <div className="space-y-2">
+                      <p className="text-xs leading-relaxed font-semibold" style={{ color: "rgba(245,158,11,0.9)" }}>
+                        Não é possível coletar fees via agent para esta posição. Use o FaroSwap diretamente.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <a href={faroswapUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
+                          style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "rgba(245,158,11,0.95)" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(245,158,11,0.22)"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(245,158,11,0.15)"; }}>
+                          <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
+                          Abrir no FaroSwap
+                        </a>
+                        <a href={scanUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200"
+                          style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.18)", color: "rgba(0,212,255,0.75)" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,212,255,0.12)"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,212,255,0.07)"; }}>
+                          View NFT
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        p: ({ children }) => (
-                          <p className="mb-2.5 last:mb-0 text-sm leading-[1.75]" style={{ color: "rgba(215,228,245,0.9)" }}>{children}</p>
-                        ),
-                        strong: ({ children }) => {
-                          const text = String(children);
-                          const isHead = /^[A-Z0-9 _\-&]{4,}$/.test(text);
-                          return isHead ? (
-                            <strong style={{
-                              display: "block", fontFamily: MD_FONT_DISPLAY, fontWeight: 800,
-                              fontSize: "0.7rem", letterSpacing: "0.09em",
-                              color: "rgba(0,212,255,0.85)", marginBottom: "0.35rem", marginTop: "0.5rem",
-                            }}>{children}</strong>
-                          ) : (
-                            <strong style={{ fontWeight: 700, color: "rgba(255,255,255,0.97)" }}>{children}</strong>
-                          );
-                        },
-                        em: ({ children }) => <em className="italic" style={{ color: "rgba(186,207,230,0.8)" }}>{children}</em>,
-                        ul: ({ children }) => <ul className="mb-2.5 mt-1 space-y-1 list-none pl-0">{children}</ul>,
-                        ol: ({ children }) => <ol className="mb-2.5 mt-1 pl-5 space-y-1 list-decimal" style={{ color: "rgba(215,228,245,0.88)" }}>{children}</ol>,
-                        li: ({ children }) => (
-                          <li className="flex items-start gap-2 text-sm leading-[1.65]" style={{ color: "rgba(215,228,245,0.88)" }}>
-                            <span className="shrink-0 mt-[0.46em] w-[5px] h-[5px] rounded-full" style={{ background: "rgba(0,212,255,0.55)" }} />
-                            <span>{children}</span>
-                          </li>
-                        ),
-                        h1: ({ children }) => <h1 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 800, fontSize: "0.95rem", letterSpacing: "0.06em", color: "#7dd3fc", marginBottom: "0.5rem", marginTop: "0.85rem" }}>{children}</h1>,
-                        h2: ({ children }) => <h2 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 800, fontSize: "0.825rem", letterSpacing: "0.055em", color: "#7dd3fc", marginBottom: "0.4rem", marginTop: "0.7rem" }}>{children}</h2>,
-                        h3: ({ children }) => <h3 style={{ fontFamily: MD_FONT_DISPLAY, fontWeight: 700, fontSize: "0.775rem", letterSpacing: "0.05em", color: "#93c5fd", marginBottom: "0.3rem", marginTop: "0.6rem" }}>{children}</h3>,
-                        code: ({ children }) => (
-                          <code className="px-1.5 py-0.5 rounded text-[11px] font-mono" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.85)", border: "1px solid rgba(0,212,255,0.14)" }}>{children}</code>
-                        ),
-                        pre: ({ children }) => (
-                          <pre className="my-2 px-3 py-2.5 rounded-xl overflow-x-auto text-[11px] font-mono" style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(200,215,230,0.88)" }}>{children}</pre>
-                        ),
-                        a: ({ href, children }) => (
-                          <a href={href} target="_blank" rel="noopener noreferrer"
-                            className="underline underline-offset-2 transition-colors" style={{ color: "rgba(0,212,255,0.75)" }}
-                            onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,1)")}
-                            onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.75)")}>
-                            {children}
-                          </a>
-                        ),
-                        hr: () => <hr className="my-3" style={{ borderColor: "rgba(255,255,255,0.06)" }} />,
-                        blockquote: ({ children }) => (
-                          <blockquote className="pl-3 my-2 italic" style={{ borderLeft: "2px solid rgba(0,212,255,0.3)", color: "rgba(148,163,184,0.75)" }}>{children}</blockquote>
-                        ),
-                        table: ({ children }) => (
-                          <div className="overflow-x-auto my-2">
-                            <table className="w-full text-xs border-collapse" style={{ borderColor: "rgba(255,255,255,0.07)" }}>{children}</table>
-                          </div>
-                        ),
-                        th: ({ children }) => <th className="px-3 py-2 text-left font-semibold text-[10px] uppercase tracking-widest" style={{ background: "rgba(0,212,255,0.08)", color: "rgba(0,212,255,0.7)", borderBottom: "1px solid rgba(0,212,255,0.15)" }}>{children}</th>,
-                        td: ({ children }) => <td className="px-3 py-2 text-sm" style={{ color: "rgba(215,228,245,0.8)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{children}</td>,
-                      }}
-                    >
-                      {safeText(msg.text ?? "")}
-                    </ReactMarkdown>
+                )}
+
+                {!r.simulationFailed && r.collectOnly && (
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                    <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">ℹ</span>
+                    <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Position is closed — only uncollected fees will be collected.</span>
+                  </div>
+                )}
+                {!r.simulationFailed && !r.collectOnly && (r.feesWPROS > 0 || r.feesUSDC > 0) && (
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
+                    <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">★</span>
+                    <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Uncollected fees included automatically.</span>
                   </div>
                 )}
               </div>
-            )}
 
-            {/* Sources */}
-            {!isUser && msg.sources && msg.sources.length > 0 && (
-              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                <span className="text-[9px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(100,116,139,0.4)" }}>Sources</span>
-                {msg.sources.map((s, i) => (
-                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.12)", color: "rgba(0,212,255,0.5)" }}>
-                    {s}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Action items - only on agent messages */}
-            {msg.providerChoice && walletAddress && (
-              <ProviderChoiceButtons choice={msg.providerChoice} onChoose={(provider) => onProviderChoice(msg.id, msg.providerChoice!.intent, provider)} />
-            )}
-
-            {msg.swapChoice && walletAddress && (
-              <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
-            )}
-
-            {msg.pending && walletAddress && (
-              <div className="mt-3 px-4 py-3 rounded-2xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.14)", backdropFilter: "blur(8px)" }}>
-                <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
-                <p className="text-xs font-data leading-relaxed" style={{ color: "rgba(148,163,184,0.7)" }}>{msg.pending.description}</p>
-                <TxButton pending={msg.pending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
-              </div>
-            )}
-
-            {msg.liquidityPending && walletAddress && (
-              <LiquidityPanel liquidityPending={msg.liquidityPending} walletAddress={walletAddress} onSuccess={(hash) => onTxSuccess(msg.id, hash)} onError={(err) => onTxError(msg.id, err)} onReverted={(hash) => onTxReverted(msg.id, hash)} />
-            )}
-
-            {msg.removeLiquidityPending && walletAddress && (() => {
-              const r = msg.removeLiquidityPending!.result;
-              const faroswapUrl = `https://faroswap.xyz/#/pool/${String(r.tokenId)}`;
-              const scanUrl = `https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(r.tokenId)}`;
-              return (
-                <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(6,12,28,0.85)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}`, backdropFilter: "blur(16px)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
-                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)"}`, background: r.simulationFailed ? "rgba(245,158,11,0.04)" : "rgba(239,68,68,0.04)" }}>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        {r.collectOnly ? "⬆ Collect Fees" : "🔴 Remove Liquidity"}
-                      </p>
-                      <p className="text-[10px] mt-0.5 font-data" style={{ color: r.simulationFailed ? "rgba(245,158,11,0.6)" : "rgba(239,68,68,0.55)" }}>NFT #{String(r.tokenId)} · FaroSwap V3</p>
-                    </div>
-                    <span className="text-[10px] px-2 py-1 rounded-full font-medium" style={{ background: r.simulationFailed ? "rgba(245,158,11,0.1)" : "rgba(239,68,68,0.1)", color: r.simulationFailed ? "rgba(245,158,11,0.8)" : "rgba(239,68,68,0.7)", border: `1px solid ${r.simulationFailed ? "rgba(245,158,11,0.25)" : "rgba(239,68,68,0.2)"}` }}>
-                      {(r.feeTier / 10000).toFixed(2)}% pool
-                    </span>
-                  </div>
-                  <div className="px-4 py-3 space-y-2.5">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-data">
-                      {!r.collectOnly && (<>
-                        <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity WPROS</span>
-                        <span className="text-right font-semibold text-gray-200">{r.amount0WPROS.toFixed(6)}</span>
-                        <span style={{ color: "rgba(100,116,139,0.7)" }}>Liquidity USDC</span>
-                        <span className="text-right font-semibold text-gray-200">{r.amount1USDC.toFixed(6)}</span>
-                      </>)}
-                      {r.feesWPROS > 0 && (<>
-                        <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees WPROS</span>
-                        <span className="text-right font-semibold text-amber-300">{r.feesWPROS.toFixed(6)}</span>
-                      </>)}
-                      {r.feesUSDC > 0 && (<>
-                        <span style={{ color: "rgba(251,191,36,0.65)" }}>Fees USDC</span>
-                        <span className="text-right font-semibold text-amber-300">{r.feesUSDC.toFixed(6)}</span>
-                      </>)}
-                    </div>
-
-                    {/* Simulation-failed warning — direct to FaroSwap UI */}
-                    {r.simulationFailed && (
-                      <div className="flex items-start gap-2.5 px-3 py-3 rounded-xl" style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
-                        <span style={{ color: "rgba(245,158,11,0.9)" }} className="shrink-0 text-sm mt-0.5">⚠</span>
-                        <div className="space-y-2">
-                          <p className="text-xs leading-relaxed font-semibold" style={{ color: "rgba(245,158,11,0.9)" }}>
-                            Não é possível coletar fees via agent para esta posição. Use o FaroSwap diretamente.
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <a href={faroswapUrl} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200"
-                              style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "rgba(245,158,11,0.95)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(245,158,11,0.22)"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(245,158,11,0.15)"; }}>
-                              <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 7h8M8 4l3 3-3 3"/></svg>
-                              Abrir no FaroSwap
-                            </a>
-                            <a href={scanUrl} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200"
-                              style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.18)", color: "rgba(0,212,255,0.75)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,212,255,0.12)"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(0,212,255,0.07)"; }}>
-                              View NFT
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {!r.simulationFailed && r.collectOnly && (
-                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
-                        <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">ℹ</span>
-                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Position is closed — only uncollected fees will be collected.</span>
-                      </div>
-                    )}
-                    {!r.simulationFailed && !r.collectOnly && (r.feesWPROS > 0 || r.feesUSDC > 0) && (
-                      <div className="flex items-start gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.14)" }}>
-                        <span style={{ color: "rgba(251,191,36,0.85)" }} className="shrink-0 text-xs">★</span>
-                        <span className="text-xs leading-relaxed" style={{ color: "rgba(251,191,36,0.75)" }}>Uncollected fees included automatically.</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {!r.simulationFailed && (
-                    <div className="px-4 pb-4">
-                      <RemoveLiquidityTxButton
-                        removeLiquidityPending={msg.removeLiquidityPending!}
-                        walletAddress={walletAddress}
-                        onSuccess={(hash) => onTxSuccess(msg.id, hash)}
-                        onError={(err) => onTxError(msg.id, err)}
-                        onReverted={(hash) => onTxReverted(msg.id, hash)}
-                      />
-                    </div>
-                  )}
+              {!r.simulationFailed && (
+                <div className="px-4 pb-4">
+                  <RemoveLiquidityTxButton
+                    removeLiquidityPending={msg.removeLiquidityPending!}
+                    walletAddress={walletAddress}
+                    onSuccess={(hash) => onTxSuccess(msg.id, hash)}
+                    onError={(err) => onTxError(msg.id, err)}
+                    onReverted={(hash) => onTxReverted(msg.id, hash)}
+                  />
                 </div>
-              );
-            })()}
+              )}
+            </div>
+          );
+        })()}
 
-            {msg.amountQuery && (
-              <div className="mt-3">
-                <p className="text-sm mb-2" style={{ color: "rgba(215,228,245,0.88)" }}>
-                  You have <span className="font-semibold text-white">{msg.amountQuery.balance.toFixed(4)} {msg.amountQuery.token}</span> on {msg.amountQuery.chain}.
-                </p>
-                <PercentageButtons balance={msg.amountQuery.balance} onSelect={(amount) => {
-                  onAmountPicked(amount, msg.amountQuery!.token);
-                }} />
-              </div>
-            )}
-
-            {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} onRemove={(pos) => onPositionSelect(msg.id, pos)} />}
-
-            {msg.positions && msg.removeMode && (
-              <RemovePositionSelector positions={msg.positions} onSelect={(pos) => onPositionSelect(msg.id, pos)} />
-            )}
-
-            {msg.removePctPending && (
-              <RemovePctSelector
-                position={msg.removePctPending.position}
-                onSelect={(pct) => onPctSelect(msg.id, msg.removePctPending!.position, pct)}
-              />
-            )}
-
-            {msg.txHash && (
-              <a href={`https://pharos.socialscan.io/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-200 text-xs font-medium"
-                style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "rgba(52,211,153,0.88)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.14)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.08)"; }}>
-                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/></svg>
-                <span>View on Pharosscan</span>
-                <span className="font-data text-[10px] opacity-55">{msg.txHash.slice(0, 8)}…</span>
-              </a>
-            )}
+        {msg.amountQuery && (
+          <div className="mt-3">
+            <p className="text-sm mb-2" style={{ color: "rgba(215,228,245,0.88)" }}>
+              You have <span className="font-semibold text-white">{msg.amountQuery.balance.toFixed(4)} {msg.amountQuery.token}</span> on {msg.amountQuery.chain}.
+            </p>
+            <PercentageButtons balance={msg.amountQuery.balance} onSelect={(amount) => {
+              onAmountPicked(amount, msg.amountQuery!.token);
+            }} />
           </div>
+        )}
+
+        {msg.positions && !msg.removeMode && <PositionCards positions={msg.positions} onRemove={(pos) => onPositionSelect(msg.id, pos)} />}
+
+        {msg.positions && msg.removeMode && (
+          <RemovePositionSelector positions={msg.positions} onSelect={(pos) => onPositionSelect(msg.id, pos)} />
+        )}
+
+        {msg.removePctPending && (
+          <RemovePctSelector
+            position={msg.removePctPending.position}
+            onSelect={(pct) => onPctSelect(msg.id, msg.removePctPending!.position, pct)}
+          />
+        )}
+
+        {msg.txHash && (
+          <a href={`https://pharos.socialscan.io/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-200 text-xs font-semibold"
+            style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.18)", color: "rgba(52,211,153,0.85)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.14)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.08)"; }}>
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/></svg>
+            <span>Transação confirmada</span>
+            <span className="font-data text-[10px] opacity-55">{msg.txHash.slice(0, 8)}…</span>
+          </a>
         )}
       </div>
     </div>
@@ -2293,7 +2284,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen"
       style={{
-        background: "radial-gradient(ellipse at 50% -10%, rgba(0,70,150,0.5) 0%, rgba(0,30,80,0.18) 40%, transparent 60%), linear-gradient(170deg, #060c1e 0%, #050a1a 55%, #030710 100%)",
+        background: "radial-gradient(ellipse at 50% -10%, rgba(0,70,150,0.4) 0%, rgba(0,25,70,0.15) 40%, transparent 60%), linear-gradient(170deg, #060c1e 0%, #050a1a 55%, #030710 100%)",
       }}>
 
       {/* Wave background — subtle */}
@@ -2320,16 +2311,16 @@ export default function ChatPage() {
         />
       </div>
 
-      {/* Wrong-network banner — blocks trading until on Pharos */}
+      {/* Wrong-network banner */}
       {isWrongNetwork && (
-        <div className="relative z-20 px-4 pt-3">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
-            style={{ background: "rgba(20,14,2,0.7)", border: "1px solid rgba(245,158,11,0.25)", backdropFilter: "blur(16px)" }}>
+        <div className="relative z-20 px-4 pt-2">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
+            style={{ background: "rgba(20,14,2,0.75)", border: "1px solid rgba(245,158,11,0.25)", backdropFilter: "blur(16px)" }}>
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-lg shrink-0">⚠️</span>
+              <span className="text-base shrink-0">⚠️</span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-white">Conecte-se à rede Pharos</p>
-                <p className="text-[11px]" style={{ color: "rgba(251,191,36,0.8)" }}>Sua carteira está em outra rede. Troque para a Pharos (Chain ID 1672) para negociar.</p>
+                <p className="text-[11px]" style={{ color: "rgba(251,191,36,0.8)" }}>Troque para Pharos (Chain ID 1672) para negociar.</p>
               </div>
             </div>
             <button onClick={handleSwitchNetwork}
@@ -2341,9 +2332,102 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Chat area */}
-      <main className="flex-1 overflow-y-auto relative z-10 scroll-smooth">
-        <div className={`max-w-3xl mx-auto px-4 ${hasMessages ? "py-6" : "py-4 flex flex-col justify-center min-h-full"}`}>
+      {/* Body: sidebar + chat */}
+      <div className="flex flex-1 min-h-0 relative z-10">
+
+        {/* ── Left sidebar (desktop only) ────────────────────────────────── */}
+        <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r py-5 px-3 overflow-y-auto"
+          style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(3,7,18,0.6)", backdropFilter: "blur(20px)" }}>
+
+          {/* Quick actions */}
+          <div className="mb-6">
+            <p className="text-[9px] uppercase tracking-[0.15em] font-semibold mb-2.5 px-2" style={{ color: "rgba(0,212,255,0.35)" }}>
+              Quick Actions
+            </p>
+            <div className="space-y-0.5">
+              {[
+                { label: "Swap tokens",       icon: "⇄", prompt: "swap 1 PROS to USDC", color: "#00d4ff" },
+                { label: "Bridge cross-chain", icon: "⤡", prompt: "bridge 10 USDC to Base", color: "#818cf8" },
+                { label: "Add Liquidity",      icon: "+", prompt: "add 5 WPROS to FaroSwap 0.30% ±15%", color: "#34d399" },
+                { label: "My LP Positions",    icon: "◈", prompt: "show my liquidity positions", color: "#fbbf24" },
+                { label: "Wallet Analysis",    icon: "◎", prompt: "analyze my wallet", color: "#f472b6" },
+                { label: "Pharos Protocols",   icon: "⬡", prompt: "what DeFi protocols are on Pharos?", color: "#38bdf8" },
+              ].map((item) => (
+                <button key={item.label}
+                  onClick={() => { setInput(item.prompt); inputRef.current?.focus(); }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs font-medium transition-all duration-150"
+                  style={{ color: "rgba(148,163,184,0.65)" }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = `${item.color}0d`;
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(226,232,240,0.9)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "";
+                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.65)";
+                  }}>
+                  <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] shrink-0"
+                    style={{ background: `${item.color}12`, color: item.color }}>
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px mx-2 mb-5" style={{ background: "rgba(255,255,255,0.05)" }} />
+
+          {/* Network info */}
+          <div className="mb-5 px-2">
+            <p className="text-[9px] uppercase tracking-[0.15em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.35)" }}>
+              Network
+            </p>
+            <div className="rounded-xl p-3 space-y-2" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.1)" }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.6)" }}>Name</span>
+                <span className="text-[10px] font-semibold text-white">Pharos Mainnet</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.6)" }}>Chain ID</span>
+                <span className="text-[10px] font-mono font-semibold" style={{ color: "#00d4ff" }}>1672</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.6)" }}>Token</span>
+                <span className="text-[10px] font-semibold text-white">PROS</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.6)" }}>Status</span>
+                <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: "#34d399" }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Powered-by strip */}
+          <div className="mt-auto px-2">
+            <p className="text-[9px] uppercase tracking-[0.15em] font-semibold mb-2" style={{ color: "rgba(0,212,255,0.25)" }}>
+              Powered by
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {["FaroSwap", "LI.FI", "CCIP", "CCTP v2"].map((p) => (
+                <span key={p} className="text-[9px] px-2 py-0.5 rounded-full font-medium"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(148,163,184,0.4)" }}>
+                  {p}
+                </span>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Main chat area ──────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+
+          {/* Chat area */}
+          <main className="flex-1 overflow-y-auto scroll-smooth">
+            <div className={`max-w-3xl mx-auto px-5 ${hasMessages ? "py-8" : "py-4 flex flex-col justify-center min-h-full"}`}>
 
           {/* Empty state — welcome */}
           {!hasMessages && (
@@ -2448,111 +2532,113 @@ export default function ChatPage() {
             />
           ))}
           <div ref={bottomRef} />
-        </div>
-      </main>
-
-      {/* Input bar */}
-      <div className="relative z-20 px-4 pt-3 pb-4"
-        style={{
-          background: "rgba(4,9,22,0.97)",
-          backdropFilter: "blur(30px)",
-          WebkitBackdropFilter: "blur(30px)",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          boxShadow: "0 -1px 0 rgba(0,212,255,0.06), 0 -20px 60px rgba(0,0,0,0.6)",
-        }}>
-        <div className="max-w-3xl mx-auto">
-
-          {/* Suggestion chips — only when no messages */}
-          {!hasMessages && (
-            <div className="flex gap-1.5 flex-wrap mb-3">
-              {SUGGESTIONS.map((s) => (
-                <button key={s.text}
-                  onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(148,163,184,0.6)" }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.1)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.25)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.9)";
-                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.09)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.6)";
-                    (e.currentTarget as HTMLButtonElement).style.transform = "";
-                  }}>
-                  {s.icon}
-                  {s.label}
-                </button>
-              ))}
             </div>
-          )}
+          </main>
 
-          {/* Input + send */}
-          <div className="relative">
-            {/* Gradient border wrapper */}
-            <div className="rounded-2xl p-[1px] transition-all duration-300"
-              style={{ background: input.trim() ? "linear-gradient(135deg, rgba(0,212,255,0.5), rgba(56,189,248,0.3), rgba(99,102,241,0.3))" : "rgba(255,255,255,0.08)" }}>
-              <div className="flex gap-2 items-end rounded-[15px] px-3 py-2.5"
-                style={{ background: "rgba(6,12,28,0.96)", backdropFilter: "blur(20px)" }}>
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Swap, bridge, add liquidity, or ask anything about Pharos…"
-                  disabled={isSending}
-                  rows={1}
-                  className="flex-1 text-sm text-white outline-none disabled:opacity-60 resize-none overflow-hidden bg-transparent"
-                  style={{
-                    caretColor: "#00d4ff",
-                    fontFamily: "var(--font-inter)",
-                    lineHeight: "1.6",
-                    minHeight: "26px",
-                    maxHeight: "160px",
-                    paddingTop: "3px",
-                    color: "rgba(230,242,255,0.92)",
-                  }}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || isSending}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-black transition-all duration-200 shrink-0 self-end"
-                  style={{
-                    background: input.trim() && !isSending
-                      ? "linear-gradient(135deg, #00d4ff, #38bdf8)"
-                      : "rgba(255,255,255,0.06)",
-                    boxShadow: input.trim() && !isSending ? "0 4px 16px rgba(0,212,255,0.35)" : "none",
-                    color: input.trim() && !isSending ? "rgba(0,8,20,0.9)" : "rgba(148,163,184,0.25)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!input.trim() || isSending) return;
-                    (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.07)";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 24px rgba(0,212,255,0.55)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.transform = "";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = input.trim() && !isSending ? "0 4px 16px rgba(0,212,255,0.35)" : "none";
-                  }}
-                >
-                  {isSending ? (
-                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
-                      <path d="M3.105 2.289a.75.75 0 00-.826.95l1.903 6.557H13.5a.75.75 0 010 1.5H4.182l-1.903 6.557a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
-                    </svg>
-                  )}
-                </button>
+          {/* ── Input bar ──────────────────────────────────────────────── */}
+          <div className="shrink-0 px-4 pt-3 pb-4"
+            style={{
+              background: "rgba(3,7,18,0.96)",
+              backdropFilter: "blur(30px)",
+              WebkitBackdropFilter: "blur(30px)",
+              borderTop: "1px solid rgba(255,255,255,0.05)",
+              boxShadow: "0 -1px 0 rgba(0,212,255,0.05), 0 -24px 60px rgba(0,0,0,0.5)",
+            }}>
+            <div className="max-w-3xl mx-auto">
+
+              {/* Suggestion chips — only on empty state */}
+              {!hasMessages && (
+                <div className="flex gap-1.5 flex-wrap mb-3">
+                  {SUGGESTIONS.map((s) => (
+                    <button key={s.text}
+                      onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(148,163,184,0.55)" }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.09)";
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,212,255,0.22)";
+                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(0,212,255,0.88)";
+                        (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)";
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.08)";
+                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.55)";
+                        (e.currentTarget as HTMLButtonElement).style.transform = "";
+                      }}>
+                      {s.icon}
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Input + send */}
+              <div className="relative">
+                <div className="rounded-2xl p-[1px] transition-all duration-300"
+                  style={{ background: input.trim() ? "linear-gradient(135deg, rgba(0,212,255,0.5), rgba(56,189,248,0.3), rgba(99,102,241,0.28))" : "rgba(255,255,255,0.07)" }}>
+                  <div className="flex gap-2 items-end rounded-[15px] px-4 py-3"
+                    style={{ background: "rgba(5,11,26,0.97)", backdropFilter: "blur(20px)" }}>
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                      placeholder="Swap, bridge, add liquidity, ou pergunte qualquer coisa sobre Pharos…"
+                      disabled={isSending}
+                      rows={1}
+                      className="flex-1 text-sm text-white outline-none disabled:opacity-60 resize-none overflow-hidden bg-transparent"
+                      style={{
+                        caretColor: "#00d4ff",
+                        fontFamily: "var(--font-inter)",
+                        lineHeight: "1.65",
+                        minHeight: "28px",
+                        maxHeight: "180px",
+                        paddingTop: "2px",
+                        color: "rgba(228,242,255,0.92)",
+                      }}
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!input.trim() || isSending}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 shrink-0 self-end"
+                      style={{
+                        background: input.trim() && !isSending
+                          ? "linear-gradient(135deg, #00d4ff, #38bdf8)"
+                          : "rgba(255,255,255,0.05)",
+                        boxShadow: input.trim() && !isSending ? "0 4px 18px rgba(0,212,255,0.4)" : "none",
+                        color: input.trim() && !isSending ? "rgba(0,8,20,0.9)" : "rgba(100,116,139,0.3)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!input.trim() || isSending) return;
+                        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)";
+                        (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 26px rgba(0,212,255,0.58)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.transform = "";
+                        (e.currentTarget as HTMLButtonElement).style.boxShadow = input.trim() && !isSending ? "0 4px 18px rgba(0,212,255,0.4)" : "none";
+                      }}
+                    >
+                      {isSending ? (
+                        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg viewBox="0 0 20 20" className="w-4 h-4" fill="currentColor">
+                          <path d="M3.105 2.289a.75.75 0 00-.826.95l1.903 6.557H13.5a.75.75 0 010 1.5H4.182l-1.903 6.557a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.35)" }}>
+                Pharos Mainnet · Chain ID 1672 · Non-custodial · Shift+Enter new line
+              </p>
             </div>
           </div>
 
-          <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.4)" }}>
-            Pharos Mainnet · Chain ID 1672 · Non-custodial · Shift+Enter for new line
-          </p>
-        </div>
-      </div>
+        </div>{/* end main chat area */}
+      </div>{/* end body */}
     </div>
   );
 }
