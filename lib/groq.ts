@@ -3,7 +3,7 @@ import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
 
 export interface GroqResult {
-  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | null;
+  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | "payment_request" | null;
   fromToken: string | null;
   toToken: string | null;
   amount: number | null;
@@ -59,6 +59,8 @@ export interface GroqResult {
   approveAmount?: number | "unlimited" | null;
   // Tx explainer (action="explain_tx"): hash pasted by the user
   txHash?: string | null;
+  // Payment request / invoicing (action="payment_request")
+  requestMemo?: string | null;
   // Which AI provider answered (for debugging)
   _provider?: string;
 }
@@ -361,7 +363,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "When in doubt about a token name, guess the closest match (PRS→PROS, pros→PROS, weth→WETH).\n\n" +
     "Tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm\n" +
     "Chains: Pharos (default), Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
-    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet", "transfer", "approve", "explain_tx"\n' +
+    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet", "transfer", "approve", "explain_tx", "payment_request"\n' +
     "── PAYMENT AGENT (action='transfer') ──\n" +
     "When the user wants to SEND/PAY tokens to an address ('send 1 PROS to 0x…', 'manda 5 USDC pra 0x…', 'paga 2 PROS pro 0x…', 'transfere 0.5 PROS para 0x…'):\n" +
     "  action='transfer', fill transfers=[{to:'0x…', amount:1, token:'PROS'}].\n" +
@@ -374,6 +376,11 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  action='approve', approveToken='USDC', approveSpender='0x…', approveAmount=100 (number) or 'unlimited'.\n" +
     "  'ilimitado'/'unlimited'/'max'/'infinite' → approveAmount='unlimited'. Missing spender → approveSpender=null, ask in reply.\n" +
     "  WARN in reply about unlimited approvals (risk if spender contract is compromised).\n" +
+    "── PAYMENT REQUEST / INVOICE (action='payment_request') ──\n" +
+    "When the user wants to REQUEST/CHARGE payment FROM someone ('request 10 PROS from 0x… for design work', 'cobra 5 PROS do João pelo logo', 'me manda um link de cobrança de 2 PROS', 'create an invoice for 10 USDC'):\n" +
+    "  action='payment_request', amount=10, fromToken='PROS', requestMemo='design work' (short description or null).\n" +
+    "  The app generates a shareable payment link — money flows TO the connected user. No address of the payer is needed.\n" +
+    "  If amount missing: needsAmount=true. DISTINGUISH from 'transfer': transfer = user SENDS money OUT; payment_request = user RECEIVES money.\n" +
     "── TX EXPLAINER (action='explain_tx') ──\n" +
     "When the user pastes a 66-char transaction hash (0x + 64 hex) or asks to explain/check a transaction ('o que é essa tx?', 'explica essa transação', 'what happened in 0x…'):\n" +
     "  action='explain_tx', txHash='0x…'. The app fetches the tx from the RPC and explains it — your reply is just a short intro like 'Deixa eu ver essa transação…'.\n" +
@@ -435,6 +442,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     '  "approveSpender": "0x..."|null,\n' +
     '  "approveAmount": 100|"unlimited"|null,\n' +
     '  "txHash": "0x..."|null,\n' +
+    '  "requestMemo": "design work"|null,\n' +
     '  "fromToken": "PROS"|null,\n' +
     '  "toToken": "USDC"|null,\n' +
     '  "amount": 0.5|null,\n' +
@@ -528,6 +536,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "- SWAP tokens on Pharos (via LI.FI/Jumper by default, or direct FaroSwap pool for PROS/WPROS ↔ USDC)\n" +
     "- TRANSFER (payment agent): send PROS or ERC-20 tokens to any address via natural language, including BATCH sends to multiple addresses in one prompt\n" +
     "- APPROVE: ERC-20 allowances for a spender contract via natural language\n" +
+    "- PAYMENT REQUEST: generate a shareable on-chain invoice link ('request 10 PROS for design work') — recipient opens the link and pays in one click\n" +
     "- EXPLAIN TX: paste any Pharos tx hash → plain-language explanation (works on Mainnet AND Atlantic Testnet)\n" +
     "- LIVE PROS PRICE with 24h change, market cap, volume, interactive chart and CEX trading links\n" +
     "- LIVE CAMPAIGNS tracker and PHAROS NEWS feed\n" +
@@ -786,6 +795,8 @@ export async function parseWithGroq(
       : null;
   parsed.txHash =
     typeof parsed.txHash === "string" && /^0x[a-fA-F0-9]{64}$/.test(parsed.txHash) ? parsed.txHash : null;
+  parsed.requestMemo =
+    typeof parsed.requestMemo === "string" && parsed.requestMemo.trim() ? parsed.requestMemo.trim().slice(0, 140) : null;
   parsed.foundInKnowledge = parsed.foundInKnowledge === true;
   parsed.sources = Array.isArray(parsed.sources)
     ? parsed.sources.filter((s): s is string => typeof s === "string" && s.length > 0).slice(0, 4)

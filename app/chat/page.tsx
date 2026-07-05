@@ -145,6 +145,7 @@ interface Message {
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
   approvePending?: BuiltTx;            // ERC-20 approval to sign
   priceChart?: { symbol: string };     // interactive price chart card
+  paymentRequest?: { url: string; amount: number; token: string; memo: string | null };
   isLoading?: boolean;
   isSearching?: boolean;
   isError?: boolean;
@@ -1760,6 +1761,13 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
 
         {msg.priceChart && <PriceChartCard symbol={msg.priceChart.symbol} />}
 
+        {msg.paymentRequest && (
+          <PaymentRequestCard
+            req={msg.paymentRequest}
+            lang={/[ãõáéíóúâêôç]/i.test(msg.text) ? "pt" : "en"}
+          />
+        )}
+
         {msg.transferPending && walletAddress && (
           <TransferCard
             build={msg.transferPending}
@@ -2049,6 +2057,60 @@ function TransferCard({
       </button>
       <p className="text-[11px] text-white/30 mt-2 text-center">
         {lang === "pt" ? "Você confirma cada transação na sua carteira." : "You confirm each transaction in your wallet."}
+      </p>
+    </div>
+  );
+}
+
+// ─── Payment request card (shareable on-chain invoice link) ─────────────────
+
+function PaymentRequestCard({
+  req, lang,
+}: {
+  req: { url: string; amount: number; token: string; memo: string | null };
+  lang: "pt" | "en";
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(req.url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="text-sm font-semibold text-white/90 mb-1">
+        🧾 {lang === "pt" ? "Cobrança criada" : "Payment request created"}
+      </div>
+      <div className="text-xs text-white/60 mb-3">
+        {req.amount.toLocaleString("en-US", { maximumFractionDigits: 6 })} {req.token}
+        {req.memo ? ` · “${req.memo}”` : ""}
+      </div>
+      <div className="flex items-center gap-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 mb-3">
+        <span className="flex-1 text-xs font-mono text-cyan-300 truncate">{req.url}</span>
+        <button
+          onClick={copy}
+          className="shrink-0 px-2.5 py-1 rounded-lg text-xs bg-white/5 text-white/80 hover:bg-white/15 border border-white/10 transition-colors"
+        >
+          {copied ? (lang === "pt" ? "Copiado ✓" : "Copied ✓") : lang === "pt" ? "Copiar" : "Copy"}
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <a
+          href={req.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 text-center py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+        >
+          {lang === "pt" ? "Abrir página de pagamento" : "Open payment page"}
+        </a>
+      </div>
+      <p className="text-[11px] text-white/30 mt-2 text-center">
+        {lang === "pt"
+          ? "Envie este link para quem vai pagar — a pessoa abre, conecta a carteira e paga em 1 clique."
+          : "Send this link to the payer — they open it, connect their wallet, and pay in 1 click."}
       </p>
     </div>
   );
@@ -2638,6 +2700,43 @@ export default function ChatPage() {
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             updateMessage(thinkingId, { isLoading: false, isError: true, text: `RPC error: ${msg}` });
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // ── Payment request: generate a shareable invoice link paid TO the user
+        if (groqResult.action === "payment_request") {
+          const lang = guessUserLang(messages);
+          if (!walletAddress) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt"
+                ? "Para criar um link de cobrança, conecte sua carteira primeiro (botão no canto superior direito) — o pagamento vai direto pra ela."
+                : "To create a payment request link, connect your wallet first (top-right button) — the payment goes straight to it.",
+            });
+          } else if (!groqResult.amount || groqResult.amount <= 0) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt" ? "Quanto você quer cobrar? Ex.: *cobra 10 PROS pelo design*" : "How much do you want to request? E.g. *request 10 PROS for design work*",
+            });
+          } else {
+            const token = (groqResult.fromToken ?? "PROS").toUpperCase();
+            const qs = new URLSearchParams({
+              to: walletAddress,
+              amount: String(groqResult.amount),
+              token,
+            });
+            if (groqResult.requestMemo) qs.set("memo", groqResult.requestMemo);
+            const url = `${window.location.origin}/pay?${qs.toString()}`;
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt"
+                ? `Link de cobrança criado: **${groqResult.amount} ${token}**${groqResult.requestMemo ? ` por *${groqResult.requestMemo}*` : ""}. É só compartilhar 👇`
+                : `Payment request created: **${groqResult.amount} ${token}**${groqResult.requestMemo ? ` for *${groqResult.requestMemo}*` : ""}. Just share it 👇`,
+              paymentRequest: { url, amount: groqResult.amount, token, memo: groqResult.requestMemo ?? null },
+            });
           }
           setIsSending(false);
           inputRef.current?.focus();

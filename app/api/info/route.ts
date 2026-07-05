@@ -13,11 +13,50 @@ export async function GET(req: Request) {
     name: "Pharos Agent API",
     description:
       "AI DeFi copilot for Pharos Network. RAG-grounded knowledge about the Pharos ecosystem " +
-      "(dapps, RWA, DeFi concepts) plus read-only swap/bridge quotes via LI.FI. Non-custodial — " +
-      "this API never signs or broadcasts transactions.",
-    version: "1.0",
-    capabilities: ["knowledge", "swap-quote", "bridge-quote", "token-price"],
+      "(dapps, RWA, DeFi concepts), read-only swap/bridge quotes via LI.FI, on-chain wallet " +
+      "intelligence, and a plain-language transaction explainer. Non-custodial — this API never " +
+      "signs or broadcasts transactions.",
+    version: "2.0",
+    capabilities: [
+      "knowledge", "swap-quote", "bridge-quote", "token-price",
+      "wallet-profile", "explain-tx", "campaigns", "news",
+    ],
     endpoints: {
+      walletProfile: {
+        method: "POST",
+        path: "/api/skill/wallet-profile",
+        body: { address: "string — 0x + 40 hex chars" },
+        returns: {
+          holdings: "[{symbol, balance, usd_value}]",
+          total_usd: "number",
+          tx_count: "number",
+          profile: "{summary, tags[], risk, insight}",
+          explorer_url: "string",
+        },
+        safety: "read-only — no signature, zero gas",
+      },
+      explainTx: {
+        method: "POST",
+        path: "/api/skill/explain-tx",
+        body: { tx_hash: "string — 0x + 64 hex chars" },
+        returns: {
+          status: "'success' | 'failed' | 'pending'",
+          explanation: "{summary, category, plain_steps[]}",
+          value_pros: "number", gas_used: "number", block_number: "number",
+          network: "'Pharos Mainnet' | 'Pharos Atlantic Testnet' (auto-detected)",
+        },
+        safety: "read-only — no signature, zero gas",
+      },
+      campaigns: {
+        method: "GET",
+        path: "/api/campaigns",
+        returns: { campaigns: "[{name, startTime, endTime, url, kind}] — live from official Port API" },
+      },
+      news: {
+        method: "GET",
+        path: "/api/news",
+        returns: { items: "[{title, date, kind}] — live from pharos.xyz/resources" },
+      },
       query: {
         method: "POST",
         path: "/api/query",
