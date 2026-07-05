@@ -210,6 +210,108 @@ const FEATURES = [
   },
 ];
 
+// ── Explore sections (dedicated pages) ────────────────────────────────────────
+
+const EXPLORE_SECTIONS = [
+  {
+    href: "/chat",
+    title: "AI Chat",
+    desc: "Swap, bridge, LP, pay — everything in natural language. The heart of the agent.",
+    color: "#00d4ff",
+    tag: "Core",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/ecosystem",
+    title: "Ecosystem",
+    desc: "40+ Pharos dApps, filterable by category — DEX, RWA, lending, bridges, infra.",
+    color: "#34d399",
+    tag: "Directory",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
+    ),
+  },
+  {
+    href: "/trade",
+    title: "Trade $PROS",
+    desc: "Live price, interactive chart, market cap, volume, and every CEX/DEX venue.",
+    color: "#fbbf24",
+    tag: "Live data",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M3 17l6-6 4 4 8-8M21 7v6h-6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/campaigns",
+    title: "Campaigns",
+    desc: "Every active reward campaign from Pharos Port, with live deadlines.",
+    color: "#f472b6",
+    tag: "Live data",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M6 9H4a2 2 0 00-2 2v2a2 2 0 002 2h2m0-6v6m0-6l8-4v14l-8-4m12-4v2a4 4 0 01-2 3.46" />
+      </svg>
+    ),
+  },
+  {
+    href: "/news",
+    title: "News",
+    desc: "Official announcements and blog posts, live from pharos.xyz.",
+    color: "#a78bfa",
+    tag: "Live data",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2zm0 0a2 2 0 01-2-2v-9h4M18 14h-8M15 18h-5M10 6h8v4h-8z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/network",
+    title: "Network",
+    desc: "Block height, block time, gas price and TPS — live from the public RPC.",
+    color: "#38bdf8",
+    tag: "Live data",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/request",
+    title: "Payment Request",
+    desc: "Create a shareable invoice link — get paid in PROS with one click.",
+    color: "#6ee7b7",
+    tag: "Payments",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/chat",
+    title: "Wallet Intelligence",
+    desc: "On-chain profile of any wallet + plain-language transaction explainer.",
+    color: "#fb923c",
+    tag: "AI",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v3l2 2" />
+      </svg>
+    ),
+  },
+];
+
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
 const CHAIN_STATS = [
@@ -368,6 +470,69 @@ export default function LandingPage() {
                   </span>
                   {p.name}
                 </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Explore the app ──────────────────────────────────────────────── */}
+        <section className="py-24 px-5">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-14">
+              <p className="text-xs uppercase tracking-[0.18em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>Explore</p>
+              <h2 className="font-bold tracking-[-0.03em] mb-4"
+                style={{
+                  fontFamily: "var(--font-display), var(--font-inter), sans-serif",
+                  fontSize: "clamp(1.75rem, 4vw, 2.8rem)",
+                  color: "rgba(255,255,255,0.94)",
+                }}>
+                One app, every Pharos tool
+              </h2>
+              <p className="text-base max-w-xl mx-auto" style={{ color: "rgba(148,163,184,0.55)" }}>
+                Each function has its own dedicated space — organized, fast, and always live.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {EXPLORE_SECTIONS.map((s, i) => (
+                <Link key={s.title} href={s.href}
+                  className="group relative p-5 rounded-2xl transition-all duration-200 overflow-hidden"
+                  style={{
+                    background: "rgba(6,12,28,0.7)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${s.color}35`;
+                    e.currentTarget.style.transform = "translateY(-3px)";
+                    e.currentTarget.style.boxShadow = `0 10px 40px ${s.color}14`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
+                    e.currentTarget.style.transform = "";
+                    e.currentTarget.style.boxShadow = "";
+                  }}>
+                  {/* Top glow */}
+                  <span className="absolute top-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ background: `linear-gradient(90deg, transparent, ${s.color}80, transparent)` }} />
+
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ background: `${s.color}12`, border: `1px solid ${s.color}25`, color: s.color }}>
+                      {s.icon}
+                    </div>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
+                      style={{ background: `${s.color}0d`, border: `1px solid ${s.color}20`, color: `${s.color}90` }}>
+                      {s.tag}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-white mb-1.5 text-sm tracking-[-0.01em] flex items-center gap-1.5"
+                    style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif" }}>
+                    {s.title}
+                    <span className="opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0 text-xs" style={{ color: s.color }}>→</span>
+                  </h3>
+                  <p className="text-xs leading-relaxed" style={{ color: "rgba(148,163,184,0.6)" }}>{s.desc}</p>
+                </Link>
               ))}
             </div>
           </div>

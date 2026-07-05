@@ -51,9 +51,13 @@ export default function Navbar({
   }, [walletPicker]);
 
   const navLinks = [
-    { label: "Chat",     href: "/chat"      },
-    { label: "About",    href: "/#about"    },
-    { label: "Features", href: "/#features" },
+    { label: "Chat",      href: "/chat"      },
+    { label: "Ecosystem", href: "/ecosystem" },
+    { label: "Trade",     href: "/trade"     },
+    { label: "Campaigns", href: "/campaigns" },
+    { label: "News",      href: "/news"      },
+    { label: "Network",   href: "/network"   },
+    { label: "Request",   href: "/request"   },
   ];
 
   return (
@@ -82,14 +86,14 @@ export default function Navbar({
         </Link>
 
         {/* Nav links */}
-        <nav className="hidden sm:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-0.5">
           {navLinks.map(({ label, href }) => {
-            const active = pathname === href || (href === "/chat" && pathname.startsWith("/chat"));
+            const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={label}
                 href={href}
-                className="px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-150"
+                className="px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150"
                 style={{
                   color: active ? "rgba(0,212,255,0.9)" : "rgba(148,163,184,0.7)",
                   background: active ? "rgba(0,212,255,0.08)" : "transparent",
@@ -239,6 +243,24 @@ export default function Navbar({
           )}
         </div>
       </div>
+
+      {/* Mobile nav: horizontal scroll strip */}
+      <nav className="md:hidden flex items-center gap-1 px-4 pb-2.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        {navLinks.map(({ label, href }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
+          return (
+            <Link key={label} href={href}
+              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+              style={{
+                color: active ? "rgba(0,212,255,0.95)" : "rgba(148,163,184,0.7)",
+                background: active ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${active ? "rgba(0,212,255,0.25)" : "rgba(255,255,255,0.06)"}`,
+              }}>
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
 
       {/* Stats strip (chat page only) */}
       {stats && stats.totalCount > 0 && (
