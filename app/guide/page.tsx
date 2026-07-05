@@ -33,7 +33,7 @@ const SECTIONS: Section[] = [
       pt: [
         "Swap e bridge com comparação de rotas e melhor retorno destacado",
         "Liquidez concentrada na FaroSwap V3 (adicionar, remover, coletar taxas)",
-        "Pagamentos: envie PROS e tokens por comando de voz escrita, inclusive em lote",
+        "Pagamentos: envie PROS e tokens direto pelo chat, inclusive em lote",
         "Inteligência de carteira: score, volumes, posições RealFi, análise completa",
         "Conhecimento profundo: Pharos, DeFi, RWA, staking, NFTs, segurança e muito mais",
         "Dados ao vivo: preço do $PROS, notícias, tweets, campanhas e métricas da rede",
@@ -41,7 +41,7 @@ const SECTIONS: Section[] = [
       en: [
         "Swap and bridge with route comparison and the best return highlighted",
         "Concentrated liquidity on FaroSwap V3 (add, remove, collect fees)",
-        "Payments: send PROS and tokens by typed command, including batch sends",
+        "Payments: send PROS and tokens straight from the chat, including batch sends",
         "Wallet intelligence: score, volumes, RealFi positions, full analysis",
         "Deep knowledge: Pharos, DeFi, RWA, staking, NFTs, security and much more",
         "Live data: $PROS price, news, tweets, campaigns and network metrics",
