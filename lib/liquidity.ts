@@ -378,7 +378,9 @@ function buildDecreaseCalldata(
 }
 
 // selector = keccak256("collect((uint256,address,uint128,uint128))")
-const COLLECT_SEL = "0xfc735e99";
+// Verified on-chain: 0xfc6f7865 succeeds against FaroSwap NPM; the previous
+// value 0xfc735e99 was wrong and made every collect revert with require(false).
+const COLLECT_SEL = "0xfc6f7865";
 
 function buildCollectCalldata(
   tokenId: bigint,

@@ -531,6 +531,19 @@ function isFullRange(p: V3Position) {
   return p.tickLower <= -887200 && p.tickUpper >= 887200;
 }
 
+// tick → USDC per WPROS (WPROS 18 dec, USDC 6 dec ⇒ ×10^12)
+function tickToPrice(tick: number): number {
+  return Math.pow(1.0001, tick) * 1e12;
+}
+
+function fmtPrice(v: number): string {
+  if (!isFinite(v) || v === 0) return "0";
+  if (v >= 1000000) return "∞";
+  if (v >= 100) return v.toFixed(2);
+  if (v >= 1) return v.toFixed(4);
+  return v.toFixed(6);
+}
+
 function PositionCards({ positions, onRemove, onCollect }: { positions: V3Position[]; onRemove?: (p: V3Position) => void; onCollect?: (p: V3Position) => void }) {
   if (positions.length === 0) return null;
 
@@ -543,38 +556,85 @@ function PositionCards({ positions, onRemove, onCollect }: { positions: V3Positi
     const hasFees = p.feesWPROS > 0.000001 || p.feesUSDC > 0.000001;
     const inR = hasLiq && p.inRange;
     const sc = !hasLiq ? "rgba(148,163,184,0.6)" : inR ? "#34d399" : "#fbbf24";
-    const sl = !hasLiq ? "Closed" : inR ? "In Range" : "Out of Range";
+    const sl = !hasLiq ? "Closed" : inR ? "In range" : "Out of range";
     const accentBar = !hasLiq ? "rgba(100,116,139,0.35)" : inR ? "#34d399" : "#fbbf24";
+    const full = isFullRange(p);
+    const minPrice = full ? 0 : tickToPrice(p.tickLower);
+    const maxPrice = full ? Infinity : tickToPrice(p.tickUpper);
+
+    // Closed positions with nothing to collect → compact single row
+    if (!hasLiq && !hasFees) {
+      return (
+        <div className="flex items-center justify-between pl-4 pr-4 py-2.5 rounded-xl"
+          style={{ background: "rgba(7,14,30,0.6)", border: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex -space-x-1.5 shrink-0">
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold z-10 text-white opacity-60" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "1.5px solid rgba(7,14,30,1)" }}>W</div>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white opacity-60" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "1.5px solid rgba(7,14,30,1)" }}>U</div>
+            </div>
+            <span className="text-xs font-semibold truncate" style={{ color: "rgba(148,163,184,0.6)" }}>WPROS / USDC</span>
+            <span className="text-[10px] font-data shrink-0" style={{ color: "rgba(100,116,139,0.5)" }}>#{String(p.tokenId)}</span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(100,116,139,0.55)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              {(p.fee / 10000).toFixed(2)}%
+            </span>
+          </div>
+          <a href={`https://pharos.socialscan.io/token/${FAROSWAP.NPM}/instance/${String(p.tokenId)}`} target="_blank" rel="noopener noreferrer"
+            className="text-[10px] font-medium transition-colors shrink-0" style={{ color: "rgba(0,212,255,0.35)" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.75)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(0,212,255,0.35)")}>
+            View NFT ↗
+          </a>
+        </div>
+      );
+    }
 
     return (
-      <div className="rounded-2xl overflow-hidden relative"
+      <div className="rounded-2xl overflow-hidden relative transition-all duration-200"
         style={{ background: "rgba(7,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(14px)" }}>
         {/* Status accent bar on the left */}
         <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: accentBar, opacity: 0.7 }} />
 
-        {/* Header */}
-        <div className="flex items-center justify-between pl-5 pr-4 py-3">
+        {/* Header — pair, badges, status */}
+        <div className="flex items-center justify-between pl-5 pr-4 pt-3.5 pb-2.5">
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold z-10 text-white" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "2px solid rgba(7,14,30,1)" }}>W</div>
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "2px solid rgba(7,14,30,1)" }}>U</div>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold z-10 text-white" style={{ background: "linear-gradient(135deg,#3b82f6,#60a5fa)", border: "2px solid rgba(7,14,30,1)" }}>W</div>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: "linear-gradient(135deg,#10b981,#34d399)", border: "2px solid rgba(7,14,30,1)" }}>U</div>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-[13px] font-bold text-white tracking-[-0.01em]">WPROS / USDC</p>
+                <p className="text-sm font-bold text-white tracking-[-0.01em]">WPROS / USDC</p>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(148,163,184,0.7)", border: "1px solid rgba(255,255,255,0.09)" }}>v3</span>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: "rgba(0,212,255,0.09)", color: "rgba(0,212,255,0.8)", border: "1px solid rgba(0,212,255,0.16)" }}>
                   {(p.fee / 10000).toFixed(2)}%
                 </span>
               </div>
-              <p className="text-[10px] font-data mt-0.5" style={{ color: "rgba(100,116,139,0.6)" }}>
-                NFT #{String(p.tokenId)} · {isFullRange(p) ? "Full range" : `Ticks ${p.tickLower} → ${p.tickUpper}`}
+              <p className="text-[10px] font-data mt-1" style={{ color: "rgba(100,116,139,0.6)" }}>
+                #{String(p.tokenId)}
               </p>
             </div>
           </div>
-          <span className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0" style={{ color: sc, background: `${sc.startsWith("#") ? sc : "rgba(148,163,184,1)"}12`, border: `1px solid ${sc}35` }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc }} />
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0" style={{ color: sc, background: `${sc}12`, border: `1px solid ${sc}30` }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc, boxShadow: `0 0 5px ${sc}` }} />
             {sl}
           </span>
+        </div>
+
+        {/* Price range — Uniswap style */}
+        <div className="pl-5 pr-4 pb-3">
+          <div className="flex items-center gap-2 text-[11px] font-data" style={{ color: "rgba(148,163,184,0.65)" }}>
+            <span className="text-[9px] uppercase tracking-[0.1em] font-semibold shrink-0" style={{ color: "rgba(100,116,139,0.5)" }}>Range</span>
+            {full ? (
+              <span className="font-semibold" style={{ color: "rgba(148,163,184,0.8)" }}>Full range (0 ↔ ∞)</span>
+            ) : (
+              <>
+                <span className="font-semibold text-gray-300">{fmtPrice(minPrice)}</span>
+                <svg viewBox="0 0 16 8" className="w-3.5 h-2 shrink-0 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"><path d="M1 4h14M12 1.5L14.5 4 12 6.5M4 1.5L1.5 4 4 6.5"/></svg>
+                <span className="font-semibold text-gray-300">{fmtPrice(maxPrice)}</span>
+                <span className="text-[9px]" style={{ color: "rgba(100,116,139,0.45)" }}>USDC/WPROS</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Amounts */}
@@ -668,10 +728,6 @@ function PositionCards({ positions, onRemove, onCollect }: { positions: V3Positi
                 </svg>
                 Remove
               </button>
-            )}
-            {/* Closed + no fees: nothing to do */}
-            {!hasLiq && !hasFees && (
-              <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.4)" }}>Nothing to collect</span>
             )}
           </div>
         </div>
@@ -2067,6 +2123,20 @@ export default function ChatPage() {
             } catch (err) {
               console.warn("[pharos:balance] failed to fetch balance:", err);
               updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
+            }
+          } else if (
+            !groqResult.action &&
+            /um momento|vou procurar|vou buscar|vou verificar|deixe-me|let me (check|search|look)|one moment|searching for|procurando/i.test(groqResult.reply)
+          ) {
+            // The model promised to search but didn't set needsSearch — the reply
+            // would dangle with no content. Force a grounded search so the user
+            // actually gets an answer.
+            updateMessage(thinkingId, { isLoading: false, isSearching: true });
+            const grounded = await callAgent({ history, prefsContext, txContext, search: text });
+            if (grounded && grounded.grounded) {
+              updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
+            } else {
+              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
             }
           } else {
             updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
