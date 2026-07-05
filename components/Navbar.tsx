@@ -67,6 +67,7 @@ export default function Navbar({
     { label: "Campaigns", href: "/campaigns" },
     { label: "News",      href: "/news"      },
     { label: "Network",   href: "/network"   },
+    { label: "Guide",     href: "/guide"     },
   ];
 
   return (
