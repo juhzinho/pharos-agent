@@ -1430,64 +1430,47 @@ function ChatBubble({ msg, walletAddress, onTxSuccess, onTxError, onTxReverted, 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
-  { label: "Swap PROS", text: "swap 1 PROS to USDC",
+  { label: "Swap PROS → USDC", text: "swap 1 PROS to USDC",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 4h10M8 1.5l2.5 2.5L8 6.5M13 10H3M6 7.5L3.5 10 6 12.5" /></svg> },
-  { label: "Bridge USDC", text: "bridge 10 USDC to Base",
-    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 7h12M3 3l8 8M11 3L3 11" strokeOpacity="0.5"/><path d="M7 1v12"/></svg> },
-  { label: "Add Liquidity", text: "add 5 WPROS to FaroSwap 0.30% fee ±10% range",
+  { label: "Bridge to Base", text: "bridge 10 USDC to Base",
+    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M3 4l4-3 4 3M3 10l4 3 4-3" /></svg> },
+  { label: "Add Liquidity", text: "add 5 WPROS to FaroSwap 0.30% ±10% range",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M1 7h12" /></svg> },
   { label: "My Positions", text: "show my liquidity positions",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="1.5" y="4" width="11" height="8" rx="1.5"/><path d="M4 4V3a3 3 0 016 0v1"/></svg> },
-  { label: "What is RWA?", text: "what is RWA and why does Pharos focus on it?",
+  { label: "What is Pharos?", text: "explain the Pharos Network architecture and what makes it unique",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="7" cy="7" r="6"/><path d="M7 6v4M7 4.5v.5"/></svg> },
-  { label: "Pharos DApps", text: "what DeFi protocols are available on Pharos?",
+  { label: "DeFi Protocols", text: "what DeFi protocols are available on Pharos?",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 4h10v6H2zM5 4V2.5a2 2 0 014 0V4"/></svg> },
 ];
 
-// ChatGPT-style welcome cards shown only on empty state
 const WELCOME_CARDS = [
   {
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
-      </svg>
-    ),
+    icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>,
     title: "Swap tokens",
-    desc: "Trade any token pair on Pharos via the best route across FaroSwap, OKX DEX and more.",
+    desc: "Best route via FaroSwap, ZentraFi, OKX DEX or LI.FI. Just say the amount.",
     prompt: "swap 1 PROS to USDC",
     color: "#00d4ff",
   },
   {
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-      </svg>
-    ),
-    title: "Bridge cross-chain",
-    desc: "Move assets to Ethereum, Base, Arbitrum, Polygon via Jumper (LI.FI), CCIP or Circle CCTP v2.",
+    icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M10 2L2 6l8 4 8-4-8-4zM2 14l8 4 8-4M2 10l8 4 8-4" /></svg>,
+    title: "Cross-chain bridge",
+    desc: "Move assets to Ethereum, Base, Arbitrum via CCIP, CCTP v2 or Jumper.",
     prompt: "bridge 50 USDC from Pharos to Base",
     color: "#818cf8",
   },
   {
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-      </svg>
-    ),
-    title: "Provide liquidity",
-    desc: "Add concentrated V3 liquidity to FaroSwap WPROS/USDC pools. Pick fee tier and price range.",
-    prompt: "add liquidity 5 WPROS to FaroSwap 0.30% ±15% range",
+    icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M10 2v18M15 5H8a3 3 0 000 6h4a3 3 0 010 6H5" /></svg>,
+    title: "FaroSwap Liquidity",
+    desc: "Add V3 concentrated liquidity, manage LP positions, collect fees.",
+    prompt: "add 5 WPROS to FaroSwap 0.30% ±15% range",
     color: "#34d399",
   },
   {
-    icon: (
-      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35M11 8v6M8 11h6" />
-      </svg>
-    ),
-    title: "Explore Pharos",
-    desc: "Ask anything about the ecosystem — protocols, RWA, staking, gas, contracts, architecture.",
-    prompt: "what DeFi protocols are on Pharos and what's their TVL?",
+    icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="10" cy="10" r="8"/><path d="M10 7v4l2.5 2.5"/></svg>,
+    title: "Pharos Expert",
+    desc: "Deep knowledge of every protocol, RWA, DeFi, architecture, and latest news.",
+    prompt: "what protocols are on Pharos and what can I earn?",
     color: "#f472b6",
   },
 ];
@@ -2365,68 +2348,73 @@ export default function ChatPage() {
           {/* Empty state — welcome */}
           {!hasMessages && (
             <div className="flex flex-col items-center justify-center pt-6 pb-10 text-center select-none">
-              {/* Logo orb with rings */}
-              <div className="relative mb-8">
-                <div className="w-20 h-20 rounded-3xl flex items-center justify-center relative z-10"
+              {/* Animated orb */}
+              <div className="relative mb-7">
+                <div className="w-24 h-24 rounded-3xl flex items-center justify-center relative z-10"
                   style={{
                     background: "radial-gradient(circle at 38% 28%, rgba(0,212,255,0.22) 0%, rgba(2,8,22,1) 70%)",
                     border: "1.5px solid rgba(0,212,255,0.28)",
-                    boxShadow: "0 0 50px rgba(0,212,255,0.18), 0 0 0 1px rgba(0,212,255,0.08), 0 0 100px rgba(0,150,255,0.08)",
+                    boxShadow: "0 0 50px rgba(0,212,255,0.18), 0 0 100px rgba(0,100,255,0.1)",
                   }}>
-                  <svg viewBox="0 0 48 48" className="w-11 h-11" fill="none">
-                    <circle cx="24" cy="24" r="7" fill="rgba(0,212,255,0.95)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
-                    <circle cx="24" cy="24" r="15" stroke="rgba(0,212,255,0.2)" strokeWidth="1" />
-                    <circle cx="24" cy="24" r="22" stroke="rgba(0,212,255,0.08)" strokeWidth="1" />
+                  <svg viewBox="0 0 52 52" className="w-12 h-12" fill="none">
+                    <circle cx="26" cy="26" r="8" fill="rgba(0,212,255,0.95)" style={{ animation: "orbPulseEl 3s ease-in-out infinite" }} />
+                    <circle cx="26" cy="26" r="17" stroke="rgba(0,212,255,0.2)" strokeWidth="1" />
+                    <circle cx="26" cy="26" r="25" stroke="rgba(0,212,255,0.07)" strokeWidth="1" />
                   </svg>
                 </div>
-                {/* Glow rings */}
-                <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{ animation: "orbPulseEl 3s ease-in-out infinite", boxShadow: "0 0 40px rgba(0,212,255,0.12)" }} />
               </div>
 
-              <h2 className="font-bold text-white mb-3 tracking-[-0.03em]"
-                style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", fontSize: "clamp(1.6rem, 4vw, 2.1rem)", letterSpacing: "-0.03em" }}>
+              {/* Network badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-5 text-[11px] font-semibold"
+                style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.15)", color: "rgba(0,212,255,0.6)" }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#34d399" }} />
+                Pharos Network · Chain ID 1672 · Mainnet
+              </div>
+
+              <h2 className="font-bold text-white mb-2 tracking-[-0.03em]"
+                style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", fontSize: "clamp(1.65rem, 4vw, 2.2rem)" }}>
                 How can I help you?
               </h2>
-              <p className="text-sm mb-10 max-w-md leading-relaxed" style={{ color: "rgba(148,163,184,0.55)" }}>
-                Your AI DeFi copilot for Pharos Network — swap, bridge, manage liquidity, or ask anything.
+              <p className="text-sm mb-10 max-w-md leading-relaxed" style={{ color: "rgba(148,163,184,0.5)" }}>
+                Your AI DeFi copilot for Pharos — swap, bridge, manage liquidity, or ask anything onchain.
               </p>
 
-              {/* Welcome cards grid */}
+              {/* Welcome cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
                 {WELCOME_CARDS.map((card, i) => (
                   <button
                     key={card.title}
                     onClick={() => { setInput(card.prompt); inputRef.current?.focus(); }}
-                    className="text-left p-4 rounded-2xl transition-all duration-200 group"
+                    className="text-left p-4 rounded-2xl transition-all duration-200"
                     style={{
-                      background: "rgba(8,16,36,0.65)",
+                      background: "rgba(6,12,30,0.7)",
                       border: "1px solid rgba(255,255,255,0.07)",
-                      backdropFilter: "blur(14px)",
-                      animation: `cardAppear 0.4s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both`,
+                      backdropFilter: "blur(16px)",
+                      animation: `cardAppear 0.4s cubic-bezier(0.22,1,0.36,1) ${i * 0.07}s both`,
                     }}
                     onMouseEnter={(e) => {
                       const el = e.currentTarget as HTMLButtonElement;
                       el.style.border = `1px solid ${card.color}30`;
-                      el.style.boxShadow = `0 8px 28px ${card.color}12`;
+                      el.style.boxShadow = `0 8px 32px ${card.color}12`;
                       el.style.transform = "translateY(-2px)";
-                      el.style.background = "rgba(12,22,48,0.9)";
+                      el.style.background = "rgba(10,20,46,0.9)";
                     }}
                     onMouseLeave={(e) => {
                       const el = e.currentTarget as HTMLButtonElement;
                       el.style.border = "1px solid rgba(255,255,255,0.07)";
                       el.style.boxShadow = "";
                       el.style.transform = "";
-                      el.style.background = "rgba(8,16,36,0.65)";
+                      el.style.background = "rgba(6,12,30,0.7)";
                     }}
                   >
                     <div className="flex items-start gap-3.5">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: `${card.color}12`, border: `1px solid ${card.color}22`, color: card.color }}>
                         {card.icon}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 pt-0.5">
                         <p className="font-semibold text-[13px] text-white mb-0.5 tracking-[-0.01em]">{card.title}</p>
-                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(148,163,184,0.5)" }}>{card.desc}</p>
+                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(148,163,184,0.48)" }}>{card.desc}</p>
                       </div>
                     </div>
                   </button>
