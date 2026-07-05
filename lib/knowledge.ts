@@ -738,7 +738,11 @@ Alpha Summer announcement: Pharos testnet turned 1 year old June 26, 2026 | 125,
 `,
   pharos_latest: `
 PHAROS LATEST NEWS (July 2026):
+• AI Agent Carnival "Create Like a PRO" (June 8 – July 21, 2026): 150,000 PROS total prize pool — 100,000 PROS for developers (Skill Hackathon, Agent Invocation Race, Steward Agent First-Deployment, Caller Invocation Race) + 50,000 PROS for users (Social & Transfer Track, Top Transfer / Top Connector leaderboards, Anniversary Co-Creation). Phase 1 (dev hackathon) ends July 6; Phase 2 (user engagement) June 23–July 21. Skill uploads open July 8, 7PM HKT; Service Agent submission deadline July 10, 6PM HKT.
 • AI Agent Carnival LIVE (July 3): Create agents, add friends, transfer assets, climb leaderboard at port.pharos.xyz/agent-carnival. No coding required — anyone can run an agent.
+• Live TVL by protocol (July 2026, DefiLlama/AprScope): R25 ~$92M | Centrifuge ~$15M (private credit, ~3.6% APY USDC pool) | Ember ~$7-13M | FaroSwap ~$689K | Bitverse DEX ~$125K | Zona ~$9K | OpenFi early stage.
+• Leadership quote (July 2): Wish Wu, Co-founder & CEO — "Faroo proves that real-world assets and on-chain staking can be deeply integrated at the same protocol layer."
+• Tech naming: deep-parallel execution engine is called SALI; stack = SALI + modular SPNs + ZK-KYC/AML + AsyncBFT + x402 agent payments + dual VM (EVM+WASM).
 • Faroo Pre-mint LIVE (July 3): First RWA Hybrid Vault on Pharos. Deposit stPROS to earn rewards tied to real-world asset performance (principal protected). Phase 1 cap: 1,000,000 stPROS. Extra $PROS airdrop for participants. app.faroo.xyz/pre-mint
 • Faroo selected as FIRST Pharos Incubator project (July 2, 2026)
 • RealFi Alliance Batch 4 (July 1): Avalon Finance, TermMax, Primus Labs, Tulipa Capital join alliance
@@ -894,6 +898,187 @@ SERIES A — $44M (2026), total raised $52M:
 
 Partners displayed on Pharos Port: Dispersion Capital, ChorusOne, Faction, Generative Ventures, Hash Global, Legend Star, Reforge, Zion.
 Purpose: expand RWA infrastructure across Asia and globally — goal of bringing $50 trillion in traditional + digital assets on-chain.
+`,
+
+  // ═══ CRYPTO ENCYCLOPEDIA — deep educational sections ═══
+
+  intro_crypto: `
+CRYPTOCURRENCY BASICS:
+A cryptocurrency is a digital asset secured by cryptography and recorded on a blockchain — a public, append-only ledger replicated across thousands of independent computers. No bank or government controls it; consensus rules do.
+KEY PROPERTIES: scarce by code (e.g. Bitcoin's 21M cap) | permissionless (anyone can transact) | borderless | censorship-resistant | self-custodied (your keys = your coins).
+COIN vs TOKEN: a coin is native to its own chain (BTC, ETH, PROS); a token is issued via smart contract on an existing chain (USDC, LINK are ERC-20 tokens).
+HOW A TRANSACTION WORKS: you sign a message with your private key → broadcast to the network → validators/miners include it in a block → after enough confirmations it is final. On Pharos finality is sub-second; on Bitcoin ~60 min (6 blocks).
+MARKET BASICS: price is set purely by supply/demand on exchanges. Market cap = price × circulating supply. FDV (fully diluted valuation) = price × max supply. High FDV/mcap ratio means heavy future unlocks.
+VOLATILITY: crypto is far more volatile than stocks — position sizing and never investing more than you can lose are rule #1.
+`,
+
+  crypto_history: `
+CRYPTO TIMELINE (context for "how did we get here"):
+2008-09: Satoshi Nakamoto publishes Bitcoin whitepaper; genesis block Jan 2009 — first decentralized digital money.
+2015: Ethereum launches — programmable smart contracts, birth of tokens and dApps.
+2017: ICO boom; ERC-20 explosion; CryptoKitties (first NFT mania).
+2020: "DeFi Summer" — Compound liquidity mining, Uniswap AMM dominance, yield farming born.
+2021: NFT boom (Bored Apes, art), L1 wars (Solana, Avalanche), all-time highs.
+2022: Terra/LUNA collapse ($40B), Celsius/3AC insolvencies, FTX fraud — the case FOR self-custody and DeFi transparency.
+2023: L2 rollup era (Arbitrum, Optimism, Base); real-yield narrative replaces emissions farming.
+2024: US spot Bitcoin & Ethereum ETFs approved — institutional entry; restaking (EigenLayer) hype.
+2025-26: RWA/tokenization era — treasuries, private credit, funds on-chain; AI agents transacting on-chain (x402); Pharos launches as the RealFi-native L1 (Pacific Ocean mainnet, April 28 2026).
+LESSON PATTERN: every cycle, hype → crash → the real infrastructure survives and compounds. RWAs + AI agents are the current infrastructure buildout.
+`,
+
+  perp_dex: `
+PERPETUAL FUTURES (PERPS) & PERP DEXs:
+A perpetual future is a derivative that tracks an asset's price with NO expiry date. You trade with leverage (e.g. 10x) without owning the asset.
+FUNDING RATE: the mechanism that pins the perp price to spot. When perp > spot, longs pay shorts (positive funding); when perp < spot, shorts pay longs. Paid every 1-8h. Persistent positive funding = crowded longs.
+LIQUIDATION: with leverage, your margin is collateral. If price moves against you past the maintenance margin, the position is force-closed (liquidated) and you lose the margin. Liquidation price ≈ entry ± (1/leverage) adjusted for fees.
+PERP DEX MODELS:
+• Order book (dYdX, Hyperliquid): CEX-like matching, best for pros; needs high throughput.
+• Oracle/pool-based (GMX-style): traders bet against an LP pool (GLP model); zero price impact but oracle-dependent.
+• vAMM (Perpetual Protocol): virtual liquidity curve, no real counterparty pool.
+ON PHAROS: Bitverse (app.bitverse.zone) is the perp DEX — crypto perps PLUS tokenized US stock futures (AAPL, TSLA…), AI-assisted trading. Pharos's parallel execution suits perp order flow.
+RISKS: leverage amplifies both ways; funding costs bleed positions; oracle wicks can liquidate; always use stop-losses and isolated margin when learning.
+`,
+
+  derivatives_options: `
+CRYPTO DERIVATIVES BEYOND PERPS:
+FUTURES (dated): obligation to buy/sell at a set date. Basis = future price − spot; annualized basis is the "cash-and-carry" yield.
+OPTIONS: right (not obligation) to buy (call) or sell (put) at a strike price. Buyers pay premium (defined risk); sellers collect premium (defined reward, tail risk). Greeks: delta (direction), theta (time decay), vega (volatility), gamma.
+STRUCTURED PRODUCTS ON-CHAIN:
+• Covered call vaults (Ribbon/Thetanuts style): sell upside for weekly premium.
+• Principal-protected notes: majority in fixed income + small options kicker.
+• Tranching (senior/junior): split one cash flow into safe + risky slices — EXACTLY what AquaFlux does on Pharos with the tri-token model: P (Principal, protected), C (Coupon, yield), S (Shield/Senior, first-loss protection seller).
+• Fixed vs variable yield splitting (Pendle PT/YT style): principal token redeems 1:1 at maturity (fixed rate), yield token captures the floating yield. TermMax on Pharos offers fixed-rate lending in this spirit.
+WHY IT MATTERS: derivatives let you hedge (protect a portfolio without selling), earn income (sell volatility) and express views efficiently — but complexity = risk. Understand the payoff diagram before depositing.
+`,
+
+  nfts_full: `
+NFTs (NON-FUNGIBLE TOKENS) — BEYOND ART:
+An NFT is a unique on-chain token (ERC-721: one-of-one; ERC-1155: semi-fungible batches). "Non-fungible" = not interchangeable, unlike ERC-20s.
+REAL UTILITY TODAY:
+• DeFi positions: Uniswap V3 / FaroSwap V3 LP positions ARE NFTs — each has its own price range, liquidity and fees (that's why your Pharos LP shows as an NFT).
+• Identity & naming: ENS / PNS (.pharos domains) are NFTs mapping names to addresses.
+• RWA deeds: tokenized invoices, real estate titles, fund shares can be NFTs with legal wrappers.
+• Access & tickets: memberships, event passes, game items.
+• Credentials: soulbound tokens (non-transferable) for reputation/KYC attestations.
+MARKET MECHANICS: floor price (cheapest listed), royalties (creator % on resale, now often optional), marketplaces (OpenSea, Blur). NFT-Fi: borrowing against NFTs, fractionalization (splitting one NFT into ERC-20 shares).
+ON PHAROS: Grandline (NFT badges/collections), Pharosverse, PNS domains, and every FaroSwap V3 LP position (Position Manager 0xc0479219f4feba5a668cff71bf96f4ffe124c3ab).
+RISKS: illiquidity (no buyer = no price), wash trading inflating volumes, IP ambiguity. Value only what has cash flow, utility or provable scarcity + demand.
+`,
+
+  crypto_networks: `
+MAJOR NETWORKS COMPARED (mental map):
+BITCOIN: digital gold; PoW; ~7 TPS; 10-min blocks; no smart contracts natively; highest security/decentralization; Lightning for payments.
+ETHEREUM: smart-contract settlement layer; PoS; ~15 TPS L1 (rollups scale it); richest DeFi/NFT ecosystem; EIP-1559 fee burn.
+L2 ROLLUPS (Arbitrum, Optimism, Base): inherit Ethereum security, 10-100x cheaper; Base (Coinbase) leads consumer adoption.
+SOLANA: monolithic high-performance L1; ~65k TPS theoretical; sub-second; single global state; strength: consumer apps, memecoins, DePIN; tradeoff: hardware-heavy validators.
+BNB CHAIN: Binance-aligned EVM chain; cheap, huge retail user base.
+POLYGON: PoS sidechain + zkEVM; enterprise partnerships.
+AVALANCHE: subnets (app-specific chains); TradFi experiments (Evergreen).
+TRON: dominant for USDT payments in emerging markets.
+PHAROS: RealFi-native L1 — 30,000 TPS, 2 Gigagas/s, sub-second finality via AsyncBFT + speculative parallel execution, dual VM (EVM+WASM), modular SPNs, protocol-level compliance (ZK-KYC/AML), native AI-agent rails (x402). Positioning: where institutional RWAs + AI agents live, vs. general-purpose chains.
+HOW TO EVALUATE ANY CHAIN: security budget, decentralization (validator count/stake distribution), real TPS under load, finality time, fees, developer activity, TVL quality (sticky vs mercenary), and the one killer use case.
+`,
+
+  scalability_deep: `
+BLOCKCHAIN SCALABILITY — THE FULL PICTURE:
+THE TRILEMMA: decentralization vs security vs scalability — improving one usually costs another.
+SCALING STRATEGIES:
+• Vertical (bigger blocks/faster hardware): Solana, BNB — simple but raises node requirements.
+• Rollups (L2): execute off-chain, post data+proofs to L1. Optimistic (fraud proofs, 7-day exits) vs ZK (validity proofs, instant finality). Data availability is the bottleneck → EIP-4844 blobs, Celestia, EigenDA.
+• Sharding: split state across parallel chains (Ethereum danksharding roadmap, NEAR).
+• Parallel execution: run non-conflicting txs simultaneously instead of sequentially — Solana (Sealevel), Aptos/Sui (Move + object model), Monad, and PHAROS (speculative parallel execution + SALI engine → 2 Gigagas/s). The insight: most txs don't touch the same state, so serialize only conflicts.
+• Modular vs monolithic: monolithic = one chain does execution+consensus+DA (Solana); modular = specialized layers (Ethereum+rollups+DA layers; Pharos's L1-Base/L1-Core/L1-Extension with SPNs is a modular design INSIDE one L1).
+• App-specific chains: Cosmos zones, Avalanche subnets, Pharos SPNs (Special Processing Networks for HFT/ZKML/AI with native restaking security).
+METRICS THAT MATTER: sustained (not peak) TPS, time-to-finality, cost per tx under load, state growth (can nodes keep up?), MEV resistance.
+`,
+
+  tokenomics_value: `
+TOKENOMICS & VALUE ACCRUAL (do tokens "pay dividends"?):
+SUPPLY SIDE: max supply, circulating supply, emission schedule, unlock cliffs (check vesting! big unlocks = sell pressure), inflation rate. PROS: no inflation first 6 months post-mainnet, then 5%/yr to validators/delegators.
+DEMAND SIDE / VALUE ACCRUAL MECHANISMS:
+• Gas: every tx burns/pays the native token (ETH, PROS).
+• Staking yield: lock tokens to secure the network, earn emissions + fees (~10% APY for PROS on Pharos Port). This is the closest thing to a crypto "dividend" — but funded by inflation unless fees exceed emissions.
+• Real yield: protocols distributing actual fee revenue (GMX model) — sustainable "dividends".
+• Buyback & burn: protocol revenue buys and destroys tokens (deflationary, like stock buybacks).
+• Fee switch: governance can turn on revenue sharing to stakers (Uniswap debate).
+• Governance rights: voting power over treasuries/parameters.
+APR vs APY: APR = simple annual rate; APY = compounded. APY = (1 + APR/n)^n − 1 where n = compounds/year. 10% APR compounded daily ≈ 10.52% APY. Farming UIs love showing APY of volatile emissions — always ask WHERE the yield comes from: fees (real), emissions (dilution), or someone's loss (unsustainable).
+RED FLAGS: yield paid in the same token being farmed, >90% insider allocation, no revenue, unlock cliff <6 months away.
+`,
+
+  defi_agents_ai: `
+AI AGENTS × DEFI (the agent economy):
+WHAT: autonomous software that reads on-chain data, reasons with LLMs, and executes (or proposes) transactions. Levels: (1) copilots that PROPOSE txs for human signature — like this Pharos Agent, non-custodial; (2) constrained agents with session keys/spending caps; (3) fully autonomous agents with own wallets.
+KEY INFRASTRUCTURE:
+• x402 protocol: HTTP 402 "Payment Required" revived — agents pay per API call in stablecoins, enabling machine-to-machine commerce. Native on Pharos.
+• Agent marketplaces: Anvita Flow on Pharos — Service Agents publish Skills, Steward Agents discover and invoke them, payments via x402.
+• Account abstraction (ERC-4337): smart accounts with session keys, spending limits, batched txs — the safety rails for agent autonomy. EntryPoint deployed on Pharos.
+• Intents: user states the GOAL ("best yield on 1000 USDC"), solvers compete to fulfill it.
+WHAT AGENTS DO TODAY: portfolio rebalancing, yield routing, DCA execution, liquidation protection, cross-chain arbitrage, wallet intelligence (like this agent's score/RealFi trackers).
+RISKS: prompt injection, oracle manipulation feeding bad data, runaway approvals — mitigate with allowance caps, simulation before signing, human confirmation for value transfers.
+PHAROS ANGLE: the chain is explicitly agent-native — AI Agent Carnival (150,000 PROS prize pool, June 8–July 21 2026), Agent Center, sub-second finality suits machine-speed commerce.
+`,
+
+  crypto_security_risk: `
+CRYPTO SECURITY & RISK HYGIENE (protect yourself):
+SELF-CUSTODY RULES: seed phrase on paper/steel, NEVER digital/photo/cloud; hardware wallet for >$1k; separate hot wallet for daily use and cold wallet for savings; verify addresses character-by-character (clipboard malware swaps them).
+APPROVAL HYGIENE: every ERC-20 "approve" lets a contract spend that token. Prefer exact-amount approvals over infinite; periodically revoke unused allowances (revoke.cash). This agent always shows what you're approving.
+COMMON ATTACKS: phishing sites (always check URL; bookmark official links) | fake airdrops asking you to "claim" (signing drains you) | address poisoning (dust txs from lookalike addresses) | rug pulls (dev holds mint/LP keys) | honeypots (can buy, can't sell) | social engineering ("support" DMs — real support never DMs first).
+EVALUATING A PROTOCOL: audits (who? recent? scope?), time in production, TVL trend, admin keys (multisig? timelock?), oracle design, insurance funds. On Pharos: Zellic, OpenZeppelin, ExVul, Hypernative provide security; TRM does KYT screening.
+SMART CONTRACT RISK LAYERS: code bugs → economic design flaws → oracle manipulation → governance capture → bridge risk (historically the biggest hacks: Ronin $624M, Wormhole $326M).
+GOLDEN RULES: if the yield looks too good, you are the yield | never sign what you don't understand | test with small amounts first | diversify across protocols AND chains.
+`,
+
+  market_structure_trading: `
+CRYPTO MARKET STRUCTURE & TRADING CONCEPTS:
+MARKET PHASES: bull/bear cycles historically ~4 years around Bitcoin halvings (supply issuance halves; last: April 2024). Altseason = capital rotating from BTC into alts (watch BTC dominance falling).
+ORDER TYPES: market (instant, pays spread), limit (set your price), stop-loss (sell if price falls to X), take-profit. On DEXs: slippage tolerance replaces the order book spread.
+SPOT vs MARGIN vs PERPS: spot = own the asset; margin = borrowed spot; perps = leveraged synthetic exposure with funding costs.
+READING MARKETS: market cap ranks (large >$10B, mid $1-10B, small <$1B — smaller = more volatile); volume confirms moves; TVL/mcap for DeFi valuation; funding rates show positioning; stablecoin supply growth = dry powder entering.
+CEX vs DEX EXECUTION: CEXs (Binance, Coinbase, Bitget — PROS listed on Bitget/UEX) offer deep books and fiat ramps but custody risk ("not your keys"); DEXs offer self-custody and any token, but watch slippage/MEV. Aggregators (LI.FI/Jumper — used by this agent) route across venues for best price.
+DCA (dollar-cost averaging): fixed buys on schedule — removes timing emotion; historically effective for volatile assets.
+TAX/RECORD NOTE: most jurisdictions tax crypto trades; keep records (explorers + portfolio tools help).
+`,
+
+  airdrops_points: `
+AIRDROPS & POINTS PROGRAMS:
+WHAT: protocols distribute free tokens to early users — retroactive rewards (Uniswap's 400 UNI, Arbitrum, Jupiter) or announced points campaigns that convert to tokens.
+POINTS META: protocols award points for usage (volume, TVL days, referrals) with the airdrop conversion undisclosed — keeps engagement while delaying tokenomics. Farm only where you'd use the product anyway; points can be devalued or never convert.
+SYBIL RISK: farming with many wallets gets filtered (clustering analysis) — organic, sustained usage on one wallet beats 100 empty ones.
+ON PHAROS: campaigns run at port.pharos.xyz (World Cup, Alpha Summer, AI Agent Carnival with 150,000 PROS pool). This agent's Campaigns page tracks live ones. Testnet participation (3B+ testnet users pre-mainnet) is the classic eligibility pattern — but Pharos has NOT announced a retroactive testnet airdrop; be wary of fake "PROS claim" sites (scam pattern).
+CLAIM SAFETY: real airdrops never ask your seed phrase; check claims are on the official domain; simulation-check the claim tx.
+`,
+
+  restaking_lrt: `
+RESTAKING & LIQUID RESTAKING:
+STAKING RECAP: lock native tokens with validators to secure PoS; earn emissions+fees; slashing penalizes misbehavior. Liquid staking (Lido stETH, Bifrost) gives you a receipt token that stays usable in DeFi.
+RESTAKING (EigenLayer model): re-use staked ETH's economic security to secure ADDITIONAL services (AVSs: oracles, bridges, DA layers) for extra yield — extra slashing risk stacked on top.
+LRTs: liquid restaking tokens (ether.fi eETH etc.) = receipt for restaked positions; yield stacking with layered risk. Depeg risk if mass exits.
+ON PHAROS: EigenLayer stETH and Babylon stBTC integrate as infra; Pharos SPNs use NATIVE RESTAKING — PROS stake secures Special Processing Networks. Faroo (first Pharos Incubator project, $10M valuation) launches stPROS liquid staking via Bifrost SLPx: stake PROS → stPROS earns staking yield + RWA Hybrid Vault returns simultaneously — the "dual yield" model.
+EVALUATING YIELD STACKS: each layer adds smart-contract + slashing + liquidity risk. 3% extra APY rarely compensates a new bridge + a new protocol + lockups. Map every layer before depositing.
+`,
+
+  fixed_income_onchain: `
+BONDS & ON-CHAIN FIXED INCOME:
+TRADFI BONDS: loan instruments — issuer pays coupons + principal at maturity. Price moves inversely to rates; credit risk priced in spread over treasuries. Money markets = short-term (<1yr) low-risk paper.
+ON-CHAIN VERSIONS:
+• Tokenized treasuries: T-bill funds as tokens (BUIDL, Ondo, Janus Henderson JTRSY on Pharos ~$13.6M) — "risk-free rate" on-chain, NAV via oracle.
+• Private credit: loans to real businesses tokenized (Centrifuge DROP/TIN on Pharos ~$15M TVL; R25 VRPC vaults ~$92M: consumer credit in Mexico/Thailand/Philippines/Indonesia/Pakistan, up to 15% APY, weekly/quarterly/semi-yearly duration tranches).
+• Corporate bond tokens: AquaFlux CBT series (P/C/S/SS-CBT, expiry 12MAR2026).
+• Fixed-rate DeFi: TermMax on Pharos; Pendle-style principal/yield splitting.
+KEY CONCEPTS: NAV (net asset value per share — vault share value; pALPHA NAV ~1.027 USDC), duration (rate sensitivity), redemption windows (RWA vaults often have T+N exits, NOT instant), yield above par ((NAV−1)×100%).
+RISK LADDER (safest→riskiest): tokenized T-bills → senior private credit tranches → junior tranches → unsecured DeFi lending. Always check: who originates the loans? who audits NAV? what's the exit liquidity?
+`,
+
+  ecosystem_analysis: `
+HOW TO ANALYZE A CRYPTO ECOSYSTEM (framework):
+1. TVL QUALITY: total value locked, but ask — is it sticky (RWAs, staking) or mercenary (points farming)? Pharos TVL is RWA-heavy (R25 ~$92M, Centrifuge ~$15M, Ember ~$7-13M) = stickier than farm TVL.
+2. ACTIVITY: daily active addresses, tx count, gas paid (real demand), unique contract deployers (builder growth). Pharos: 431K daily txs, 93K+ mainnet addresses (July 2026), 4.3B testnet txs / 209M wallets pre-launch.
+3. DEVELOPER STACK: docs quality, RPC/indexer/oracle availability (Pharos: ZAN, Alchemy, Goldsky, Hemera, Supra), grants (Pharos Incubator $10M, RealFi Alliance).
+4. LIQUIDITY VENUES: DEX depth (FaroSwap), CEX listings (Bitget, UEX for PROS), bridges (CCIP, CCTP, LayerZero, LI.FI, Stargate = 6+ routes in/out of Pharos).
+5. INSTITUTIONAL RAILS: custody (Anchorage, Fordefi), compliance (TRM, ZK-KYC), fiat ramps (AlchemyPay) — Pharos's differentiator.
+6. NARRATIVE FIT: does the chain own a category? Pharos = RealFi (RWA × compliance × AI agents). Chains that own a narrative attract its capital cycle.
+7. TOKEN HEALTH: float vs FDV, unlock schedule, staking ratio, burn rate.
 `,
 };
 
@@ -1073,6 +1258,23 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["skill engine", "pharos skill", "pharos-skill-engine", "skill.md", "skill package", "piggy bank tutorial", "simplev ault", "cast forge"], section: "pharos_skill_engine" },
   { keys: ["validator", "validador", "hardware requirement", "cpu 32 cores", "256 gb", "node version", "ulimit", "equivocation", "double voting", "epoch reward"], section: "validator_info" },
   { keys: ["gas model", "gas refund", "eip-1559", "base fee burned", "priority fee", "gas limit buffer", "out of gas", "gas 20%"], section: "gas_model_full" },
+
+  // ── Crypto encyclopedia (broad educational coverage) ──
+  { keys: ["o que é cripto", "o que e cripto", "what is crypto", "criptomoeda", "cryptocurrency", "digital asset", "ativo digital", "coin vs token", "market cap", "fdv", "circulating supply", "bitcoin", "satoshi"], section: "intro_crypto" },
+  { keys: ["história do bitcoin", "historia da cripto", "crypto history", "defi summer", "ico boom", "ftx", "luna", "terra collapse", "halving", "etf bitcoin", "ciclos de mercado", "market cycle"], section: "crypto_history" },
+  { keys: ["perp", "perpetual", "perpétuo", "perpetuo", "funding rate", "taxa de funding", "leverage", "alavancagem", "futuros", "futures", "long", "short", "margem", "margin trading", "perpdex", "perp dex"], section: "perp_dex" },
+  { keys: ["option", "opções", "opcoes", "call", "put", "strike", "premium", "covered call", "structured product", "produto estruturado", "tranche", "pendle", "principal token", "yield token", "hedge", "derivativo", "derivative"], section: "derivatives_options" },
+  { keys: ["nft", "non-fungible", "não fungível", "erc-721", "erc721", "colecionável", "collectible", "floor price", "royalt", "opensea", "soulbound", "nft-fi", "fractionaliz"], section: "nfts_full" },
+  { keys: ["solana", "ethereum vs", "vs ethereum", "bnb chain", "avalanche", "polygon", "tron", "compare chains", "comparar redes", "qual rede", "which chain", "melhor blockchain", "best blockchain", "redes blockchain", "networks compared"], section: "crypto_networks" },
+  { keys: ["escalabilidade", "scalability", "trilemma", "trilema", "sharding", "danksharding", "data availability", "celestia", "monad", "sealevel", "modular vs monolithic", "throughput", "tps comparison"], section: "scalability_deep" },
+  { keys: ["tokenomics", "value accrual", "dividendo", "dividend", "buyback", "burn", "fee switch", "real yield", "emissão", "emissions", "unlock", "vesting", "apr vs apy", "apy vs apr", "juros compostos", "compound interest"], section: "tokenomics_value" },
+  { keys: ["ai agent", "agente de ia", "agente defi", "defi agent", "autonomous agent", "agent economy", "intents", "session key", "account abstraction", "erc-4337", "machine-to-machine", "agentes autônomos"], section: "defi_agents_ai" },
+  { keys: ["segurança", "seguranca", "security", "scam", "golpe", "phishing", "rug pull", "honeypot", "revoke", "allowance", "hack", "seed phrase segura", "hardware wallet", "ledger", "trezor", "proteger", "protect my"], section: "crypto_security_risk" },
+  { keys: ["trading", "trade", "order book", "limit order", "stop loss", "take profit", "dca", "dollar cost", "bull market", "bear market", "altseason", "btc dominance", "análise de mercado", "market analysis", "volume"], section: "market_structure_trading" },
+  { keys: ["airdrop", "points program", "programa de pontos", "farm points", "sybil", "retroactive", "retroativo", "elegibilidade"], section: "airdrops_points" },
+  { keys: ["restaking", "restake", "eigenlayer", "lrt", "liquid restaking", "avs", "stpros", "st pros", "dual yield", "babylon", "stbtc", "liquid staking token"], section: "restaking_lrt" },
+  { keys: ["bond", "título", "titulo", "renda fixa", "fixed income", "treasury", "tesouro", "t-bill", "coupon", "cupom", "nav", "private credit", "crédito privado", "credito privado", "money market", "duration"], section: "fixed_income_onchain" },
+  { keys: ["ecossistema", "ecosystem analysis", "analisar ecossistema", "tvl quality", "avaliar rede", "evaluate chain", "métricas de rede", "network metrics", "adoption", "adoção"], section: "ecosystem_analysis" },
 ];
 
 export function getDetailedSection(userMessage: string): string {
