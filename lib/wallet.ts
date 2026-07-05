@@ -106,6 +106,19 @@ export async function discoverWallets(): Promise<WalletOption[]> {
 
 // ── chain switching ─────────────────────────────────────────────────────────
 
+// Provider errors are plain objects (EIP-1193), not Error instances — extract
+// a readable message so the UI never shows "[object Object]".
+export function walletErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  const e = err as { message?: string; data?: { message?: string }; code?: number };
+  return e?.message ?? e?.data?.message ?? (e?.code != null ? `wallet error code ${e.code}` : JSON.stringify(err));
+}
+
+function isUserRejection(err: unknown): boolean {
+  const e = err as { code?: number; message?: string };
+  return e?.code === 4001 || /user rejected|user denied|rejected the request/i.test(e?.message ?? "");
+}
+
 export async function switchToChain(chainName: string): Promise<void> {
   const config = CHAIN_WALLET_CONFIGS[chainName];
   if (!config) throw new Error(`Unknown chain: ${chainName}`);
@@ -120,15 +133,28 @@ export async function switchToChain(chainName: string): Promise<void> {
     });
     console.log(`[pharos:wallet] switched to ${chainName}`);
   } catch (err: unknown) {
-    // 4902 = chain not added yet — add it, then switch
-    if ((err as { code?: number })?.code === 4902) {
-      console.log(`[pharos:wallet] chain not found, adding ${chainName}…`);
+    // Chain not added to the wallet yet. MetaMask uses 4902, but many wallets
+    // return other codes (-32603, nested originalError) — so for anything that
+    // isn't an explicit user rejection, try adding the chain and switch again.
+    if (isUserRejection(err)) throw new Error("User rejected the network switch");
+    console.log(`[pharos:wallet] switch failed (${walletErrorMessage(err)}), adding ${chainName}…`);
+    try {
       await provider.request({
         method: "wallet_addEthereumChain",
         params: [config],
       });
-    } else {
-      throw err;
+      // Some wallets add without switching — make sure we end on the right chain.
+      const current = (await provider.request({ method: "eth_chainId" })) as string;
+      if (current?.toLowerCase() !== config.chainId.toLowerCase()) {
+        await provider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: config.chainId }],
+        });
+      }
+      console.log(`[pharos:wallet] added + switched to ${chainName}`);
+    } catch (addErr: unknown) {
+      if (isUserRejection(addErr)) throw new Error("User rejected adding the network");
+      throw new Error(walletErrorMessage(addErr));
     }
   }
 }

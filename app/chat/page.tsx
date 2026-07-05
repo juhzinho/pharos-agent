@@ -24,6 +24,7 @@ import {
   checkAllowance,
   getErc20Balance,
   switchToChain,
+  walletErrorMessage,
   isWalletAvailable,
   getWalletName,
   silentReconnect,
@@ -2265,9 +2266,9 @@ export default function ChatPage() {
       await switchToChain(selectedNetwork === "testnet" ? "PharosTestnet" : "Pharos");
       setChainId(await getCurrentChainId());
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const isRejected = /user rejected|user denied|rejected the request/i.test(msg);
-      addMessage({ role: "agent", text: isRejected ? "Você precisa aprovar a troca para a rede Pharos para continuar." : `Falha ao trocar de rede: ${msg}`, isError: true });
+      const msg = walletErrorMessage(err);
+      const isRejected = /user rejected|user denied|rejected/i.test(msg);
+      addMessage({ role: "agent", text: isRejected ? "Você precisa aprovar a troca de rede na carteira para continuar." : `Falha ao trocar de rede: ${msg}`, isError: true });
     }
   }
 
