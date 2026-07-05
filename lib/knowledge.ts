@@ -830,6 +830,21 @@ IDENTITY / NFT / COMMUNITY:
 
 Live directory: port.pharos.xyz/ecosystem (new dApps launch frequently)
 `,
+  pharos_partners: `
+OFFICIAL PHAROS PARTNERS & INVESTORS (port.pharos.xyz/ecosystem#partners):
+
+SEED ROUND — $8M (November 2024), co-led by Lightspeed Faction + Hack VC:
+• Lightspeed Faction (co-lead) | Hack VC (co-lead) | SNZ Capital (strategic anchor)
+• Dispersion Capital | Chorus One Ventures | Generative Ventures | Hash Global
+• Legend Star | Reforge | MH Ventures | Zion
+
+SERIES A — $44M (2026), total raised $52M:
+• Co-led by top Asian private equity funds, a listed renewable-energy company, and a Hong Kong-compliant financial institution (undisclosed)
+• Strategic investors: Sumitomo Corporation (Fortune 500, via subsidiaries) | SNZ | Chainlink | Flow Traders
+
+Partners displayed on Pharos Port: Dispersion Capital, ChorusOne, Faction, Generative Ventures, Hash Global, Legend Star, Reforge, Zion.
+Purpose: expand RWA infrastructure across Asia and globally — goal of bringing $50 trillion in traditional + digital assets on-chain.
+`,
 };
 
 // Structured dApp directory (source: api.pharosnetwork.xyz/omni_port/ecosystem, July 2026).
@@ -841,6 +856,14 @@ export interface EcosystemDapp {
   desc: string;   // English
   descPt: string; // Portuguese
 }
+
+// Structured partners/investors list (source: port.pharos.xyz/ecosystem#partners
+// + official seed/Series A announcements). Used for deterministic answers.
+export const PHAROS_PARTNERS = {
+  seedLeads: ["Lightspeed Faction", "Hack VC"],
+  seedInvestors: ["SNZ Capital (strategic anchor)", "Dispersion Capital", "Chorus One Ventures", "Generative Ventures", "Hash Global", "Legend Star", "Reforge", "MH Ventures", "Zion"],
+  seriesAInvestors: ["Sumitomo Corporation (Fortune 500)", "SNZ", "Chainlink", "Flow Traders"],
+} as const;
 
 export const ECOSYSTEM_DAPPS: Record<string, EcosystemDapp[]> = {
   "DEX & Trading": [
@@ -908,6 +931,7 @@ export const ECOSYSTEM_DAPPS: Record<string, EcosystemDapp[]> = {
 // Keyword → section mapping. Only the first 2 matches are used per query to cap token usage.
 const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["defi protocols", "protocols on pharos", "protocols are", "quais protocolos", "que protocolos", "dapps", "dapp list", "lista de dapps", "ecosystem list", "all projects", "todos os projetos", "port.pharos.xyz/ecosystem", "o que tem na pharos", "what's on pharos", "available on pharos", "projects on pharos"], section: "port_ecosystem_directory" },
+  { keys: ["partner", "parceiro", "parceria", "investor", "investidor", "backer", "vc fund", "venture", "hack vc", "lightspeed", "snz", "dispersion capital", "chorus one", "hash global", "legend star", "reforge", "mh ventures", "sumitomo", "flow traders", "quem investiu", "who invested", "funding round"], section: "pharos_partners" },
   { keys: ["r25", "vrpcw", "vrpcs", "vrpcq"], section: "r25" },
   { keys: ["faroo", "stpros", "st pros", "bifrost", "slpx"], section: "faroo" },
   { keys: ["zona", "colateral", "collateral", "susde", "wstpros", "sUSDai", "zona lending"], section: "zona" },

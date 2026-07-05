@@ -42,7 +42,7 @@ import { getStats, recordTransaction, getPrefsContext, updateLanguage, updateCon
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
 import { generateScript, type ScriptOperation, type ScriptLanguage } from "@/lib/scriptgen";
-import { ECOSYSTEM_DAPPS } from "@/lib/knowledge";
+import { ECOSYSTEM_DAPPS, PHAROS_PARTNERS } from "@/lib/knowledge";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
 
@@ -230,6 +230,40 @@ function buildDappListReply(lang: "pt" | "en"): string {
     })
     .join("\n\n");
   return `${intro}\n\n${sections}\n${outro}`;
+}
+
+// "Who are Pharos' partners/investors?" — also answered deterministically.
+const PARTNER_QUESTION_RE =
+  /\b(partners?|parceir[oa]s?|parcerias?|investors?|investidor(es)?|backers?|quem (investiu|apoia|financia)|who (invested|backs|funds)|funding|vc s?\b|venture)/i;
+
+function isPartnerQuestion(text: string): boolean {
+  if (!PARTNER_QUESTION_RE.test(text)) return false;
+  // Don't hijack partner questions about a specific dApp ("Bitverse partners?").
+  if (/\b(faroswap|bitverse|morpho|faroo|r25|zona|ember|aquaflux|agra|asseto)\b/i.test(text)) return false;
+  // Must be about Pharos/the network (explicitly or implicitly: "dele", "da rede").
+  return /\bpharos\b|\b(rede|network|chain|dele|dela|deles)\b/i.test(text);
+}
+
+function buildPartnersReply(lang: "pt" | "en"): string {
+  const seedLeads = PHAROS_PARTNERS.seedLeads.join(" + ");
+  const seed = PHAROS_PARTNERS.seedInvestors.map((p) => `- ${p}`).join("\n");
+  const seriesA = PHAROS_PARTNERS.seriesAInvestors.map((p) => `- ${p}`).join("\n");
+  if (lang === "pt") {
+    return (
+      `Estes são os **parceiros e investidores oficiais da Pharos Network** (total captado: **$52M**):\n\n` +
+      `**Seed Round — $8M (novembro 2024)**\nCo-liderado por **${seedLeads}**, com participação de:\n${seed}\n\n` +
+      `**Series A — $44M (2026)**\nCo-liderado por fundos de private equity asiáticos de ponta, uma empresa listada de energia renovável e uma instituição financeira regulada de Hong Kong. Investidores estratégicos:\n${seriesA}\n\n` +
+      `🎯 Objetivo: expandir a infraestrutura RWA na Ásia e globalmente — trazer **$50 trilhões** em ativos tradicionais e digitais para on-chain.\n\n` +
+      `📂 Veja os parceiros no site oficial: [port.pharos.xyz/ecosystem#partners](https://port.pharos.xyz/ecosystem#partners)`
+    );
+  }
+  return (
+    `These are the **official partners and investors of Pharos Network** (total raised: **$52M**):\n\n` +
+    `**Seed Round — $8M (November 2024)**\nCo-led by **${seedLeads}**, with participation from:\n${seed}\n\n` +
+    `**Series A — $44M (2026)**\nCo-led by top Asian private equity funds, a listed renewable-energy company, and a Hong Kong-regulated financial institution. Strategic investors:\n${seriesA}\n\n` +
+    `🎯 Goal: expand RWA infrastructure across Asia and globally — bringing **$50 trillion** in traditional + digital assets on-chain.\n\n` +
+    `📂 See the partners on the official site: [port.pharos.xyz/ecosystem#partners](https://port.pharos.xyz/ecosystem#partners)`
+  );
 }
 
 // Replies where the model *promises* content ("um momento…") — these must never
@@ -2080,10 +2114,11 @@ export default function ChatPage() {
 
     // Deterministic fast path: ecosystem/dApp listing questions are answered
     // straight from the local directory — instant, complete, never dangles.
-    if (isDappListQuestion(text)) {
+    if (isDappListQuestion(text) || isPartnerQuestion(text)) {
       const lang: "pt" | "en" =
-        /[ãõáéíóúâêôçà]|\b(quais?|lista|liste|mostr[ae]|protocolos?|projetos?|ecossistema|dispon[ií]ve|tem)\b/i.test(text) ? "pt" : "en";
-      updateMessage(thinkingId, { isLoading: false, text: buildDappListReply(lang) });
+        /[ãõáéíóúâêôçà]|\b(quais?|quem|lista|liste|mostr[ae]|protocolos?|projetos?|parceir|investidor|ecossistema|dispon[ií]ve|tem)\b/i.test(text) ? "pt" : "en";
+      const reply = isDappListQuestion(text) ? buildDappListReply(lang) : buildPartnersReply(lang);
+      updateMessage(thinkingId, { isLoading: false, text: reply });
       setIsSending(false);
       inputRef.current?.focus();
       return;
