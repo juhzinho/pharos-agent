@@ -2755,6 +2755,25 @@ export default function ChatPage() {
     return onNetworkChange(setSelectedNetworkState);
   }, []);
 
+  // Announce network switches in the chat: the agent proactively tells the
+  // user what works on the network they just switched to (skips first render).
+  const prevNetworkRef = useRef<PharosNetworkId | null>(null);
+  useEffect(() => {
+    if (prevNetworkRef.current === null) { prevNetworkRef.current = selectedNetwork; return; }
+    if (prevNetworkRef.current === selectedNetwork) return;
+    prevNetworkRef.current = selectedNetwork;
+    const lang = guessUserLang(messages);
+    const text = selectedNetwork === "testnet"
+      ? (lang === "pt"
+        ? "🔄 Rede alterada para **Atlantic Testnet** 🧪\n\nO que você pode fazer comigo aqui:\n- 💸 **Enviar PHRS** para outra carteira da testnet — ex.: \"envie 0.5 PHRS para 0x…\"\n- 👛 **Análise de carteira** — saldo de PHRS + contagem de transações\n- 🔎 **Explicar transação** — cole um hash da testnet\n- 🚰 **Pegar PHRS de graça nos faucets**:\n  - Oficial: https://testnet.pharosnetwork.xyz\n  - Stakely: https://stakely.io/faucet/pharos-atlantic-testnet-phrs\n\n⚠️ Swap, bridge e liquidez ficam **desativados** na testnet — os contratos que eu uso (FaroSwap V3, LI.FI, CCIP, CCTP) só existem na mainnet.\n\nExplorer da testnet: https://atlantic.pharosscan.xyz"
+        : "🔄 Network switched to **Atlantic Testnet** 🧪\n\nWhat you can do with me here:\n- 💸 **Send PHRS** to another testnet wallet — e.g. \"send 0.5 PHRS to 0x…\"\n- 👛 **Wallet analysis** — PHRS balance + transaction count\n- 🔎 **Explain a transaction** — paste a testnet hash\n- 🚰 **Grab free PHRS from the faucets**:\n  - Official: https://testnet.pharosnetwork.xyz\n  - Stakely: https://stakely.io/faucet/pharos-atlantic-testnet-phrs\n\n⚠️ Swap, bridge and liquidity are **disabled** on testnet — the contracts I use (FaroSwap V3, LI.FI, CCIP, CCTP) only exist on mainnet.\n\nTestnet explorer: https://atlantic.pharosscan.xyz")
+      : (lang === "pt"
+        ? "🔄 Rede alterada para **Pharos Mainnet** 🌊\n\nTudo liberado por aqui:\n- 🔁 **Swap** de tokens (FaroSwap + LI.FI)\n- 🌉 **Bridge** cross-chain (LI.FI, Chainlink CCIP, Circle CCTP)\n- 💧 **Adicionar/remover liquidez** na FaroSwap V3\n- 📊 **Minhas posições LP** + coletar taxas\n- 💸 **Enviar PROS e tokens** (inclusive em lote)\n- 👛 **Análise de carteira** e 🔎 **explicar transações**\n\nExplorer: https://pharos.socialscan.io"
+        : "🔄 Network switched to **Pharos Mainnet** 🌊\n\nEverything is available here:\n- 🔁 **Swap** tokens (FaroSwap + LI.FI)\n- 🌉 **Bridge** cross-chain (LI.FI, Chainlink CCIP, Circle CCTP)\n- 💧 **Add/remove liquidity** on FaroSwap V3\n- 📊 **My LP positions** + collect fees\n- 💸 **Send PROS and tokens** (batch too)\n- 👛 **Wallet analysis** and 🔎 **transaction explainer**\n\nExplorer: https://pharos.socialscan.io");
+    addMessage({ role: "agent", text });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNetwork]);
+
   const expectedChainHex = PHAROS_NETWORKS[selectedNetwork].chainIdHex.toLowerCase();
   const isWrongNetwork = !!walletAddress && !!chainId && chainId.toLowerCase() !== expectedChainHex;
   const bottomRef = useRef<HTMLDivElement>(null);
