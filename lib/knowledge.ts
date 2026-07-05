@@ -561,8 +561,27 @@ Pharos "compliance by design" (pharos.xyz): KYC/AML is built into the PROTOCOL l
 This underpins the RealFi thesis: tokenized real-world assets and institutional capital need native, programmable compliance rather than bolted-on, off-chain KYC.
 `,
   pharos_spn: `
-SPN — Special Processing Networks (pharos.xyz): application-specific networks within the Pharos system, each with its OWN execution engine, validator set, restaking-based incentives, and governance. SPNs are tightly integrated with the Pharos mainnet yet operate independently (similar to app-specific chains/rollups), so demanding apps get tailored performance.
+SPN — Special Processing Networks (pharos.xyz + docs.pharos.xyz): application-specific networks within the Pharos system, each with its OWN execution engine, validator set, restaking-based incentives, and governance. SPNs are tightly integrated with the Pharos mainnet yet operate independently (similar to app-specific chains/rollups), so demanding apps get tailored performance.
 Native cross-SPN AND cross-chain communication runs with ATOMIC execution — a transaction spanning multiple SPNs/chains either fully succeeds or fully reverts. Restaking aligns each SPN's security with the mainnet.
+
+HOW SPNs WORK (staking & restaking): validators stake PROS on the Primary Network; each staked token generates a certificate (stP) which can be RESTAKED into an SPN for additional rewards. SPNs set their own validator requirements, hardware needs, and soft/hard caps on stP. The Primary Network automatically initiates SPN creation once conditions are met. SPNs use validators' EXCESS compute power.
+
+CROSS-SPN INTEROPERABILITY PROTOCOL: transactions are initiated in one SPN, relayed via the Primary Network Mailbox, verified, then executed in the destination SPN — enabling atomic cross-SPN interactions.
+
+SPN SYSTEM CONTRACTS (core components):
+• SPN Manager — manages SPN creation, destruction, message communication, and asset transfer
+• Registry — SPN registration and management on the Primary Network
+• Mailbox — records all SPN messages and events for cross-SPN communication
+• Bridge — manages asset transfers between SPNs and the Primary Network
+• SPN Network Hub — facilitates message and event communication across all SPNs
+• SPN Adapter — handles incoming messages from the Primary Network within each SPN
+
+CONFIRMED SPN USE CASES (official docs):
+• High-Frequency Trading (HFT): dedicated execution environments with custom execution engine + independent validator set — removes shared congestion for latency-sensitive workloads
+• AI & ZKML: run AI models and zero-knowledge machine learning on-chain; lightweight SPNs with specialised hardware (TEEs) for secure AI inference and confidential computation; non-blockchain application support; Decentralised Data Exchange Protocol
+• AIoT & Private Networks: AI+IoT private networks and multi-party privacy-enhancing computation using validators' excess compute
+• RWA & Compliance (PayFi): integrated ZK-KYC and AML modules at the protocol layer → compliance-ready SPNs for regulated finance while preserving composability; PayFi and monthly payment support
+• MEV Optimisation: lightweight SPNs with specialised hardware + TEE for transaction confidentiality, configurable consensus per SPN
 `,
   pharos_positioning: `
 Pharos official positioning (pharos.xyz): "RealFi, Accessible to All — Inclusive Financial Layer 1 for Real Value and Institutional-Grade Assets." It frames itself as a "Borderless Digital Financial City" where tokenized assets flow like commerce and stablecoins settle like currency.
