@@ -2960,9 +2960,13 @@ export default function ChatPage() {
         setWalletAddress("");
         setBalance("0");
         setChainId(null);
-      } else {
+      } else if (accounts[0].toLowerCase() !== walletAddress.toLowerCase()) {
+        // Account switched: update address + navbar balance AND refresh any
+        // open wizard cards, whose token holdings were snapshotted from the
+        // PREVIOUS account (otherwise "you have no WPROS" style stale data).
         setWalletAddress(accounts[0]);
         getBalance(accounts[0]).then(setBalance);
+        void refreshOpenFlowsFor(accounts[0]);
       }
     };
     const onChain = (...args: unknown[]) => {
@@ -3028,6 +3032,8 @@ export default function ChatPage() {
       setBalance(bal);
       setChainId(await getCurrentChainId());
       addMessage({ role: "agent", text: `Connected ${option.name}: ${address}\n\nYou have ${bal} PROS. Ready to trade!` });
+      // If wizard cards are open from a previous account, refresh their balances.
+      void refreshOpenFlowsFor(address);
     } catch (err: unknown) {
       addMessage({ role: "agent", text: err instanceof Error ? err.message : "Failed to connect wallet.", isError: true });
     } finally {
@@ -3240,6 +3246,11 @@ export default function ChatPage() {
   // Pending transfer waiting for an amount (recipient + token already known).
   const pendingTransferRef = useRef<{ to: string; token: string; network: PharosNetworkId } | null>(null);
 
+  // Live mirror of `messages` for event handlers registered with stale closures
+  // (e.g. the wallet accountsChanged listener).
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
   function cancelActiveFlows() {
     opSeqRef.current++;
     const lang = guessUserLang(messages);
@@ -3261,6 +3272,40 @@ export default function ChatPage() {
 
   // Short "cancel"-style messages abort active flows instantly, no LLM round-trip.
   const CANCEL_RE = /^\s*(cancela(r)?|cancel|stop|para|parar|aborta(r)?|esquece|deixa)\s*[.!]?\s*$/i;
+
+  // When the user switches accounts in the wallet, any open wizard card still
+  // shows the PREVIOUS account's balances. Re-read the new account's holdings
+  // and refresh every open flow in place (bridge/swap/liquidity wizards +
+  // amount queries), so all on-chain functions follow the active wallet.
+  async function refreshOpenFlowsFor(newAddr: string) {
+    const hasOpenFlow = messagesRef.current.some(
+      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.amountQuery
+    );
+    if (!hasOpenFlow) return;
+    try {
+      const network = getSelectedNetwork();
+      const balances = await getTokenBalancesFast(newAddr, network);
+      const holdings = balances.filter((b) => b.balance > 0.000001);
+      const balFor = (sym: string) =>
+        balances.find((b) => b.symbol.toUpperCase() === sym.toUpperCase())?.balance ?? 0;
+      setMessages((prev) => prev.map((m) => {
+        if (m.bridgeWizard) return { ...m, bridgeWizard: { ...m.bridgeWizard, holdings } };
+        if (m.swapWizard) return { ...m, swapWizard: { ...m.swapWizard, holdings } };
+        if (m.liquidityWizard) return { ...m, liquidityWizard: { ...m.liquidityWizard, holdings } };
+        if (m.amountQuery) return { ...m, amountQuery: { ...m.amountQuery, balance: balFor(m.amountQuery.token) } };
+        return m;
+      }));
+      const lang = guessUserLang(messagesRef.current);
+      addMessage({
+        role: "agent",
+        text: lang === "pt"
+          ? `🔄 Carteira trocada para \`${newAddr.slice(0, 6)}…${newAddr.slice(-4)}\` — atualizei os saldos nos cards abertos.`
+          : `🔄 Wallet switched to \`${newAddr.slice(0, 6)}…${newAddr.slice(-4)}\` — I refreshed the balances in the open cards.`,
+      });
+    } catch {
+      // Balance refresh is best-effort; the wizards re-read on next open anyway.
+    }
+  }
 
   // Reset the conversation to a clean slate (keeps wallet connection).
   function handleResetChat() {
