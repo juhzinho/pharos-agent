@@ -61,6 +61,22 @@ async function priceOf(symbol: string): Promise<number | null> {
   }
 }
 
+// Fast balances-only read for interactive flows (wizards): all tokens in
+// parallel, no price lookups. Returns every token (including zero balances).
+export async function getTokenBalancesFast(
+  address: string,
+): Promise<Array<{ symbol: string; balance: number }>> {
+  const entries = Object.entries(TOKENS) as Array<[string, { address: string; decimals: number }]>;
+  const results = await Promise.all(
+    entries.map(async ([symbol, t]) => {
+      const isNative = symbol === "PROS" || t.address.toLowerCase() === NATIVE_ADDR;
+      const raw = await (isNative ? nativeBalance(address) : erc20Balance(t.address, address)).catch(() => 0n);
+      return { symbol, balance: Number(raw) / 10 ** t.decimals };
+    }),
+  );
+  return results;
+}
+
 export async function getWalletAnalysis(address: string): Promise<WalletAnalysis> {
   const entries = Object.entries(TOKENS) as Array<[string, { address: string; decimals: number }]>;
 

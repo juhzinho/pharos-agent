@@ -40,7 +40,7 @@ import { TOKENS, type TokenSymbol } from "@/lib/tokens";
 import { getSelectedNetwork, onNetworkChange } from "@/lib/network";
 import { getStats, recordTransaction, getPrefsContext, updateLanguage, updateConversationStyle, type UserStats } from "@/lib/memory";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
-import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
+import { getWalletAnalysis, formatWalletAnalysis, getTokenBalancesFast } from "@/lib/walletAnalysis";
 import { generateScript, type ScriptOperation, type ScriptLanguage } from "@/lib/scriptgen";
 import { ECOSYSTEM_DAPPS, PHAROS_PARTNERS } from "@/lib/knowledge";
 import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } from "@/lib/prices";
@@ -146,6 +146,23 @@ interface BridgeRouteOption {
 
 interface BridgeChoice {
   options: BridgeRouteOption[];
+  unavailable?: Array<{ provider: BridgeRouteOption["provider"]; reason: string }>;
+}
+
+// Guided swap flow: from-token (balances) → amount (% picks) → to-token.
+interface SwapWizardState {
+  holdings: Array<{ symbol: string; balance: number }>;
+  preFrom?: string;
+  preAmount?: number;
+  preTo?: string;
+}
+
+// Guided liquidity flow: pair → fee tier → range → amount.
+interface LiquidityWizardState {
+  holdings: Array<{ symbol: string; balance: number }>;
+  preAmount?: number;
+  preFeeTier?: number;
+  preRangePercent?: number;
 }
 
 interface Message {
@@ -165,6 +182,8 @@ interface Message {
   chainChoice?: ChainChoiceState;  // For choosing bridge destination
   bridgeWizard?: BridgeWizardState; // Guided bridge flow (token → amount → chain)
   bridgeChoice?: BridgeChoice;      // Bridge route comparison (best return marked)
+  swapWizard?: SwapWizardState;         // Guided swap flow (from → amount → to)
+  liquidityWizard?: LiquidityWizardState; // Guided liquidity flow (pair → fee → range → amount)
   removeMode?: boolean;
   txHash?: string;
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
@@ -799,7 +818,296 @@ function BridgeRouteButtons({ choice, lang, onChoose }: {
             </button>
           );
         })}
+        {(choice.unavailable ?? []).map((u) => {
+          const meta = BRIDGE_ROUTE_META[u.provider];
+          return (
+            <div key={u.provider}
+              className="flex-1 min-w-[170px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left opacity-45 cursor-not-allowed"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <span className="text-sm font-semibold text-gray-400">{meta.label}</span>
+              <span className="text-[11px] leading-snug" style={{ color: "rgba(148,163,184,0.5)" }}>
+                {lang === "pt" ? "Indisponível: " : "Unavailable: "}{u.reason}
+              </span>
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+// ─── swap wizard (from-token → amount → to-token) ───────────────────────────
+
+const ALL_TOKEN_SYMBOLS = Object.keys(TOKENS);
+
+function SwapWizardCard({ state, lang, onSubmit }: {
+  state: SwapWizardState;
+  lang: "pt" | "en";
+  onSubmit: (fromToken: string, amount: number, toToken: string) => void;
+}) {
+  const [fromToken, setFromToken] = useState<string | null>(state.preFrom ?? null);
+  const [amountStr, setAmountStr] = useState(state.preAmount != null && state.preAmount > 0 ? String(state.preAmount) : "");
+  const [toToken, setToToken] = useState<string | null>(state.preTo ?? null);
+
+  const selected = state.holdings.find((h) => h.symbol === fromToken);
+  const maxAmount = selected
+    ? (selected.symbol === "PROS" ? Math.max(0, selected.balance - BRIDGE_GAS_BUFFER_PROS) : selected.balance)
+    : 0;
+  const amount = parseFloat(amountStr.replace(",", "."));
+  const amountOk = Number.isFinite(amount) && amount > 0 && amount <= maxAmount + 1e-9;
+  const ready = !!fromToken && amountOk && !!toToken && toToken !== fromToken;
+
+  const t = lang === "pt"
+    ? { step1: "1 · Qual token você quer trocar?", step2: "2 · Quanto?", step3: "3 · Receber em qual token?", max: "disponível", insufficient: "Valor maior que o saldo disponível", submit: "Buscar cotações →", empty: "Nenhum token com saldo na carteira. Deposite fundos primeiro." }
+    : { step1: "1 · Which token do you want to swap?", step2: "2 · How much?", step3: "3 · Receive which token?", max: "available", insufficient: "Amount exceeds available balance", submit: "Fetch quotes →", empty: "No tokens with balance in this wallet. Fund it first." };
+
+  const withBalance = state.holdings.filter((h) => h.balance > 0);
+
+  return (
+    <div className="mt-3 px-4 py-4 rounded-2xl space-y-4"
+      style={{ background: "rgba(7,14,30,0.9)", border: "1px solid rgba(0,212,255,0.22)", backdropFilter: "blur(16px)" }}>
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(0,212,255,0.6)" }}>{t.step1}</p>
+        {withBalance.length === 0 ? (
+          <p className="text-xs" style={{ color: "rgba(251,191,36,0.8)" }}>{t.empty}</p>
+        ) : (
+          <div className="flex gap-2 flex-wrap">
+            {withBalance.map((h) => {
+              const active = fromToken === h.symbol;
+              return (
+                <button key={h.symbol} onClick={() => { setFromToken(h.symbol); setAmountStr(""); if (toToken === h.symbol) setToToken(null); }}
+                  className="flex-1 min-w-[120px] flex flex-col gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: active ? "rgba(0,212,255,0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${active ? "rgba(0,212,255,0.55)" : "rgba(255,255,255,0.08)"}`,
+                  }}>
+                  <span className="text-sm font-semibold text-white">{h.symbol}</span>
+                  <span className="text-[11px] font-data" style={{ color: active ? "rgba(103,232,249,0.9)" : "rgba(148,163,184,0.55)" }}>
+                    {h.balance.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <div>
+          <div className="flex items-baseline justify-between mb-2.5">
+            <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(0,212,255,0.6)" }}>{t.step2}</p>
+            <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.55)" }}>
+              {maxAmount.toLocaleString("en-US", { maximumFractionDigits: 6 })} {selected.symbol} {t.max}
+            </span>
+          </div>
+          <input
+            type="text" inputMode="decimal" value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.,]/g, ""))}
+            placeholder={`0.0 ${selected.symbol}`}
+            className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+            style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${amountStr && !amountOk ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}` }}
+          />
+          {amountStr && !amountOk && (
+            <p className="text-[11px] mt-1.5" style={{ color: "rgba(251,113,133,0.85)" }}>{t.insufficient}</p>
+          )}
+          <div className="mt-2 flex gap-2 flex-wrap">
+            {[25, 50, 75, 100].map((pct) => (
+              <button key={pct}
+                onClick={() => setAmountStr(String(Number((maxAmount * pct / 100).toFixed(6))))}
+                className="flex-1 min-w-[64px] px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.22)", color: "rgba(0,212,255,0.85)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.14)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,212,255,0.07)"; }}>
+                {pct}%
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selected && amountOk && (
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(0,212,255,0.6)" }}>{t.step3}</p>
+          <div className="flex gap-2 flex-wrap">
+            {ALL_TOKEN_SYMBOLS.filter((s) => s !== fromToken).map((s) => {
+              const active = toToken === s;
+              return (
+                <button key={s} onClick={() => setToToken(s)}
+                  className="flex-1 min-w-[80px] px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: active ? "rgba(0,212,255,0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${active ? "rgba(0,212,255,0.55)" : "rgba(255,255,255,0.08)"}`,
+                    color: active ? "#a5f3fc" : "rgba(215,228,245,0.8)",
+                  }}>
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <button disabled={!ready}
+        onClick={() => ready && onSubmit(fromToken!, amount, toToken!)}
+        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${ready ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
+        style={{
+          background: ready ? "linear-gradient(135deg, rgba(0,180,255,0.85), rgba(0,120,220,0.85))" : "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(0,212,255,0.35)",
+          color: "white",
+        }}>
+        {t.submit}
+      </button>
+    </div>
+  );
+}
+
+// ─── liquidity wizard (pair → fee tier → range → amount) ────────────────────
+
+const LIQ_FEE_TIERS = [100, 500, 3000, 10000] as const;
+const LIQ_RANGE_OPTIONS = [5, 10, 15, 30] as const;
+
+function LiquidityWizardCard({ state, lang, onSubmit }: {
+  state: LiquidityWizardState;
+  lang: "pt" | "en";
+  onSubmit: (params: { feeTier: number; rangeMode: "percent" | "full"; rangePercent?: number; wprosAmount: number }) => void;
+}) {
+  const [feeTier, setFeeTier] = useState<number | null>(state.preFeeTier ?? null);
+  const [range, setRange] = useState<number | "full" | null>(state.preRangePercent ?? null);
+  const [amountStr, setAmountStr] = useState(state.preAmount != null && state.preAmount > 0 ? String(state.preAmount) : "");
+
+  const wpros = state.holdings.find((h) => h.symbol === "WPROS");
+  const maxAmount = wpros?.balance ?? 0;
+  const amount = parseFloat(amountStr.replace(",", "."));
+  const amountOk = Number.isFinite(amount) && amount > 0 && amount <= maxAmount + 1e-9;
+  const ready = feeTier != null && range != null && amountOk;
+
+  const t = lang === "pt"
+    ? { pair: "1 · Par de liquidez", fee: "2 · Fee tier da pool", range: "3 · Range de preço", amount: "4 · Quanto de WPROS?", max: "disponível", full: "Range completo", insufficient: "Valor maior que o saldo de WPROS", submit: "Montar posição →", noBal: "Você não tem WPROS. Faça um swap PROS → WPROS primeiro." }
+    : { pair: "1 · Liquidity pair", fee: "2 · Pool fee tier", range: "3 · Price range", amount: "4 · How much WPROS?", max: "available", full: "Full range", insufficient: "Amount exceeds WPROS balance", submit: "Build position →", noBal: "You have no WPROS. Swap PROS → WPROS first." };
+
+  return (
+    <div className="mt-3 px-4 py-4 rounded-2xl space-y-4"
+      style={{ background: "rgba(7,14,30,0.9)", border: "1px solid rgba(52,211,153,0.22)", backdropFilter: "blur(16px)" }}>
+      {/* Pair — FaroSwap V3 WPROS/USDC (the pool the agent manages) */}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(52,211,153,0.6)" }}>{t.pair}</p>
+        <div className="flex gap-2 flex-wrap">
+          <div className="flex-1 min-w-[160px] px-3 py-2.5 rounded-xl"
+            style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.45)" }}>
+            <span className="text-sm font-semibold text-white">WPROS / USDC</span>
+            <span className="block text-[11px] mt-0.5" style={{ color: "rgba(110,231,183,0.7)" }}>FaroSwap V3</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Fee tier */}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(52,211,153,0.6)" }}>{t.fee}</p>
+        <div className="flex gap-2 flex-wrap">
+          {LIQ_FEE_TIERS.map((ft) => {
+            const active = feeTier === ft;
+            return (
+              <button key={ft} onClick={() => setFeeTier(ft)}
+                className="flex-1 min-w-[72px] px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                style={{
+                  background: active ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${active ? "rgba(52,211,153,0.55)" : "rgba(255,255,255,0.08)"}`,
+                  color: active ? "#6ee7b7" : "rgba(215,228,245,0.8)",
+                }}>
+                {FEE_TIERS[ft as FeeTier]?.label ?? `${ft / 10000}%`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Range */}
+      {feeTier != null && (
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(52,211,153,0.6)" }}>{t.range}</p>
+          <div className="flex gap-2 flex-wrap">
+            {LIQ_RANGE_OPTIONS.map((r) => {
+              const active = range === r;
+              return (
+                <button key={r} onClick={() => setRange(r)}
+                  className="flex-1 min-w-[64px] px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: active ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${active ? "rgba(52,211,153,0.55)" : "rgba(255,255,255,0.08)"}`,
+                    color: active ? "#6ee7b7" : "rgba(215,228,245,0.8)",
+                  }}>
+                  ±{r}%
+                </button>
+              );
+            })}
+            <button onClick={() => setRange("full")}
+              className="flex-1 min-w-[90px] px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+              style={{
+                background: range === "full" ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${range === "full" ? "rgba(52,211,153,0.55)" : "rgba(255,255,255,0.08)"}`,
+                color: range === "full" ? "#6ee7b7" : "rgba(215,228,245,0.8)",
+              }}>
+              {t.full}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Amount */}
+      {feeTier != null && range != null && (
+        <div>
+          <div className="flex items-baseline justify-between mb-2.5">
+            <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(52,211,153,0.6)" }}>{t.amount}</p>
+            <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.55)" }}>
+              {maxAmount.toLocaleString("en-US", { maximumFractionDigits: 6 })} WPROS {t.max}
+            </span>
+          </div>
+          {maxAmount <= 0 ? (
+            <p className="text-xs" style={{ color: "rgba(251,191,36,0.8)" }}>{t.noBal}</p>
+          ) : (
+            <>
+              <input
+                type="text" inputMode="decimal" value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.,]/g, ""))}
+                placeholder="0.0 WPROS"
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+                style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${amountStr && !amountOk ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}` }}
+              />
+              {amountStr && !amountOk && (
+                <p className="text-[11px] mt-1.5" style={{ color: "rgba(251,113,133,0.85)" }}>{t.insufficient}</p>
+              )}
+              <div className="mt-2 flex gap-2 flex-wrap">
+                {[25, 50, 75, 100].map((pct) => (
+                  <button key={pct}
+                    onClick={() => setAmountStr(String(Number((maxAmount * pct / 100).toFixed(6))))}
+                    className="flex-1 min-w-[64px] px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                    style={{ background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.22)", color: "rgba(110,231,183,0.85)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(52,211,153,0.14)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(52,211,153,0.07)"; }}>
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      <button disabled={!ready}
+        onClick={() => ready && onSubmit({
+          feeTier: feeTier!,
+          rangeMode: range === "full" ? "full" : "percent",
+          rangePercent: range === "full" ? undefined : (range as number),
+          wprosAmount: amount,
+        })}
+        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${ready ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
+        style={{
+          background: ready ? "linear-gradient(135deg, rgba(16,185,129,0.85), rgba(5,150,105,0.85))" : "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(52,211,153,0.35)",
+          color: "white",
+        }}>
+        {t.submit}
+      </button>
     </div>
   );
 }
@@ -1641,7 +1949,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice }: {
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit }: {
   msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -1654,6 +1962,8 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
   onPctSelect: (msgId: string, position: V3Position, pct: number) => void;
   onBridgeWizardSubmit: (msgId: string, token: string, amount: number, toChain: string) => void;
   onBridgeRouteChoice: (msgId: string, opt: BridgeRouteOption) => void;
+  onSwapWizardSubmit: (msgId: string, fromToken: string, amount: number, toToken: string) => void;
+  onLiquidityWizardSubmit: (msgId: string, params: { feeTier: number; rangeMode: "percent" | "full"; rangePercent?: number; wprosAmount: number }) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -1813,6 +2123,16 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
         {msg.bridgeChoice && walletAddress && (
           <BridgeRouteButtons choice={msg.bridgeChoice} lang={lang} onChoose={(opt) => onBridgeRouteChoice(msg.id, opt)} />
+        )}
+
+        {msg.swapWizard && walletAddress && (
+          <SwapWizardCard state={msg.swapWizard} lang={lang}
+            onSubmit={(from, amount, to) => onSwapWizardSubmit(msg.id, from, amount, to)} />
+        )}
+
+        {msg.liquidityWizard && walletAddress && (
+          <LiquidityWizardCard state={msg.liquidityWizard} lang={lang}
+            onSubmit={(params) => onLiquidityWizardSubmit(msg.id, params)} />
         )}
 
         {msg.pending && walletAddress && (
@@ -2021,14 +2341,16 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-const SUGGESTIONS = [
-  { label: "Swap PROS → USDC", text: "swap 1 PROS to USDC",
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet";
+
+const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
+  { label: "Swap PROS → USDC", action: "swap",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 4h10M8 1.5l2.5 2.5L8 6.5M13 10H3M6 7.5L3.5 10 6 12.5" /></svg> },
-  { label: "Bridge to Base", text: "bridge 10 USDC to Base",
+  { label: "Bridge to Base", action: "bridge",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M3 4l4-3 4 3M3 10l4 3 4-3" /></svg> },
-  { label: "Add Liquidity", text: "add 5 WPROS to FaroSwap 0.30% ±10% range",
+  { label: "Add Liquidity", action: "liquidity",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M1 7h12" /></svg> },
-  { label: "My Positions", text: "show my liquidity positions",
+  { label: "My Positions", action: "positions",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="1.5" y="4" width="11" height="8" rx="1.5"/><path d="M4 4V3a3 3 0 016 0v1"/></svg> },
   { label: "What is Pharos?", text: "explain the Pharos Network architecture and what makes it unique",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="7" cy="7" r="6"/><path d="M7 6v4M7 4.5v.5"/></svg> },
@@ -2036,26 +2358,26 @@ const SUGGESTIONS = [
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 4h10v6H2zM5 4V2.5a2 2 0 014 0V4"/></svg> },
 ];
 
-const WELCOME_CARDS = [
+const WELCOME_CARDS: Array<{ icon: React.ReactNode; title: string; desc: string; color: string; prompt?: string; action?: QuickActionKind }> = [
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>,
     title: "Swap tokens",
-    desc: "Best route via FaroSwap, ZentraFi, OKX DEX or LI.FI. Just say the amount.",
-    prompt: "swap 1 PROS to USDC",
+    desc: "Guided flow: pick a token from your balance, choose the amount and compare quotes.",
+    action: "swap",
     color: "#00d4ff",
   },
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M10 2L2 6l8 4 8-4-8-4zM2 14l8 4 8-4M2 10l8 4 8-4" /></svg>,
     title: "Cross-chain bridge",
-    desc: "Move assets to Ethereum, Base, Arbitrum via CCIP, CCTP v2 or Jumper.",
-    prompt: "bridge 50 USDC from Pharos to Base",
+    desc: "Move assets to Ethereum, Base, Arbitrum — routes compared for the best return.",
+    action: "bridge",
     color: "#818cf8",
   },
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M10 2v18M15 5H8a3 3 0 000 6h4a3 3 0 010 6H5" /></svg>,
     title: "FaroSwap Liquidity",
-    desc: "Add V3 concentrated liquidity, manage LP positions, collect fees.",
-    prompt: "add 5 WPROS to FaroSwap 0.30% ±15% range",
+    desc: "Add V3 concentrated liquidity: pick pair, fee tier, range and amount.",
+    action: "liquidity",
     color: "#34d399",
   },
   {
@@ -2672,21 +2994,48 @@ export default function ChatPage() {
     }
   }
 
+  // ── Cancellation ────────────────────────────────────────────────────────
+  // opSeqRef invalidates in-flight async flows: each guided flow captures the
+  // sequence at start and bails out silently if the user cancelled meanwhile.
+  const opSeqRef = useRef(0);
+
+  function cancelActiveFlows() {
+    opSeqRef.current++;
+    const lang = guessUserLang(messages);
+    setMessages((prev) => prev.map((m) => {
+      const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
+        m.liquidityWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending;
+      if (!hasActive) return m;
+      return {
+        ...m,
+        isLoading: false, isSearching: false,
+        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined,
+        swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
+        text: m.isLoading || m.isSearching
+          ? (lang === "pt" ? "❌ Cancelado." : "❌ Cancelled.")
+          : m.text,
+      };
+    }));
+  }
+
+  // Short "cancel"-style messages abort active flows instantly, no LLM round-trip.
+  const CANCEL_RE = /^\s*(cancela(r)?|cancel|stop|para|parar|aborta(r)?|esquece|deixa)\s*[.!]?\s*$/i;
+
   // ── Guided bridge flow ─────────────────────────────────────────────────
   // Every bridge request goes through this wizard: token pick (with live
   // balances), amount (typed or 25/50/75/100%), destination chain — then a
   // route comparison with the best return highlighted.
   async function startBridgeWizard(msgId: string, pre: { token?: string; amount?: number; chain?: string }) {
+    const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
     updateMessage(msgId, {
       isLoading: true,
       text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
     });
     try {
-      const analysis = await getWalletAnalysis(walletAddress);
-      const holdings = analysis.holdings
-        .filter((h) => h.balance > 0)
-        .map((h) => ({ symbol: h.symbol, balance: h.balance }));
+      const balances = await getTokenBalancesFast(walletAddress);
+      if (opSeqRef.current !== seq) return;
+      const holdings = balances.filter((h) => h.balance > 0);
       updateMessage(msgId, {
         isLoading: false,
         text: lang === "pt"
@@ -2700,12 +3049,14 @@ export default function ChatPage() {
         },
       });
     } catch (err) {
+      if (opSeqRef.current !== seq) return;
       const msg = err instanceof Error ? err.message : String(err);
       updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
     }
   }
 
   async function handleBridgeWizardSubmit(msgId: string, token: string, amount: number, toChain: string) {
+    const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
     updateMessage(msgId, {
       bridgeWizard: undefined,
@@ -2733,8 +3084,12 @@ export default function ChatPage() {
         cctpCheck.supported ? buildCctpPending(intent) : Promise.reject(new Error(cctpCheck.reason ?? "unsupported")),
         ccipCheck.supported ? buildCcipTransaction(intent, walletAddress) : Promise.reject(new Error(ccipCheck.reason ?? "unsupported")),
       ]);
+      if (opSeqRef.current !== seq) return;
 
       const options: BridgeRouteOption[] = [];
+      const unavailable: NonNullable<BridgeChoice["unavailable"]> = [];
+      if (!cctpCheck.supported) unavailable.push({ provider: "cctp", reason: cctpCheck.reason ?? "route not supported" });
+      if (!ccipCheck.supported) unavailable.push({ provider: "ccip", reason: ccipCheck.reason ?? "route not supported" });
 
       if (lifiRes.status === "fulfilled") {
         const receiveValue = parseFloat(lifiRes.value.receiveLabel) || 0;
@@ -2784,6 +3139,13 @@ export default function ChatPage() {
         });
       } else if (ccipCheck.supported) {
         console.warn("[pharos:bridge] CCIP quote failed:", ccipRes.reason);
+        unavailable.push({ provider: "ccip", reason: "quote failed — try again" });
+      }
+      if (lifiRes.status === "rejected") {
+        unavailable.push({ provider: "lifi", reason: lifiRes.reason instanceof Error ? lifiRes.reason.message : "no route" });
+      }
+      if (cctpCheck.supported && cctpRes.status === "rejected") {
+        unavailable.push({ provider: "cctp", reason: "quote failed — try again" });
       }
 
       if (options.length === 0) {
@@ -2806,9 +3168,10 @@ export default function ChatPage() {
         text: lang === "pt"
           ? `Encontrei **${options.length} rota${options.length > 1 ? "s" : ""}** para ${amount} ${token} → ${toChain}. Compare o retorno estimado e escolha:`
           : `Found **${options.length} route${options.length > 1 ? "s" : ""}** for ${amount} ${token} → ${toChain}. Compare the estimated return and pick one:`,
-        bridgeChoice: { options },
+        bridgeChoice: { options, unavailable: unavailable.length > 0 ? unavailable : undefined },
       });
     } catch (err) {
+      if (opSeqRef.current !== seq) return;
       const msg = err instanceof Error ? err.message : String(err);
       updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to fetch bridge routes: ${msg}` });
     }
@@ -2822,10 +3185,236 @@ export default function ChatPage() {
     });
   }
 
+  // ── Guided swap flow ─────────────────────────────────────────────────────
+  async function startSwapWizard(msgId: string, pre: { from?: string; amount?: number; to?: string }) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
+    });
+    try {
+      const balances = await getTokenBalancesFast(walletAddress);
+      if (opSeqRef.current !== seq) return;
+      const holdings = balances.filter((h) => h.balance > 0);
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Vamos trocar! Escolha o token de origem, o valor e o token que você quer receber — depois eu comparo as cotações."
+          : "Let's swap! Pick the source token, amount and the token you want to receive — then I'll compare quotes.",
+        swapWizard: {
+          holdings,
+          preFrom: pre.from && holdings.some((h) => h.symbol === pre.from) ? pre.from : undefined,
+          preAmount: pre.amount,
+          preTo: pre.to && ALL_TOKEN_SYMBOLS.includes(pre.to) ? pre.to : undefined,
+        },
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
+    }
+  }
+
+  // Quote comparison shared by the wizard and typed complete intents.
+  async function runSwapQuotes(msgId: string, intent: ParsedIntent, prefix = "") {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    const head = prefix ? prefix + "\n\n" : "";
+    updateMessage(msgId, {
+      isLoading: true,
+      text: head + (lang === "pt" ? "Buscando cotações na LI.FI e FaroSwap…" : "Fetching quotes from LI.FI and FaroSwap…"),
+    });
+    const pairOnFaroswap = faroswapSupportsPair(intent.fromToken, intent.toToken);
+    const [lifiRes, faroRes] = await Promise.allSettled([
+      buildLifiPending(intent),
+      pairOnFaroswap ? buildFaroswapPending(intent) : Promise.reject(new Error("pair not on FaroSwap")),
+    ]);
+    if (opSeqRef.current !== seq) return;
+
+    const options: SwapRouteOption[] = [];
+    if (lifiRes.status === "fulfilled") options.push({ provider: "lifi", ...lifiRes.value });
+    else console.warn("[pharos:swap] LI.FI quote failed:", lifiRes.reason);
+    if (faroRes.status === "fulfilled") options.push({ provider: "faroswap", ...faroRes.value });
+    else if (pairOnFaroswap) console.warn("[pharos:swap] FaroSwap quote failed:", faroRes.reason);
+
+    if (options.length === 0) {
+      const msg = lifiRes.status === "rejected" && lifiRes.reason instanceof Error ? lifiRes.reason.message : "no route available";
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Couldn't get a quote from either route: ${msg}` });
+    } else if (options.length === 1) {
+      const only = options[0];
+      const note = only.provider === "faroswap"
+        ? "LI.FI had no route, so I built this via **FaroSwap direct** instead.\n\n"
+        : "";
+      updateMessage(msgId, { isLoading: false, text: head + note + only.summary, pending: only.pending });
+    } else {
+      updateMessage(msgId, {
+        isLoading: false,
+        text: head + (lang === "pt" ? "Cotações das duas rotas — compare e escolha:" : "I got quotes from both routes — compare and pick one:"),
+        swapChoice: { options },
+      });
+    }
+  }
+
+  async function handleSwapWizardSubmit(msgId: string, fromToken: string, amount: number, toToken: string) {
+    const intent: ParsedIntent = {
+      action: "swap", fromToken, toToken, amount, fromChain: "Pharos",
+    };
+    updateMessage(msgId, { swapWizard: undefined });
+    try {
+      await runSwapQuotes(msgId, intent);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to fetch swap quotes: ${msg}` });
+    }
+  }
+
+  // ── Guided liquidity flow ────────────────────────────────────────────────
+  async function startLiquidityWizard(msgId: string, pre: { amount?: number; feeTier?: number; rangePercent?: number }) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
+    });
+    try {
+      const balances = await getTokenBalancesFast(walletAddress);
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Vamos adicionar liquidez na FaroSwap V3! Escolha o fee tier, o range de preço e quanto de WPROS você quer depositar."
+          : "Let's add liquidity on FaroSwap V3! Pick the fee tier, price range and how much WPROS to deposit.",
+        liquidityWizard: {
+          holdings: balances,
+          preAmount: pre.amount,
+          preFeeTier: pre.feeTier,
+          preRangePercent: pre.rangePercent,
+        },
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
+    }
+  }
+
+  async function handleLiquidityWizardSubmit(
+    msgId: string,
+    params: { feeTier: number; rangeMode: "percent" | "full"; rangePercent?: number; wprosAmount: number },
+  ) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      liquidityWizard: undefined,
+      isLoading: true,
+      text: lang === "pt" ? "Montando a transação de liquidez…" : "Building liquidity transaction…",
+    });
+    try {
+      const liquidityParams: LiquidityParams = {
+        feeTier: params.feeTier as FeeTier,
+        rangeMode: params.rangeMode,
+        rangePercent: params.rangePercent,
+        wprosAmount: params.wprosAmount,
+        userAddress: walletAddress,
+      };
+      const liquidityResult = await buildLiquidityTx(liquidityParams);
+      if (opSeqRef.current !== seq) return;
+      const { poolState, feeTier: ft, minPrice: lo, maxPrice: hi } = liquidityResult;
+      const priceStr = poolState.priceUSDCperWPROS.toFixed(4);
+      const feeLabel = FEE_TIERS[ft as FeeTier].label;
+      const summaryText =
+        `Current price: 1 WPROS = ${priceStr} USDC (~$${priceStr})\n` +
+        `Fee tier: ${feeLabel}  ·  Range: ${lo.toFixed(4)} – ${hi.toFixed(4)} USDC/WPROS\n\n` +
+        `WPROS required: ${liquidityResult.wprosAmount.toFixed(6)}\n` +
+        `USDC required:  ${liquidityResult.usdcAmount.toFixed(6)}\n` +
+        (liquidityResult.onlyToken0 ? "\nPrice is below range — only WPROS needed." : "") +
+        (liquidityResult.onlyToken1 ? "\nPrice is above range — only USDC needed." : "") +
+        `\n\nConfirm in your wallet to mint your LP position.`;
+      updateMessage(msgId, { isLoading: false, text: summaryText, liquidityPending: { result: liquidityResult } });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to build liquidity tx: ${msg}` });
+    }
+  }
+
+  // ── Direct read-only actions (no LLM round-trip) ─────────────────────────
+  async function runViewPositions(msgId: string) {
+    const seq = opSeqRef.current;
+    try {
+      const positions = await fetchUserPositions(walletAddress);
+      if (opSeqRef.current !== seq) return;
+      const summary = formatPositionSummary(positions);
+      updateMessage(msgId, { isLoading: false, text: summary, positions });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to fetch positions: ${msg}` });
+    }
+  }
+
+  async function runWalletAnalysisDirect(msgId: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const analysis = await getWalletAnalysis(walletAddress);
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, { isLoading: false, text: formatWalletAnalysis(analysis, lang) });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
+    }
+  }
+
+  // Quick actions: clicking an on-chain function starts the guided flow
+  // instantly — no auto-message, no LLM round-trip.
+  function handleQuickAction(kind: "swap" | "bridge" | "liquidity" | "positions" | "wallet") {
+    const lang = guessUserLang(messages);
+    if (!walletAddress) {
+      addMessage({
+        role: "agent",
+        text: lang === "pt"
+          ? "Para fazer essa operação, conecte sua carteira primeiro. Clique em 'Conectar' no topo. 🔗"
+          : "To do that, connect your wallet first — click 'Connect' at the top. 🔗",
+      });
+      return;
+    }
+    const id = addMessage({ role: "agent", text: "…", isLoading: true });
+    switch (kind) {
+      case "swap":      void startSwapWizard(id, {}); break;
+      case "bridge":    void startBridgeWizard(id, {}); break;
+      case "liquidity": void startLiquidityWizard(id, {}); break;
+      case "positions":
+        updateMessage(id, { text: lang === "pt" ? "Buscando suas posições na FaroSwap V3…" : "Fetching your FaroSwap V3 positions…" });
+        void runViewPositions(id);
+        break;
+      case "wallet":
+        updateMessage(id, { text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…" });
+        void runWalletAnalysisDirect(id);
+        break;
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || isSending) return;
     setInput("");
+
+    // Cancel: abort active flows immediately, no LLM round-trip.
+    if (CANCEL_RE.test(text)) {
+      addMessage({ role: "user", text });
+      cancelActiveFlows();
+      const lang = guessUserLang([...messages, { id: "x", role: "user", text }]);
+      addMessage({
+        role: "agent",
+        text: lang === "pt" ? "Cancelado ✅ O que você quer fazer agora?" : "Cancelled ✅ What would you like to do next?",
+      });
+      inputRef.current?.focus();
+      return;
+    }
+
     setIsSending(true);
 
     addMessage({ role: "user", text });
@@ -3032,14 +3621,34 @@ export default function ChatPage() {
         if (!complete) {
           const effectiveQuery = groqResult.searchQuery || (groqResult.needsSearch ? text : null);
 
-          // Bridge is always guided: token (with balances) → amount (% picks) →
-          // destination → route comparison. Never a dangling "confirm in your
-          // wallet" reply without an actual transaction card.
+          // On-chain actions are always guided: never a dangling "confirm in
+          // your wallet" reply without an actual card. Bridge/swap/liquidity
+          // wizards show live balances, % quick-picks and all options.
           if (groqResult.action === "bridge" && walletAddress) {
             await startBridgeWizard(thinkingId, {
               token: groqResult.fromToken || undefined,
               amount: groqResult.amount != null && groqResult.amount > 0 ? groqResult.amount : undefined,
               chain: groqResult.toChain || undefined,
+            });
+            setIsSending(false);
+            inputRef.current?.focus();
+            return;
+          }
+          if (groqResult.action === "swap" && walletAddress) {
+            await startSwapWizard(thinkingId, {
+              from: groqResult.fromToken || undefined,
+              amount: groqResult.amount != null && groqResult.amount > 0 ? groqResult.amount : undefined,
+              to: groqResult.toToken || undefined,
+            });
+            setIsSending(false);
+            inputRef.current?.focus();
+            return;
+          }
+          if (groqResult.action === "add_liquidity" && walletAddress) {
+            await startLiquidityWizard(thinkingId, {
+              amount: groqResult.amount != null && groqResult.amount > 0 ? groqResult.amount : undefined,
+              feeTier: groqResult.feeTier ?? undefined,
+              rangePercent: groqResult.rangePercent ?? undefined,
             });
             setIsSending(false);
             inputRef.current?.focus();
@@ -3270,33 +3879,7 @@ export default function ChatPage() {
             const { pending, summary } = await buildLifiPending(intent);
             updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + summary, pending });
           } else {
-            updateMessage(thinkingId, { text: safeReply + "\n\nFetching quotes from LI.FI and FaroSwap…" });
-            const [lifiRes, faroRes] = await Promise.allSettled([
-              buildLifiPending(intent),
-              buildFaroswapPending(intent),
-            ]);
-            const options: SwapRouteOption[] = [];
-            if (lifiRes.status === "fulfilled") options.push({ provider: "lifi", ...lifiRes.value });
-            else console.warn("[pharos:swap] LI.FI quote failed:", lifiRes.reason);
-            if (faroRes.status === "fulfilled") options.push({ provider: "faroswap", ...faroRes.value });
-            else console.warn("[pharos:swap] FaroSwap quote failed:", faroRes.reason);
-
-            if (options.length === 0) {
-              const msg = lifiRes.status === "rejected" && lifiRes.reason instanceof Error ? lifiRes.reason.message : "no route available";
-              updateMessage(thinkingId, { isLoading: false, isError: true, text: `Couldn't get a quote from either route: ${msg}` });
-            } else if (options.length === 1) {
-              const only = options[0];
-              const note = only.provider === "faroswap"
-                ? "LI.FI had no route, so I built this via **FaroSwap direct** instead.\n\n"
-                : "";
-              updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + note + only.summary, pending: only.pending });
-            } else {
-              updateMessage(thinkingId, {
-                isLoading: false,
-                text: safeReply + "\n\nI got quotes from both routes — compare and pick one:",
-                swapChoice: { options },
-              });
-            }
+            await runSwapQuotes(thinkingId, intent, safeReply);
           }
         }
         setIsSending(false);
@@ -3511,16 +4094,19 @@ export default function ChatPage() {
               Quick Actions
             </p>
             <div className="space-y-0.5">
-              {[
-                { label: "Swap tokens",       icon: "⇄", prompt: "swap 1 PROS to USDC", color: "#00d4ff" },
-                { label: "Bridge cross-chain", icon: "⤡", prompt: "bridge 10 USDC to Base", color: "#818cf8" },
-                { label: "Add Liquidity",      icon: "+", prompt: "add 5 WPROS to FaroSwap 0.30% ±15%", color: "#34d399" },
-                { label: "My LP Positions",    icon: "◈", prompt: "show my liquidity positions", color: "#fbbf24" },
-                { label: "Wallet Analysis",    icon: "◎", prompt: "analyze my wallet", color: "#f472b6" },
+              {([
+                { label: "Swap tokens",        icon: "⇄", action: "swap" as const, color: "#00d4ff" },
+                { label: "Bridge cross-chain", icon: "⤡", action: "bridge" as const, color: "#818cf8" },
+                { label: "Add Liquidity",      icon: "+", action: "liquidity" as const, color: "#34d399" },
+                { label: "My LP Positions",    icon: "◈", action: "positions" as const, color: "#fbbf24" },
+                { label: "Wallet Analysis",    icon: "◎", action: "wallet" as const, color: "#f472b6" },
                 { label: "Pharos Protocols",   icon: "⬡", prompt: "what DeFi protocols are on Pharos?", color: "#38bdf8" },
-              ].map((item) => (
+              ] as Array<{ label: string; icon: string; color: string; action?: "swap" | "bridge" | "liquidity" | "positions" | "wallet"; prompt?: string }>).map((item) => (
                 <button key={item.label}
-                  onClick={() => { setInput(item.prompt); inputRef.current?.focus(); }}
+                  onClick={() => {
+                    if (item.action) handleQuickAction(item.action);
+                    else if (item.prompt) { setInput(item.prompt); inputRef.current?.focus(); }
+                  }}
                   className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs font-medium transition-all duration-150"
                   style={{ color: "rgba(148,163,184,0.65)" }}
                   onMouseEnter={(e) => {
@@ -3634,7 +4220,10 @@ export default function ChatPage() {
                 {WELCOME_CARDS.map((card, i) => (
                   <button
                     key={card.title}
-                    onClick={() => { setInput(card.prompt); inputRef.current?.focus(); }}
+                    onClick={() => {
+                      if (card.action) handleQuickAction(card.action);
+                      else if (card.prompt) { setInput(card.prompt); inputRef.current?.focus(); }
+                    }}
                     className="text-left p-4 rounded-2xl transition-all duration-200"
                     style={{
                       background: "rgba(6,12,30,0.7)",
@@ -3698,6 +4287,8 @@ export default function ChatPage() {
               onPctSelect={handlePctSelect}
               onBridgeWizardSubmit={handleBridgeWizardSubmit}
               onBridgeRouteChoice={handleBridgeRouteChoice}
+              onSwapWizardSubmit={handleSwapWizardSubmit}
+              onLiquidityWizardSubmit={handleLiquidityWizardSubmit}
             />
           ))}
           <div ref={bottomRef} />
@@ -3719,8 +4310,11 @@ export default function ChatPage() {
               {!hasMessages && (
                 <div className="flex gap-1.5 flex-wrap mb-3">
                   {SUGGESTIONS.map((s) => (
-                    <button key={s.text}
-                      onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
+                    <button key={s.label}
+                      onClick={() => {
+                        if (s.action) handleQuickAction(s.action);
+                        else if (s.text) { setInput(s.text); inputRef.current?.focus(); }
+                      }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150"
                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(148,163,184,0.55)" }}
                       onMouseEnter={(e) => {
