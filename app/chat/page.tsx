@@ -3293,16 +3293,26 @@ export default function ChatPage() {
 
   function cancelActiveFlows() {
     opSeqRef.current++;
+    pendingTransferRef.current = null;
     const lang = guessUserLang(messages);
     setMessages((prev) => prev.map((m) => {
+      // Covers EVERY interactive on-chain card: wizards, provider/token/chain
+      // choices, amount queries, and all built tx cards (swap/bridge, add and
+      // remove liquidity, position pickers, transfers, approvals).
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-        m.liquidityWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending;
+        m.liquidityWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+        m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
+        m.transferPending || m.approvePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
         isLoading: false, isSearching: false,
         bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined,
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
+        liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
+        positions: undefined, removeMode: undefined,
+        transferPending: undefined, approvePending: undefined,
+        tokenChoice: undefined, chainChoice: undefined, walletChoice: undefined,
         text: m.isLoading || m.isSearching
           ? (lang === "pt" ? "❌ Cancelado." : "❌ Cancelled.")
           : m.text,
@@ -3864,7 +3874,7 @@ export default function ChatPage() {
         void runWalletScore(id, walletAddress);
         break;
       case "realfi":
-        updateMessage(id, { text: lang === "pt" ? "Lendo suas posições RealFi nos 9 protocolos…" : "Reading your RealFi positions across 9 protocols…" });
+        updateMessage(id, { text: lang === "pt" ? "Lendo suas posições RealFi em todos os protocolos conhecidos…" : "Reading your RealFi positions across all known protocols…" });
         void runRealFiPositions(id, walletAddress);
         break;
     }
@@ -3971,7 +3981,7 @@ export default function ChatPage() {
             : "To view RealFi positions, connect your wallet or paste a 0x… address. 🔗",
         });
       } else {
-        updateMessage(thinkingId, { text: fastLang === "pt" ? "Lendo posições RealFi nos 9 protocolos…" : "Reading RealFi positions across 9 protocols…" });
+        updateMessage(thinkingId, { text: fastLang === "pt" ? "Lendo posições RealFi em todos os protocolos conhecidos…" : "Reading RealFi positions across all known protocols…" });
         await runRealFiPositions(thinkingId, target);
       }
       setIsSending(false);

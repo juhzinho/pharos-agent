@@ -14,8 +14,12 @@ interface RealFiToken {
   symbol: string;
   address: string;
   decimals: number;
-  /** ERC-4626 vault share backed by USDC — NAV is read on-chain. */
+  /** ERC-4626 vault share — NAV (totalAssets/totalSupply) is read on-chain. */
   vault?: boolean;
+  /** Decimals of the vault's underlying asset (default 6 = USDC). */
+  assetDecimals?: number;
+  /** Symbol of the vault's underlying asset (default USDC). */
+  assetSymbol?: string;
   note?: string;
 }
 
@@ -83,6 +87,18 @@ export const REALFI_PROTOCOLS: RealFiProtocol[] = [
       { symbol: "JTRSY", address: "0xc18e6f730896971a79d748e8dea61067a9bc6040", decimals: 6, note: "US Treasury fund" },
     ],
   },
+  {
+    // Liquid staking (Pharos × Bifrost SLPx). stPROS is an ERC-4626 whose
+    // underlying asset is WPROS — NAV is denominated in PROS, not USDC.
+    // Faroo vaults (FRHV001/FYV001) are 24-decimal ERC-4626s over stPROS.
+    // Addresses verified live on pharos.socialscan.io + on-chain asset() calls.
+    name: "Faroo", type: "Liquid Staking · Hybrid Yield (RWA)", url: "https://app.faroo.xyz",
+    tokens: [
+      { symbol: "stPROS",  address: "0x6b0a44c64190279f7034b77c13a566e914fe5ec4", decimals: 18, vault: true, assetDecimals: 18, assetSymbol: "PROS", note: "liquid staked PROS" },
+      { symbol: "FRHV001", address: "0x36f3d19dda7ed1428e3014ae6f2a75d70393b7e6", decimals: 24, vault: true, assetDecimals: 18, assetSymbol: "stPROS", note: "RWA Hybrid Vault 001 (Pre-mint)" },
+      { symbol: "FYV001",  address: "0xc775dfaa7565f2aca5ddf5dd6837ceb846de591b", decimals: 24, vault: true, assetDecimals: 18, assetSymbol: "stPROS", note: "Yield Vault 001" },
+    ],
+  },
 ];
 
 export interface RealFiPosition {
@@ -92,9 +108,10 @@ export interface RealFiPosition {
   symbol: string;
   balance: number;
   note?: string;
-  nav?: number;           // USDC per share (ERC-4626 vaults)
-  underlyingUsdc?: number; // balance × nav
-  yieldAbovePar?: number;  // (nav - 1) × 100 %
+  nav?: number;              // underlying units per share (ERC-4626 vaults)
+  underlyingAmount?: number; // balance × nav, in underlying units
+  underlyingSymbol?: string; // "USDC", "PROS", "stPROS"…
+  yieldAbovePar?: number;    // (nav - 1) × 100 %
 }
 
 async function ethCall(to: string, data: string): Promise<string> {
@@ -133,11 +150,13 @@ export async function getRealFiPositions(address: string): Promise<RealFiPositio
           ethCall(t.address, SEL_TOTAL_ASSETS),
           ethCall(t.address, SEL_TOTAL_SUPPLY),
         ]);
-        const assets = Number(hexToBig(assetsHex)) / 1e6;         // underlying USDC (6 dec)
+        const assetDec = t.assetDecimals ?? 6; // default: USDC-backed
+        const assets = Number(hexToBig(assetsHex)) / 10 ** assetDec;
         const supply = Number(hexToBig(supplyHex)) / 10 ** t.decimals;
         if (supply > 0 && assets > 0) {
           pos.nav = assets / supply;
-          pos.underlyingUsdc = balance * pos.nav;
+          pos.underlyingAmount = balance * pos.nav;
+          pos.underlyingSymbol = t.assetSymbol ?? "USDC";
           pos.yieldAbovePar = (pos.nav - 1) * 100;
         }
       } catch { /* NAV optional */ }
@@ -177,9 +196,10 @@ export function formatRealFiPositions(address: string, positions: RealFiPosition
       const bal = p.balance.toLocaleString("en-US", { maximumFractionDigits: 6 });
       const extra: string[] = [];
       if (p.note) extra.push(p.note);
-      if (p.underlyingUsdc != null) {
-        extra.push(`≈ ${p.underlyingUsdc.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDC`);
-        totalUsdc += p.underlyingUsdc;
+      if (p.underlyingAmount != null) {
+        const sym = p.underlyingSymbol ?? "USDC";
+        extra.push(`≈ ${p.underlyingAmount.toLocaleString("en-US", { maximumFractionDigits: sym === "USDC" ? 2 : 4 })} ${sym}`);
+        if (sym === "USDC") totalUsdc += p.underlyingAmount;
       }
       if (p.yieldAbovePar != null && p.yieldAbovePar > 0.005) {
         extra.push(lang === "pt" ? `yield acima do par: +${p.yieldAbovePar.toFixed(2)}%` : `yield above par: +${p.yieldAbovePar.toFixed(2)}%`);

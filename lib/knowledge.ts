@@ -84,6 +84,13 @@ PRE-MINT (app.faroo.xyz/pre-mint — LIVE July 3, 2026):
   First RWA Hybrid Vault on Pharos — deposit stPROS to unlock rewards tied to real-world asset performance.
   Principal protected design | Phase 1 cap: 1,000,000 stPROS | $4,000 USDC reward pool + extra $PROS airdrop for participants
   Rewards: staking rewards + RWA yield exposure + PROS airdrop incentives
+MAINNET CONTRACTS (Pharos Pacific, chain 1672 — verified on pharos.socialscan.io):
+  stPROS "Faroo Staked PROS": 0x6b0a44c64190279f7034b77c13a566e914fe5ec4 (ERC-4626, 18 dec, underlying = WPROS 0x52c4…f0b0; NAV in PROS grows with staking rewards)
+  FRHV001 "Faroo RWA Hybrid Vault 001" (Pre-mint vault): 0x36f3d19dda7ed1428e3014ae6f2a75d70393b7e6 (ERC-4626 over stPROS, 24 dec)
+  FYV001 "Faroo Yield Vault 001": 0xc775dfaa7565f2aca5ddf5dd6837ceb846de591b (ERC-4626 over stPROS, 24 dec)
+  Flow: stake PROS → receive stPROS → optionally deposit stPROS into FRHV001 (pre-mint, RWA yield) or FYV001.
+  Testnet (Atlantic 688689) stPROS: 0xc9A0B63d91c2A808dD631d031f037944fedDaA12 (Bifrost SLPx docs).
+The agent's "RealFi Positions" feature tracks Faroo balances (stPROS, FRHV001, FYV001) live on-chain with NAV.
 `,
   zona: `
 Zona (app.zona.finance | docs.zona.finance): Lending + borrowing for RWAs and crypto.

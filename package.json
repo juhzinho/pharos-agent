@@ -7,6 +7,8 @@
     "build": "next build",
     "crawl:docs": "node scripts/crawl-docs.mjs",
     "build:knowledge": "node --experimental-strip-types scripts/build-knowledge.mjs",
+    "train": "node scripts/train-agent.mjs",
+    "train:quick": "node scripts/train-agent.mjs --quick",
     "start": "next start",
     "lint": "eslint"
   },
