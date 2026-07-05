@@ -19,14 +19,16 @@ COMMUNITY (July 2026): 312K members | 390.6K Twitter followers | 174M wallet add
 
 TVL LEADERS: R25 ~$93M | Centrifuge ~$15M | Ember ~$13M | FaroSwap ~$695K
 
-ECOSYSTEM (one-line summaries):
-Lending: Zona (app.zona.finance) lend/borrow RWAs+crypto | Morpho institutional RWA markets | TermMax fixed-rate ERC-4626 | Avalon Finance lending
+ECOSYSTEM (42 active projects on port.pharos.xyz/ecosystem — one-line summaries):
+Lending: Zona (app.zona.finance) lend/borrow RWAs+crypto | Morpho institutional RWA markets | TermMax fixed-rate ERC-4626 | Avalon Finance lending | OKU aggregator (0% fees)
 Perp: Bitverse (app.bitverse.zone) perp DEX + US stock futures, AI-powered
-DEX: FaroSwap primary DEX (DODO) V3+V2+PMM | ZentraFi AMM+launchpad | GoctoFun bonding-curve | OKX DEX | Fly DEX
+DEX: FaroSwap primary DEX (DODO) V3+V2+PMM | Agra onchain credit/bonds trading | ZentraFi AMM+launchpad | GoctoFun bonding-curve | OKX DEX | Fly DEX
 Staking: Faroo (app.faroo.xyz) stake PROS→stPROS earns staking+RWA yield simultaneously | Pre-mint LIVE July 2026 | FIRST Pharos Incubator project
 RWA: R25 tokenized vaults (VRPCW/VRPCS/VRPCQ) USDC ERC-4626 | Centrifuge credit/debt (DROP/TIN) | Ember pAlpha yield vault | AquaFlux (app.aquaflux.pro) tri-token P/C/S | Agra RWA bonds | Asseto tokenized finance
-Wallets: Topnod native wallet | OKX Wallet | AlchemyPay fiat on/off-ramp | Fordefi (institutional) | Safe MultiSig
-Infra: CCIP 6-token bridge | LI.FI/Jumper aggregator | LayerZero V2 | Stargate (USDC/rUSD) | Circle CCTP v2 | Fiamma BTC bridge | Primus zkTLS | Babylon stBTC | EigenLayer stETH | Goldsky indexer | Supra Oracle
+Wallets: Topnod native wallet | OKX Wallet | OneKey | KuCoin Wallet | AlchemyPay fiat on/off-ramp | Fordefi (institutional MPC) | Safe MultiSig | Anchorage (custody)
+Infra: CCIP 6-token bridge | LI.FI/Jumper aggregator | LayerZero V2 | InterPort bridge | Stargate (USDC/rUSD) | Circle CCTP v2 | Fiamma BTC bridge | Primus zkTLS | Babylon stBTC | EigenLayer stETH | Goldsky indexer | Hemera indexer | Supra Oracle | ZAN/Alchemy/Nirvana RPC
+Security: Hypernative | Zellic | ExVul | OpenZeppelin | TRM (KYT) | Trusta Labs
+Identity/NFT: PNS (.pharos domains) | ZNS Connect | Grandline NFT | Pharosverse navigator
 
 CANONICAL CONTRACTS (Pacific Mainnet):
   Create2Deployer: 0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2
@@ -763,10 +765,76 @@ ADDITIONAL LENDING & DeFi PROTOCOLS ON PHAROS (July 2026):
 • EigenLayer: stETH restaking on Pharos
 • Pizza Zone, Pros Pixel (GameFi): casual web3 gaming on Pharos testnet
 `,
+  port_ecosystem_directory: `
+OFFICIAL PHAROS ECOSYSTEM DIRECTORY (port.pharos.xyz/ecosystem — 42 active projects, July 2026):
+
+DEX / TRADING:
+• Faroswap (faroswap.xyz) — Pharos-native DEX fueling RWA-Fi with precision & depth [the agent can swap + manage V3 liquidity here]
+• Bitverse (bitverse.zone) — all-in-one RWA perp DEX: real-world assets + U.S. stock futures, AI-powered trading
+• Agra (bonds.agra.gg) — exchange for onchain credit: trading and financing tokenized credit
+• OKU (oku.trade) — DeFi aggregator on 35+ chains, 0% fees, 14 swap + 11 bridge routers
+
+RWA:
+• R25 (r25.xyz) — RWA tokenization protocol using IoT + AI: solar and EV assets → investable on-chain products (~$93M TVL, largest on Pharos)
+• AquaFlux (aquaflux.pro) — RWA yield & liquidity via tri-token model (P/C/S), customizing risk and return
+• Asseto (asseto.finance) — RWA tokenized fintech, next-generation on-chain asset platform
+• Zona (zona.finance) — deposit RWAs and unlock idle liquidity (lend/borrow)
+
+LENDING / YIELD:
+• Morpho (morpho.org) — lending combining Compound/Aave-style pools with P2P orderbook matching
+• TermMax (app.termmax.ts.finance) — fixed-rate digital asset lending & borrowing
+• Faroo (app.faroo.xyz) — liquid staking: PROS → stPROS, staking + RWA yields simultaneously
+• Ember (ember.so) — unified vault platform tokenising any yield or fund strategy
+
+BRIDGES:
+• LI.FI (li.fi) — bridge aggregation protocol with DEX connectivity [agent executes via this]
+• Jumper (jumper.exchange) — LI.FI-powered cross-chain swap/bridge interface
+• LayerZero (layerzero.network) — omnichain interoperability protocol
+• InterPort (interport.fi) — fast cross-chain swaps & bridge at best rates
+• Chainlink (chain.link) — CCIP bridge + oracle infrastructure [agent executes CCIP]
+
+STABLECOIN / PAYMENTS:
+• Circle (circle.com) — USDC issuer; native USDC + CCTP v2 on Pharos [agent executes CCTP]
+• Alchemy Pay (alchemypay.org) — fiat↔crypto on/off ramp
+
+WALLETS / CUSTODY:
+• OKX Wallet (web3.okx.com) — the crypto wallet for everything onchain
+• TopNod (topnod.com) — simple, secure self-custody wallet for RWA and digital assets
+• OneKey (onekey.so) — open-source crypto wallet
+• KuCoin Wallet (kucoin.com/web3) — find on-chain alpha
+• Fordefi (fordefi.com) — institutional MPC wallet & security platform
+• Safe (app.safe.global) — smart contract multisig wallet
+• Anchorage (anchorage.com) — institutional custody, staking, governance, trading
+
+ORACLES / INFRA / RPC:
+• Supra (supra.com) — all-in-one MultiVM L1 oracle for super dApps
+• ZAN (zan.top) — plug-and-play Web3 tools & RPC services
+• Alchemy (alchemy.com) — web3 development platform
+• Nirvana (nirvanalabs.io) — Web3 infrastructure for blockchain apps
+• Hemera (thehemera.com) — account-centric indexing network / block explorer
+• GoldSky (goldsky.com) — fastest, most scalable blockchain indexing
+
+SECURITY / COMPLIANCE:
+• Hypernative (hypernative.io) — real-time threat detection & prevention
+• Zellic (zellic.io) — blockchain security audits
+• ExVul (exvul.com) — smart contract audits, pen testing, consulting
+• OpenZeppelin (openzeppelin.com) — crypto cybersecurity technology
+• TRM (trmlabs.com) — crypto compliance & risk management (KYT)
+• Trusta Labs (trustalabs.ai) — Web3 security infrastructure & data analytics
+
+IDENTITY / NFT / COMMUNITY:
+• PNS (pharosname.com) — official .pharos domain name service
+• ZNS Connect (zns.bio) — Web3 identity layer, multi-chain domains
+• Grandline (app.grandline.world) — native NFT launch & trading platform
+• Pharosverse (pharosverse.xyz) — ecosystem navigator: insights, projects, community
+
+Live directory: port.pharos.xyz/ecosystem (new dApps launch frequently)
+`,
 };
 
 // Keyword → section mapping. Only the first 2 matches are used per query to cap token usage.
 const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
+  { keys: ["defi protocols", "protocols on pharos", "protocols are", "quais protocolos", "que protocolos", "dapps", "dapp list", "lista de dapps", "ecosystem list", "all projects", "todos os projetos", "port.pharos.xyz/ecosystem", "o que tem na pharos", "what's on pharos", "available on pharos", "projects on pharos"], section: "port_ecosystem_directory" },
   { keys: ["r25", "vrpcw", "vrpcs", "vrpcq"], section: "r25" },
   { keys: ["faroo", "stpros", "st pros", "bifrost", "slpx"], section: "faroo" },
   { keys: ["zona", "colateral", "collateral", "susde", "wstpros", "sUSDai", "zona lending"], section: "zona" },

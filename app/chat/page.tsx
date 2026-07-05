@@ -195,6 +195,41 @@ async function callAgent(payload: {
   }
 }
 
+// Replies where the model *promises* content ("um momento…") — these must never
+// be shown as the final answer.
+const DANGLING_PROMISE_RE =
+  /um momento|vou procurar|vou buscar|vou verificar|deixe-me|let me (check|search|look)|one moment|searching for|procurando/i;
+
+// Runs a grounded search with one retry. If both attempts fail and the model's
+// original reply was just a promise ("vou buscar… um momento"), replaces it with
+// an honest fallback instead of leaving the user with no content.
+async function searchWithFallback(
+  query: string,
+  originalReply: string,
+  base: {
+    history: Array<{ role: "user" | "assistant"; content: string }>;
+    prefsContext?: string;
+    txContext?: string;
+  },
+  lang: "pt" | "en",
+): Promise<{ text: string; sources?: AgentResult["sources"] }> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const grounded = await callAgent({ ...base, search: query });
+    if (grounded && grounded.grounded) {
+      return { text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined };
+    }
+  }
+  if (DANGLING_PROMISE_RE.test(originalReply)) {
+    return {
+      text:
+        lang === "pt"
+          ? "Não consegui completar a busca agora (o serviço de pesquisa está indisponível). Tente perguntar de novo em alguns segundos — ou veja diretamente:\n\n- [port.pharos.xyz/ecosystem](https://port.pharos.xyz/ecosystem) — todos os dApps da Pharos\n- [docs.pharos.xyz](https://docs.pharos.xyz) — documentação oficial"
+          : "I couldn't complete the search right now (the search service is unavailable). Try asking again in a few seconds — or check directly:\n\n- [port.pharos.xyz/ecosystem](https://port.pharos.xyz/ecosystem) — all Pharos dApps\n- [docs.pharos.xyz](https://docs.pharos.xyz) — official documentation",
+    };
+  }
+  return { text: originalReply };
+}
+
 // Lightweight PT/EN guess from the most recent user message, used to localize
 // non-AI UI follow-ups (e.g. the post-transaction confirmation).
 function guessUserLang(msgs: Message[]): "pt" | "en" {
@@ -2098,12 +2133,8 @@ export default function ChatPage() {
             }
           } else if (!groqResult.action && groqResult.needsSearch && effectiveQuery) {
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
-            const grounded = await callAgent({ history, prefsContext, txContext, search: effectiveQuery });
-            if (grounded && grounded.grounded) {
-              updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
-            } else {
-              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
-            }
+            const result = await searchWithFallback(effectiveQuery, groqResult.reply, { history, prefsContext, txContext }, guessUserLang(messages));
+            updateMessage(thinkingId, { isSearching: false, text: result.text, sources: result.sources ?? (result.text === groqResult.reply ? ragSources : undefined) });
           } else if ((groqResult.action === "swap" || groqResult.action === "bridge" || groqResult.action === "add_liquidity") && groqResult.needsAmount && walletAddress) {
             // Balance check before asking for amount
             try {
@@ -2124,20 +2155,13 @@ export default function ChatPage() {
               console.warn("[pharos:balance] failed to fetch balance:", err);
               updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
             }
-          } else if (
-            !groqResult.action &&
-            /um momento|vou procurar|vou buscar|vou verificar|deixe-me|let me (check|search|look)|one moment|searching for|procurando/i.test(groqResult.reply)
-          ) {
+          } else if (!groqResult.action && DANGLING_PROMISE_RE.test(groqResult.reply)) {
             // The model promised to search but didn't set needsSearch — the reply
             // would dangle with no content. Force a grounded search so the user
             // actually gets an answer.
             updateMessage(thinkingId, { isLoading: false, isSearching: true });
-            const grounded = await callAgent({ history, prefsContext, txContext, search: text });
-            if (grounded && grounded.grounded) {
-              updateMessage(thinkingId, { isSearching: false, text: grounded.reply, sources: grounded.foundInKnowledge ? grounded.sources : undefined });
-            } else {
-              updateMessage(thinkingId, { isSearching: false, text: groqResult.reply, sources: ragSources });
-            }
+            const result = await searchWithFallback(text, groqResult.reply, { history, prefsContext, txContext }, guessUserLang(messages));
+            updateMessage(thinkingId, { isSearching: false, text: result.text, sources: result.sources });
           } else {
             updateMessage(thinkingId, { isLoading: false, text: groqResult.reply, sources: ragSources });
           }
