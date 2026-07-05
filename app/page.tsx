@@ -226,6 +226,18 @@ const EXPLORE_SECTIONS = [
     ),
   },
   {
+    href: "/wallet",
+    title: "Wallet Analyzer",
+    desc: "Score, all tokens held, volume per token, swaps/bridges breakdown and gas — for any address.",
+    color: "#34d399",
+    tag: "Intelligence",
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <rect x="2" y="6" width="20" height="14" rx="2.5"/><path d="M16 13h.01M2 10h20M7 3h10"/>
+      </svg>
+    ),
+  },
+  {
     href: "/ecosystem",
     title: "Ecosystem",
     desc: "40+ Pharos dApps, filterable by category — DEX, RWA, lending, bridges, infra.",

@@ -40,6 +40,66 @@ const PROTOCOL_ADDRESSES: Record<string, string> = {
   "0x7126c3fef4e6a680eee09fb039b2236f638384b0": "USDC.e Bridge",
 };
 
+// ── Bridge/swap contract registry for movement-type classification ──────────
+const SWAP_CONTRACTS = new Set([
+  "0xa5ca5fbe34e444f366b373170541ec6902b0f75c", // FaroSwap DODORouteProxy
+  "0x75f21a97bd89a9a5683a9f46b5d5b4a080708dea", // Pharos DexRouter
+]);
+const LIQUIDITY_CONTRACTS = new Set([
+  "0xc0479219f4feba5a668cff71bf96f4ffe124c3ab", // FaroSwap NPM
+  "0x2c90ccb0b989afa2433f499698451a25744a552b",
+]);
+const BRIDGE_CONTRACTS = new Set([
+  "0x4e52dd94e9bcfefe3c78153bdfb0ab1d30687297", // CCIP Router
+  "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d", // CCTP TokenMessengerV2
+  "0x81d40f21f12a8f0e3252bccb954d722d4c464b64", // CCTP MessageTransmitterV2
+  "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae", // LI.FI Diamond (canonical)
+  "0x7126c3fef4e6a680eee09fb039b2236f638384b0", // USDC.e bridge
+]);
+const WPROS_ADDR = "0x52c48d4213107b20bc583832b0d951fb9ca8f0b0";
+
+// Method selector → movement type (fallback when the target contract is unknown)
+const METHOD_KIND: Record<string, keyof ActivityBreakdown> = {
+  "0x095ea7b3": "approvals",     // approve
+  "0xa9059cbb": "transfers",     // ERC-20 transfer
+  "0x23b872dd": "transfers",     // transferFrom
+  "0xd0e30db0": "wraps",         // deposit (wrap)
+  "0x2e1a7d4d": "wraps",         // withdraw (unwrap)
+  "0x88316456": "liquidity",     // mint (V3 position)
+  "0x219f5d17": "liquidity",     // increaseLiquidity
+  "0x0c49ccbe": "liquidity",     // decreaseLiquidity
+  "0xfc6f7865": "liquidity",     // collect
+  "0xac9650d8": "liquidity",     // multicall (NPM)
+};
+
+export interface ActivityBreakdown {
+  swaps: number;
+  bridges: number;
+  liquidity: number;
+  approvals: number;
+  transfers: number;   // native + ERC-20 sends
+  wraps: number;       // wrap/unwrap WPROS
+  contractCalls: number; // other contract interactions
+}
+
+export interface TokenVolume {
+  symbol: string;
+  address: string;
+  decimals: number | null;
+  inAmount: number;    // received (human units)
+  outAmount: number;   // sent (human units)
+  transfers: number;
+  logo?: string | null;
+}
+
+export interface TokenHolding {
+  symbol: string;
+  address: string;     // "native" for PROS
+  balance: number;
+  decimals: number;
+  logo?: string | null;
+}
+
 export interface ScoreCategory {
   id: string;
   label: string;
@@ -71,6 +131,11 @@ export interface WalletIntel {
   flags: string[];
   truncated: boolean;     // true when the wallet has more history than sampled
   explorer: string;
+  activity: ActivityBreakdown;      // movement types (swaps, bridges, transfers…)
+  tokenVolumes: TokenVolume[];      // in/out volume per token (PROS, WPROS, USDC, all)
+  nativeIn: number;                 // PROS received (sampled)
+  nativeOut: number;                // PROS sent (sampled)
+  holdings: TokenHolding[];         // current live balances of ALL discovered tokens
 }
 
 interface TxRow {
@@ -82,7 +147,8 @@ interface TxRow {
   transaction_fee_usd?: string | null;
   receipt_status: number;
   block_timestamp: string;
-  method?: string | null;
+  method_id?: string | null;
+  to_addr?: { is_contract?: boolean } | null;
 }
 
 interface TransferRow {
@@ -91,29 +157,91 @@ interface TransferRow {
   token_address: string;
   token_symbol?: string | null;
   symbol?: string | null;
+  token_type?: string | null;
+  decimals?: number | null;
+  token_logo_url?: string | null;
   value: string;
   block_timestamp: string;
 }
 
-async function fetchPaged<T>(path: string): Promise<{ rows: T[]; total: number }> {
-  const rows: T[] = [];
-  let total = 0;
-  for (let page = 1; page <= MAX_PAGES; page++) {
+async function fetchPage<T>(path: string, page: number): Promise<{ total: number; data: T[] }> {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(`${API}${path}&limit=50&page=${page}`, {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(12_000),
     });
-    if (!res.ok) {
-      if (res.status === 429) { await new Promise((r) => setTimeout(r, 1500)); page--; continue; }
-      throw new Error(`Explorer API HTTP ${res.status}`);
+    if (res.ok) {
+      const j = await res.json() as { total?: number; data?: T[] };
+      return { total: j.total ?? 0, data: j.data ?? [] };
     }
-    const j = await res.json() as { total?: number; data?: T[] };
-    total = j.total ?? total;
-    const batch = j.data ?? [];
-    rows.push(...batch);
-    if (batch.length === 0 || rows.length >= total) break;
+    if (res.status === 429 && attempt === 0) { await new Promise((r) => setTimeout(r, 1200)); continue; }
+    throw new Error(`Explorer API HTTP ${res.status}`);
+  }
+  return { total: 0, data: [] };
+}
+
+// Page 1 tells us the total; remaining pages are fetched IN PARALLEL — cuts
+// large-wallet analysis from ~8 sequential round-trips to 2 wall-clock hops.
+async function fetchPaged<T>(path: string): Promise<{ rows: T[]; total: number }> {
+  const first = await fetchPage<T>(path, 1);
+  const total = first.total;
+  const rows: T[] = [...first.data];
+  const pagesNeeded = Math.min(MAX_PAGES, Math.ceil(total / 50));
+  if (pagesNeeded > 1 && first.data.length > 0) {
+    const rest = await Promise.all(
+      Array.from({ length: pagesNeeded - 1 }, (_, i) =>
+        fetchPage<T>(path, i + 2).catch(() => ({ total: 0, data: [] as T[] }))
+      )
+    );
+    for (const r of rest) rows.push(...r.data);
   }
   return { rows, total };
+}
+
+// ── Live balance reads (RPC) for every discovered token ─────────────────────
+const RPC = "https://rpc.pharos.xyz";
+
+async function rpcCall(method: string, params: unknown[]): Promise<string | null> {
+  try {
+    const res = await fetch(RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    const j = await res.json();
+    return typeof j?.result === "string" ? j.result : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchHoldings(
+  addr: string,
+  tokens: Array<{ symbol: string; address: string; decimals: number | null; logo?: string | null }>
+): Promise<TokenHolding[]> {
+  const padded = addr.replace(/^0x/, "").padStart(64, "0");
+  const [nativeHex, ...tokenResults] = await Promise.all([
+    rpcCall("eth_getBalance", [addr, "latest"]),
+    ...tokens.map((t) =>
+      rpcCall("eth_call", [{ to: t.address, data: `0x70a08231${padded}` }, "latest"])
+    ),
+  ]);
+
+  const holdings: TokenHolding[] = [];
+  if (nativeHex) {
+    const bal = Number(BigInt(nativeHex)) / 1e18;
+    holdings.push({ symbol: "PROS", address: "native", balance: bal, decimals: 18 });
+  }
+  tokens.forEach((t, i) => {
+    const hex = tokenResults[i];
+    if (!hex || hex === "0x") return;
+    const dec = t.decimals ?? 18;
+    let bal = 0;
+    try { bal = Number(BigInt(hex)) / 10 ** dec; } catch { return; }
+    if (bal > 0) holdings.push({ symbol: t.symbol, address: t.address, balance: bal, decimals: dec, logo: t.logo ?? null });
+  });
+  return holdings.sort((a, b) => (a.address === "native" ? -1 : b.address === "native" ? 1 : b.balance - a.balance));
 }
 
 function levelFor(score: number): { level: string; emoji: string } {
@@ -170,19 +298,73 @@ export async function getWalletIntel(address: string): Promise<WalletIntel> {
     }
   }
 
-  // ── Token discovery from transfers (not a fixed token list) ──────────────
-  const tokenMap = new Map<string, { symbol: string; transfers: number }>();
+  // ── Movement-type classification (swaps, bridges, liquidity, transfers…) ──
+  const activity: ActivityBreakdown = { swaps: 0, bridges: 0, liquidity: 0, approvals: 0, transfers: 0, wraps: 0, contractCalls: 0 };
+  let nativeIn = 0;
+  let nativeOut = 0;
+  // Group ERC-20 transfers by tx hash: >=2 different tokens in one tx = swap pattern
+  const transfersByTx = new Map<string, Set<string>>();
+  for (const t of transferFeed.rows as Array<TransferRow & { transaction_hash?: string }>) {
+    const h = t.transaction_hash;
+    const tok = t.token_address?.toLowerCase();
+    if (!h || !tok) continue;
+    const set = transfersByTx.get(h) ?? new Set<string>();
+    set.add(tok);
+    transfersByTx.set(h, set);
+  }
+
+  for (const tx of txs) {
+    const outgoing = tx.from_address?.toLowerCase() === addr;
+    const value = parseFloat(tx.value || "0") || 0;
+    if (value > 0) { if (outgoing) nativeOut += value; else nativeIn += value; }
+    if (!outgoing) continue; // classify only txs the wallet initiated
+
+    const to = tx.to_address?.toLowerCase() ?? "";
+    const method = (tx.method_id ?? "").toLowerCase();
+    if (SWAP_CONTRACTS.has(to)) activity.swaps++;
+    else if (BRIDGE_CONTRACTS.has(to)) activity.bridges++;
+    else if (LIQUIDITY_CONTRACTS.has(to)) activity.liquidity++;
+    else if (to === WPROS_ADDR && (method === "0xd0e30db0" || method === "0x2e1a7d4d")) activity.wraps++;
+    else if (METHOD_KIND[method]) activity[METHOD_KIND[method]]++;
+    else if ((transfersByTx.get(tx.hash)?.size ?? 0) >= 2) activity.swaps++; // multi-token tx = swap-like
+    else if (value > 0 && tx.to_addr?.is_contract !== true) activity.transfers++;
+    else activity.contractCalls++;
+  }
+
+  // ── Token discovery + per-token in/out volume (ALL tokens, no fixed list) ─
+  const tokenMap = new Map<string, { symbol: string; transfers: number; decimals: number | null; logo: string | null; inAmount: number; outAmount: number; isErc20: boolean }>();
   for (const t of transferFeed.rows) {
     const key = t.token_address?.toLowerCase();
     if (!key) continue;
     const symbol = t.token_symbol || t.symbol || key.slice(0, 8);
-    const cur = tokenMap.get(key);
-    if (cur) cur.transfers++;
-    else tokenMap.set(key, { symbol, transfers: 1 });
+    const cur = tokenMap.get(key) ?? {
+      symbol, transfers: 0, decimals: t.decimals ?? null,
+      logo: t.token_logo_url ?? null, inAmount: 0, outAmount: 0,
+      isErc20: (t.token_type ?? "ERC20").toUpperCase() === "ERC20",
+    };
+    cur.transfers++;
+    const amt = parseFloat(t.value || "0") || 0; // explorer already returns human units
+    if (t.to_address?.toLowerCase() === addr) cur.inAmount += amt;
+    else if (t.from_address?.toLowerCase() === addr) cur.outAmount += amt;
+    tokenMap.set(key, cur);
   }
   const uniqueTokens = [...tokenMap.entries()]
     .map(([tokenAddress, v]) => ({ symbol: v.symbol, address: tokenAddress, transfers: v.transfers }))
     .sort((a, b) => b.transfers - a.transfers);
+
+  const tokenVolumes: TokenVolume[] = [...tokenMap.entries()]
+    .map(([tokenAddress, v]) => ({
+      symbol: v.symbol, address: tokenAddress, decimals: v.decimals,
+      inAmount: v.inAmount, outAmount: v.outAmount, transfers: v.transfers, logo: v.logo,
+    }))
+    .sort((a, b) => (b.inAmount + b.outAmount) - (a.inAmount + a.outAmount));
+
+  // ── Live balances for every discovered ERC-20 (+ native PROS) ────────────
+  const erc20List = [...tokenMap.entries()]
+    .filter(([, v]) => v.isErc20)
+    .slice(0, 30) // cap RPC fan-out
+    .map(([tokenAddress, v]) => ({ symbol: v.symbol, address: tokenAddress, decimals: v.decimals, logo: v.logo }));
+  const holdings = await fetchHoldings(addr, erc20List).catch(() => [] as TokenHolding[]);
 
   // ── Protocol detection ────────────────────────────────────────────────────
   const protocolSet = new Set<string>();
@@ -267,5 +449,10 @@ export async function getWalletIntel(address: string): Promise<WalletIntel> {
     flags,
     truncated,
     explorer: `https://pharos.socialscan.io/address/${address}`,
+    activity,
+    tokenVolumes: tokenVolumes.slice(0, 20),
+    nativeIn,
+    nativeOut,
+    holdings,
   };
 }

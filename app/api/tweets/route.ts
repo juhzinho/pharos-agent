@@ -1,7 +1,11 @@
 // Live tweets from @pharos_network — via Twitter's public syndication
 // endpoint (no API key required). Parses the embedded __NEXT_DATA__ JSON.
-// Cached for 10 minutes.
+// Cached for 10 minutes. Every successful fetch is merged into a permanent
+// on-disk archive (data/tweets-archive.json): the syndication feed only shows
+// the ~20 most recent tweets, so archiving guarantees old tweets stay in our
+// timeline forever even after they rotate out upstream.
 import { NextResponse } from "next/server";
+import { mergeIntoArchive, readArchive } from "@/lib/newsArchive";
 
 export interface Tweet {
   id: string;
@@ -106,13 +110,20 @@ export async function GET() {
     }
     if (tweets.length === 0) throw new Error("no tweets parsed");
 
-    // Newest first
-    tweets.sort((a, b) => Date.parse(b.createdAt || "0") - Date.parse(a.createdAt || "0"));
-    lastGood = { tweets, at: Date.now() };
-    return NextResponse.json({ tweets });
+    // Merge into the permanent archive — old tweets never disappear.
+    const all = await mergeIntoArchive("tweets-archive.json", tweets, (t) => t.id);
+    all.sort((a, b) => Date.parse(b.createdAt || "0") - Date.parse(a.createdAt || "0"));
+    lastGood = { tweets: all, at: Date.now() };
+    return NextResponse.json({ tweets: all });
   } catch (err) {
     if (lastGood) {
       return NextResponse.json({ tweets: lastGood.tweets, stale: true });
+    }
+    // Cold start + upstream down — serve whatever the archive has.
+    const archived = await readArchive<Tweet>("tweets-archive.json");
+    if (archived.length > 0) {
+      archived.sort((a, b) => Date.parse(b.createdAt || "0") - Date.parse(a.createdAt || "0"));
+      return NextResponse.json({ tweets: archived, stale: true });
     }
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 502 });

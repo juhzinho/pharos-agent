@@ -2,8 +2,11 @@
 // Parses the actual cards so every item carries its own link and image:
 //   Blog: <a href="/blog/slug">…<div class="researches-title">T</div><div class="blog-time">D</div>
 //   News: <div class="link-block-9 news">…<div class="text-block-20">T</div>…<a href="external-url">
-// Cached for 30 minutes; falls back with 502 so the client can degrade gracefully.
+// Cached for 30 minutes. Every successful scrape is merged into a permanent
+// on-disk archive (data/news-archive.json) so items that rotate off the
+// upstream page NEVER disappear from our feed.
 import { NextResponse } from "next/server";
+import { mergeIntoArchive, readArchive } from "@/lib/newsArchive";
 
 export interface NewsItem {
   title: string;
@@ -70,8 +73,18 @@ export async function GET() {
     }
 
     if (items.length === 0) throw new Error("no items parsed");
-    return NextResponse.json({ items });
+
+    // Merge into the permanent archive — returns fresh + all historical items.
+    const all = await mergeIntoArchive("news-archive.json", items, (i) => i.url);
+    all.sort((a, b) => Date.parse(b.date || "0") - Date.parse(a.date || "0"));
+    return NextResponse.json({ items: all });
   } catch (err) {
+    // Upstream failed — serve the archive so the feed never goes empty.
+    const archived = await readArchive<NewsItem>("news-archive.json");
+    if (archived.length > 0) {
+      archived.sort((a, b) => Date.parse(b.date || "0") - Date.parse(a.date || "0"));
+      return NextResponse.json({ items: archived, stale: true });
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 502 });
   }

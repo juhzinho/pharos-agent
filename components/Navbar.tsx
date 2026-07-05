@@ -61,6 +61,7 @@ export default function Navbar({
 
   const navLinks = [
     { label: "Chat",      href: "/chat"      },
+    { label: "Wallet",    href: "/wallet"    },
     { label: "Ecosystem", href: "/ecosystem" },
     { label: "Trade",     href: "/trade"     },
     { label: "Campaigns", href: "/campaigns" },
