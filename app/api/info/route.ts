@@ -16,12 +16,25 @@ export async function GET(req: Request) {
       "(dapps, RWA, DeFi concepts), read-only swap/bridge quotes via LI.FI, on-chain wallet " +
       "intelligence, and a plain-language transaction explainer. Non-custodial — this API never " +
       "signs or broadcasts transactions.",
-    version: "2.0",
+    version: "2.1",
     capabilities: [
       "knowledge", "swap-quote", "bridge-quote", "token-price",
-      "wallet-profile", "explain-tx", "campaigns", "news",
+      "wallet-profile", "wallet-score", "explain-tx", "campaigns", "news",
     ],
     endpoints: {
+      walletScore: {
+        method: "POST",
+        path: "/api/skill/wallet-score",
+        body: { address: "string — 0x + 40 hex chars" },
+        returns: {
+          score: "number 0-100 across 6 categories",
+          level: "'Newcomer'…'Legend' with emoji badge",
+          categories: "[{id, label, points, max, detail}]",
+          gasSpentPros: "number", protocols: "string[]", monthly: "[{month, txs}]",
+          flags: "string[] — heuristic badges (whale-volume, rwa-investor…)",
+        },
+        safety: "read-only — no signature, zero gas",
+      },
       walletProfile: {
         method: "POST",
         path: "/api/skill/wallet-profile",

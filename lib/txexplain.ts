@@ -17,7 +17,46 @@ export interface TxExplanation {
   blockNumber: number | null;
   action: string;        // decoded human description (EN, translated in UI)
   selector: string | null;
+  revertReason: string | null; // decoded revert reason for failed txs
   explorerUrl: string;
+}
+
+// Solidity panic codes (selector 0x4e487b71).
+const PANIC_CODES: Record<number, string> = {
+  0x01: "assertion failed (assert)",
+  0x11: "arithmetic overflow/underflow",
+  0x12: "division by zero",
+  0x21: "invalid enum value",
+  0x22: "corrupted storage byte array",
+  0x31: "pop() on empty array",
+  0x32: "array index out of bounds",
+  0x41: "out of memory",
+  0x51: "call to uninitialized function",
+};
+
+// Decodes standard revert payloads: Error(string), Panic(uint256) or a custom
+// error selector. Returns null when there is nothing to decode.
+export function decodeRevertData(data: string | null | undefined): string | null {
+  if (!data || data === "0x") return null;
+  const hex = data.toLowerCase();
+  if (hex.startsWith("0x08c379a0")) {
+    // Error(string): selector + offset(32) + length(32) + utf8 bytes
+    try {
+      const body = hex.slice(10);
+      const len = Number(BigInt("0x" + body.slice(64, 128)));
+      const strHex = body.slice(128, 128 + len * 2);
+      let out = "";
+      for (let i = 0; i < strHex.length; i += 2) out += String.fromCharCode(parseInt(strHex.slice(i, i + 2), 16));
+      return out || null;
+    } catch { return null; }
+  }
+  if (hex.startsWith("0x4e487b71")) {
+    try {
+      const code = Number(BigInt("0x" + hex.slice(10)));
+      return `Panic 0x${code.toString(16)}: ${PANIC_CODES[code] ?? "unknown panic"}`;
+    } catch { return "Panic (arithmetic or internal error)"; }
+  }
+  return `custom error ${hex.slice(0, 10)}`;
 }
 
 const KNOWN_SELECTORS: Record<string, string> = {
@@ -51,7 +90,12 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<unkn
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
   const j = await res.json();
-  if (j.error) throw new Error(j.error.message ?? "RPC error");
+  if (j.error) {
+    // Preserve `data` — it carries the ABI-encoded revert payload on eth_call.
+    const err = new Error(j.error.message ?? "RPC error") as Error & { data?: string };
+    if (typeof j.error.data === "string") err.data = j.error.data;
+    throw err;
+  }
   return j.result;
 }
 
@@ -113,6 +157,22 @@ export async function explainTx(hash: string, preferred: PharosNetworkId): Promi
     const gasPrice = receipt?.effectiveGasPrice ?? tx.gasPrice;
     const gasCostPros = gasUsed != null && gasPrice ? (gasUsed * Number(BigInt(gasPrice))) / 1e18 : null;
 
+    // For failed txs: replay via eth_call at that block to capture and decode
+    // the revert reason (Error(string), Panic code or custom error selector).
+    let revertReason: string | null = null;
+    if (receipt && receipt.status !== "0x1") {
+      try {
+        await rpc(net.rpc, "eth_call", [
+          { from: tx.from, to: tx.to, value: tx.value, data: input },
+          receipt.blockNumber,
+        ]);
+      } catch (err) {
+        const e = err as { message?: string; data?: string };
+        revertReason = decodeRevertData(e?.data)
+          ?? (e?.message ? e.message.replace(/^execution reverted:?\s*/i, "").trim() || "execution reverted" : null);
+      }
+    }
+
     return {
       hash,
       network: netId,
@@ -126,6 +186,7 @@ export async function explainTx(hash: string, preferred: PharosNetworkId): Promi
       blockNumber: receipt ? Number(BigInt(receipt.blockNumber)) : tx.blockNumber ? Number(BigInt(tx.blockNumber)) : null,
       action,
       selector,
+      revertReason,
       explorerUrl: net.explorerTx + hash,
     };
   }
@@ -143,6 +204,7 @@ export async function explainTx(hash: string, preferred: PharosNetworkId): Promi
     blockNumber: null,
     action: "not found",
     selector: null,
+    revertReason: null,
     explorerUrl: PHAROS_NETWORKS[preferred].explorerTx + hash,
   };
 }
@@ -203,6 +265,12 @@ export function formatTxExplanation(e: TxExplanation, lang: "pt" | "en"): string
   }
   if (e.status === "failed") {
     rows.push("");
+    if (e.revertReason) {
+      rows.push(lang === "pt"
+        ? `**Motivo da falha:** \`${e.revertReason}\``
+        : `**Failure reason:** \`${e.revertReason}\``);
+      rows.push("");
+    }
     rows.push(
       lang === "pt"
         ? "_A transação foi incluída no bloco mas **reverteu** — nenhum valor foi movido (só o gas foi gasto). Causas comuns: slippage, allowance insuficiente ou condição do contrato não atendida._"

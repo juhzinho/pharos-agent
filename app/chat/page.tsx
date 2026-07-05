@@ -46,6 +46,8 @@ import { ECOSYSTEM_DAPPS, PHAROS_PARTNERS } from "@/lib/knowledge";
 import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } from "@/lib/prices";
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
+import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
+import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
@@ -189,6 +191,7 @@ interface Message {
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
   approvePending?: BuiltTx;            // ERC-20 approval to sign
   priceChart?: { symbol: string };     // interactive price chart card
+  walletIntel?: WalletIntel;           // wallet score intelligence card
   isLoading?: boolean;
   isSearching?: boolean;
   isError?: boolean;
@@ -2394,6 +2397,8 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
         {msg.priceChart && <PriceChartCard symbol={msg.priceChart.symbol} />}
 
+        {msg.walletIntel && <WalletScoreCard intel={msg.walletIntel} lang={lang} />}
+
         {msg.transferPending && walletAddress && (
           <TransferCard
             build={msg.transferPending}
@@ -2434,7 +2439,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -2445,6 +2450,10 @@ const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; 
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M1 7h12" /></svg> },
   { label: "My Positions", action: "positions",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="1.5" y="4" width="11" height="8" rx="1.5"/><path d="M4 4V3a3 3 0 016 0v1"/></svg> },
+  { label: "Wallet Score", action: "score",
+    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1l1.8 3.7 4.2.6-3 2.9.7 4.1L7 10.4 3.3 12.3l.7-4.1-3-2.9 4.2-.6L7 1z"/></svg> },
+  { label: "RealFi Positions", action: "realfi",
+    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1.5 12.5h11M2.5 12.5V6M5.5 12.5V6M8.5 12.5V6M11.5 12.5V6M1 6l6-4.5L13 6"/></svg> },
   { label: "What is Pharos?", text: "explain the Pharos Network architecture and what makes it unique",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="7" cy="7" r="6"/><path d="M7 6v4M7 4.5v.5"/></svg> },
   { label: "DeFi Protocols", text: "what DeFi protocols are available on Pharos?",
@@ -2481,6 +2490,114 @@ const WELCOME_CARDS: Array<{ icon: React.ReactNode; title: string; desc: string;
     color: "#f472b6",
   },
 ];
+
+// ─── Wallet Score card (0-100 gauge + 6 category bars + protocols) ──────────
+
+const LEVEL_COLORS: Record<string, string> = {
+  Legend: "#f59e0b", Diamond: "#38bdf8", Gold: "#fbbf24",
+  Silver: "#cbd5e1", Bronze: "#d97706", Newcomer: "#94a3b8",
+};
+
+function WalletScoreCard({ intel, lang }: { intel: WalletIntel; lang: "pt" | "en" }) {
+  const color = LEVEL_COLORS[intel.level] ?? "#00d4ff";
+  const R = 42;
+  const CIRC = 2 * Math.PI * R;
+  const dash = (intel.score / 100) * CIRC;
+
+  const FLAG_LABELS: Record<string, { pt: string; en: string }> = {
+    "high-failure-rate": { pt: "⚠ Muitas transações falhando", en: "⚠ High failure rate" },
+    "whale-volume":      { pt: "🐋 Volume de whale", en: "🐋 Whale volume" },
+    "defi-power-user":   { pt: "⚡ Power user DeFi", en: "⚡ DeFi power user" },
+    "consistent-user":   { pt: "📅 Usuário consistente", en: "📅 Consistent user" },
+    "rwa-investor":      { pt: "🏦 Investidor RWA", en: "🏦 RWA investor" },
+  };
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center gap-5 flex-wrap">
+        {/* Gauge */}
+        <div className="relative shrink-0" style={{ width: 116, height: 116 }}>
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="8" />
+            <circle cx="50" cy="50" r={R} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={`${dash} ${CIRC - dash}`}
+              style={{ filter: `drop-shadow(0 0 6px ${color}66)`, transition: "stroke-dasharray 0.8s ease" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-white leading-none">{intel.score}</span>
+            <span className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(148,163,184,0.6)" }}>/100</span>
+          </div>
+        </div>
+
+        {/* Level + headline stats */}
+        <div className="flex-1 min-w-[180px]">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{intel.levelEmoji}</span>
+            <span className="text-base font-bold" style={{ color }}>{intel.level}</span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]" style={{ color: "rgba(200,215,235,0.75)" }}>
+            <span>{lang === "pt" ? "Transações" : "Transactions"}: <b className="text-white">{intel.txTotal.toLocaleString("en-US")}</b></span>
+            <span>{lang === "pt" ? "Gás gasto" : "Gas spent"}: <b className="text-white">{intel.gasSpentPros.toFixed(4)} PROS</b></span>
+            <span>{lang === "pt" ? "Tokens únicos" : "Unique tokens"}: <b className="text-white">{intel.uniqueTokens.length}</b></span>
+            <span>{lang === "pt" ? "Meses ativos" : "Active months"}: <b className="text-white">{intel.activeMonths}</b></span>
+            {intel.failedTxs > 0 && (
+              <span>{lang === "pt" ? "Txs falhadas" : "Failed txs"}: <b style={{ color: "#fbbf24" }}>{intel.failedTxs}</b></span>
+            )}
+            <span>{lang === "pt" ? "Protocolos" : "Protocols"}: <b className="text-white">{intel.protocols.length}</b></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Category bars */}
+      <div className="mt-4 flex flex-col gap-2">
+        {intel.categories.map((c) => {
+          const pct = (c.points / c.max) * 100;
+          return (
+            <div key={c.id}>
+              <div className="flex items-center justify-between text-[10px] mb-0.5">
+                <span style={{ color: "rgba(200,215,235,0.7)" }}>{lang === "pt" ? c.labelPt : c.label}</span>
+                <span className="font-data" style={{ color: "rgba(148,163,184,0.6)" }}>{c.points}/{c.max} · {c.detail}</span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, transition: "width 0.6s ease" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Protocols + flags */}
+      {(intel.protocols.length > 0 || intel.flags.length > 0) && (
+        <div className="mt-3.5 flex gap-1.5 flex-wrap">
+          {intel.protocols.map((p) => (
+            <span key={p} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={{ background: "rgba(0,212,255,0.07)", border: "1px solid rgba(0,212,255,0.16)", color: "rgba(125,211,252,0.85)" }}>
+              {p}
+            </span>
+          ))}
+          {intel.flags.map((f) => (
+            <span key={f} className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={{ background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.18)", color: "rgba(110,231,183,0.85)" }}>
+              {(FLAG_LABELS[f] ?? { pt: f, en: f })[lang]}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+        <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.45)" }}>
+          {intel.truncated
+            ? (lang === "pt" ? `Amostra: ${intel.txSampled} txs mais recentes` : `Sample: latest ${intel.txSampled} txs`)
+            : (lang === "pt" ? "Histórico completo analisado" : "Full history analyzed")}
+        </span>
+        <a href={intel.explorer} target="_blank" rel="noopener noreferrer"
+          className="text-[11px] font-semibold hover:underline" style={{ color: "rgba(0,212,255,0.75)" }}>
+          {lang === "pt" ? "Ver no explorer ↗" : "View on explorer ↗"}
+        </a>
+      </div>
+    </div>
+  );
+}
 
 // ─── main chat page ────────────────────────────────────────────────────────
 
@@ -3506,9 +3623,91 @@ export default function ChatPage() {
     }
   }
 
+  // ── Wallet Intelligence score (public /api/skill/wallet-score) ───────────
+  async function runWalletScore(msgId: string, target: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const res = await fetch("/api/skill/wallet-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: target }),
+      });
+      const intel = await res.json() as WalletIntel & { available?: boolean; error?: string };
+      if (opSeqRef.current !== seq) return;
+      if (!res.ok || intel.available === false) throw new Error(intel.error || `HTTP ${res.status}`);
+      const short = `${target.slice(0, 6)}…${target.slice(-4)}`;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? `🏆 **Wallet Score** de \`${short}\` — nível **${intel.level}** ${intel.levelEmoji} com **${intel.score}/100** pontos:`
+          : `🏆 **Wallet Score** for \`${short}\` — level **${intel.level}** ${intel.levelEmoji} with **${intel.score}/100** points:`,
+        walletIntel: intel,
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to compute wallet score: ${msg}` });
+    }
+  }
+
+  // ── RealFi positions (9 protocols, live on-chain balances + NAV) ─────────
+  async function runRealFiPositions(msgId: string, target: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const positions = await getRealFiPositions(target);
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, { isLoading: false, text: formatRealFiPositions(target, positions, lang) });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read RealFi positions: ${msg}` });
+    }
+  }
+
+  // ── Multi-wallet aggregator (2+ addresses in one message) ────────────────
+  async function runMultiWallet(msgId: string, addresses: string[]) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      // Sequential — the public RPC rate-limits parallel bursts across wallets.
+      const analyses = [] as Awaited<ReturnType<typeof getWalletAnalysis>>[];
+      for (const addr of addresses) analyses.push(await getWalletAnalysis(addr, "mainnet"));
+      if (opSeqRef.current !== seq) return;
+
+      const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+      // Consolidated per-token totals across all wallets.
+      const totals = new Map<string, number>();
+      let totalUsd = 0, totalTxs = 0;
+      for (const a of analyses) {
+        totalUsd += a.totalUsd;
+        totalTxs += a.txCount;
+        for (const h of a.holdings) totals.set(h.symbol, (totals.get(h.symbol) ?? 0) + h.balance);
+      }
+      const richest = analyses.reduce((best, a) => (a.totalUsd > best.totalUsd ? a : best), analyses[0]);
+      const mostActive = analyses.reduce((best, a) => (a.txCount > best.txCount ? a : best), analyses[0]);
+
+      const walletRows = analyses.map((a) =>
+        `| [\`${short(a.address)}\`](${a.explorer}) | ${a.holdings.length} | ${a.txCount.toLocaleString("en-US")} | $${a.totalUsd.toFixed(2)} |`).join("\n");
+      const tokenRows = [...totals.entries()]
+        .sort(([, x], [, y]) => y - x)
+        .map(([sym, bal]) => `| **${sym}** | ${bal.toLocaleString("en-US", { maximumFractionDigits: 6 })} |`).join("\n");
+
+      const text = lang === "pt"
+        ? `👛 **Agregado de ${analyses.length} carteiras** (Pharos Mainnet)\n\n| Carteira | Tokens | Txs | Valor |\n|---|---|---|---|\n${walletRows}\n\n**Portfólio consolidado:**\n\n| Token | Total |\n|---|---|\n${tokenRows}\n\n- Valor total estimado: **$${totalUsd.toFixed(2)}**\n- Transações combinadas: **${totalTxs.toLocaleString("en-US")}**\n- Mais rica: \`${short(richest.address)}\` · Mais ativa: \`${short(mostActive.address)}\``
+        : `👛 **Aggregate of ${analyses.length} wallets** (Pharos Mainnet)\n\n| Wallet | Tokens | Txs | Value |\n|---|---|---|---|\n${walletRows}\n\n**Consolidated portfolio:**\n\n| Token | Total |\n|---|---|\n${tokenRows}\n\n- Estimated total value: **$${totalUsd.toFixed(2)}**\n- Combined transactions: **${totalTxs.toLocaleString("en-US")}**\n- Richest: \`${short(richest.address)}\` · Most active: \`${short(mostActive.address)}\``;
+      updateMessage(msgId, { isLoading: false, text });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to aggregate wallets: ${msg}` });
+    }
+  }
+
   // Quick actions: clicking an on-chain function starts the guided flow
   // instantly — no auto-message, no LLM round-trip.
-  function handleQuickAction(kind: "swap" | "bridge" | "liquidity" | "positions" | "wallet") {
+  function handleQuickAction(kind: QuickActionKind) {
     const lang = guessUserLang(messages);
     if (!walletAddress) {
       addMessage({
@@ -3531,6 +3730,14 @@ export default function ChatPage() {
       case "wallet":
         updateMessage(id, { text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…" });
         void runWalletAnalysisDirect(id);
+        break;
+      case "score":
+        updateMessage(id, { text: lang === "pt" ? "Calculando o score da sua carteira…" : "Computing your wallet score…" });
+        void runWalletScore(id, walletAddress);
+        break;
+      case "realfi":
+        updateMessage(id, { text: lang === "pt" ? "Lendo suas posições RealFi nos 9 protocolos…" : "Reading your RealFi positions across 9 protocols…" });
+        void runRealFiPositions(id, walletAddress);
         break;
     }
   }
@@ -3588,6 +3795,56 @@ export default function ChatPage() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         updateMessage(thinkingId, { isLoading: false, isError: true, text: `RPC error: ${msg}` });
+      }
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Deterministic wallet-intelligence fast paths (no LLM round-trip).
+    const typedAddresses = [...new Set((text.match(/0x[a-fA-F0-9]{40}/g) ?? []).map((a) => a.toLowerCase()))];
+
+    // Multi-wallet aggregator: 2+ addresses in one message + a wallet-ish verb.
+    if (typedAddresses.length >= 2 && /\b(carteiras?|wallets?|agrega|aggregate|compar|combin|analis|analy[sz]|saldos?|balances?|total)\b/i.test(text)) {
+      void runMultiWallet(thinkingId, typedAddresses);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Wallet score: "score da carteira", "wallet score", "rank my wallet"…
+    if (/\b(score|pontua[çc][aã]o|rank|n[íi]vel|level|grade|classifica[çc][aã]o)\b/i.test(text) && /\b(carteira|wallet|endere[çc]o|address|minha|my|0x)\b/i.test(text)) {
+      const target = typedAddresses[0] ?? (walletAddress || null);
+      if (!target) {
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: fastLang === "pt"
+            ? "Para calcular o score, conecte sua carteira ou me passe um endereço 0x… 🔗"
+            : "To compute a score, connect your wallet or paste a 0x… address. 🔗",
+        });
+      } else {
+        updateMessage(thinkingId, { text: fastLang === "pt" ? "Calculando o wallet score…" : "Computing the wallet score…" });
+        await runWalletScore(thinkingId, target);
+      }
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // RealFi positions: protocol names or "posições RWA/RealFi" + ownership context.
+    if (/\b(realfi|rwa|p-?alpha|vrpc|termmax|jtrsy|aquaflux|zona|openfi|ember|vaults?)\b/i.test(text)
+      && (/\b(posi[çc][õo]es?|positions?|minhas?|meus?|my|tenho|hold|check|verifica|mostra|show)\b/i.test(text) || typedAddresses.length > 0)) {
+      const target = typedAddresses[0] ?? (walletAddress || null);
+      if (!target) {
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: fastLang === "pt"
+            ? "Para ver posições RealFi, conecte sua carteira ou me passe um endereço 0x… 🔗"
+            : "To view RealFi positions, connect your wallet or paste a 0x… address. 🔗",
+        });
+      } else {
+        updateMessage(thinkingId, { text: fastLang === "pt" ? "Lendo posições RealFi nos 9 protocolos…" : "Reading RealFi positions across 9 protocols…" });
+        await runRealFiPositions(thinkingId, target);
       }
       setIsSending(false);
       inputRef.current?.focus();
@@ -4242,8 +4499,10 @@ export default function ChatPage() {
                 { label: "Add Liquidity",      icon: "+", action: "liquidity" as const, color: "#34d399" },
                 { label: "My LP Positions",    icon: "◈", action: "positions" as const, color: "#fbbf24" },
                 { label: "Wallet Analysis",    icon: "◎", action: "wallet" as const, color: "#f472b6" },
+                { label: "Wallet Score",       icon: "★", action: "score" as const, color: "#f59e0b" },
+                { label: "RealFi Positions",   icon: "🏦", action: "realfi" as const, color: "#34d399" },
                 { label: "Pharos Protocols",   icon: "⬡", prompt: "what DeFi protocols are on Pharos?", color: "#38bdf8" },
-              ] as Array<{ label: string; icon: string; color: string; action?: "swap" | "bridge" | "liquidity" | "positions" | "wallet"; prompt?: string }>).map((item) => (
+              ] as Array<{ label: string; icon: string; color: string; action?: QuickActionKind; prompt?: string }>).map((item) => (
                 <button key={item.label}
                   onClick={() => {
                     if (item.action) handleQuickAction(item.action);
