@@ -30,14 +30,13 @@ import {
   wasConnected,
   disconnectWallet,
   getCurrentChainId,
-  ensurePharosNetwork,
-  PHAROS_CHAIN_ID_HEX,
   discoverWallets,
   getActiveProvider,
   getBrowserProvider,
   type WalletOption,
 } from "@/lib/wallet";
 import { TOKENS, type TokenSymbol } from "@/lib/tokens";
+import { getSelectedNetwork, onNetworkChange } from "@/lib/network";
 import { getStats, recordTransaction, getPrefsContext, updateLanguage, updateConversationStyle, type UserStats } from "@/lib/memory";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 import { getWalletAnalysis, formatWalletAnalysis } from "@/lib/walletAnalysis";
@@ -2112,8 +2111,15 @@ export default function ChatPage() {
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
   const [chainId, setChainId] = useState<string | null>(null);
   const [walletPickerOptions, setWalletPickerOptions] = useState<WalletOption[] | null>(null);
+  const [selectedNetwork, setSelectedNetworkState] = useState<PharosNetworkId>("mainnet");
 
-  const isWrongNetwork = !!walletAddress && !!chainId && chainId.toLowerCase() !== PHAROS_CHAIN_ID_HEX;
+  useEffect(() => {
+    setSelectedNetworkState(getSelectedNetwork());
+    return onNetworkChange(setSelectedNetworkState);
+  }, []);
+
+  const expectedChainHex = PHAROS_NETWORKS[selectedNetwork].chainIdHex.toLowerCase();
+  const isWrongNetwork = !!walletAddress && !!chainId && chainId.toLowerCase() !== expectedChainHex;
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -2256,7 +2262,7 @@ export default function ChatPage() {
 
   async function handleSwitchNetwork() {
     try {
-      await ensurePharosNetwork();
+      await switchToChain(selectedNetwork === "testnet" ? "PharosTestnet" : "Pharos");
       setChainId(await getCurrentChainId());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -2582,7 +2588,11 @@ export default function ChatPage() {
             updateMessage(thinkingId, { isLoading: false, text: groqResult.reply });
           } else {
             try {
-              const network: PharosNetworkId = /\b(testnet|atlantic)\b/i.test(text) ? "testnet" : "mainnet";
+              const network: PharosNetworkId = /\b(testnet|atlantic)\b/i.test(text)
+                ? "testnet"
+                : /\bmainnet\b/i.test(text)
+                ? "mainnet"
+                : selectedNetwork;
               const build = buildTransferTxs(groqResult.transfers, network);
               updateMessage(thinkingId, {
                 isLoading: false,
@@ -3107,14 +3117,14 @@ export default function ChatPage() {
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="text-base shrink-0">⚠️</span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white">Conecte-se à rede Pharos</p>
-                <p className="text-[11px]" style={{ color: "rgba(251,191,36,0.8)" }}>Troque para Pharos (Chain ID 1672) para negociar.</p>
+                <p className="text-sm font-semibold text-white">Conecte-se à rede {PHAROS_NETWORKS[selectedNetwork].label}</p>
+                <p className="text-[11px]" style={{ color: "rgba(251,191,36,0.8)" }}>Troque para {PHAROS_NETWORKS[selectedNetwork].label} (Chain ID {PHAROS_NETWORKS[selectedNetwork].chainId}) para continuar.</p>
               </div>
             </div>
             <button onClick={handleSwitchNetwork}
               className="shrink-0 px-4 py-2 rounded-xl font-semibold text-xs text-black transition-all duration-200 hover:scale-[1.03]"
               style={{ background: "linear-gradient(135deg, #00d4ff, #38bdf8)", boxShadow: "0 4px 14px rgba(0,212,255,0.3)" }}>
-              Trocar para Pharos
+              Trocar de rede
             </button>
           </div>
         </div>

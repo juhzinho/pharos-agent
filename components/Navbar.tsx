@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import PriceTicker from "@/components/PriceTicker";
+import NetworkSwitcher from "@/components/NetworkSwitcher";
 import type { WalletOption } from "@/lib/wallet";
 
 interface WalletPicker {
@@ -113,6 +114,7 @@ export default function Navbar({
         {/* Wallet / CTA */}
         <div className="flex items-center gap-2.5 shrink-0">
           <PriceTicker />
+          <NetworkSwitcher />
 
           {walletAddress ? (
             <div className="flex items-center gap-2 shrink-0">
