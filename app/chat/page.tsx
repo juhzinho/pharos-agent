@@ -2995,8 +2995,27 @@ export default function ChatPage() {
             const usdc  = (r.amount1USDC  + r.feesUSDC).toFixed(4);
             return `Liquidity removed! Received ${wpros} WPROS + ${usdc} USDC from NFT #${String(r.tokenId)}.`;
           })()
+        : m.transferPending
+        ? (() => {
+            const totals = Object.entries(m.transferPending.totalByToken)
+              .map(([sym, amt]) => `${amt.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${sym}`)
+              .join(" + ");
+            const n = m.transferPending.txs.length;
+            return n > 1 ? `Payment sent! ${totals} delivered across ${n} transfers.` : `Payment sent! ${totals} delivered.`;
+          })()
+        : m.approvePending
+        ? `Approval confirmed! ${m.approvePending.description}`
         : m.pending?.description ?? "Transaction sent!";
-      return { ...m, pending: undefined, liquidityPending: undefined, removeLiquidityPending: undefined, text: successText, txHash: hash };
+      return {
+        ...m,
+        pending: undefined,
+        liquidityPending: undefined,
+        removeLiquidityPending: undefined,
+        transferPending: undefined,
+        approvePending: undefined,
+        text: successText,
+        txHash: hash,
+      };
     }));
     getBalance(walletAddress).then(setBalance);
 
@@ -3032,6 +3051,8 @@ export default function ChatPage() {
       pending: undefined,
       liquidityPending: undefined,
       removeLiquidityPending: undefined,
+      transferPending: undefined,
+      approvePending: undefined,
       isError: true,
       text: lang === "pt"
         ? `❌ A transação falhou (revertida on-chain). Veja no [Pharosscan](${link}). Quer tentar de novo?`
