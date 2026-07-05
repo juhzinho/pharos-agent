@@ -287,18 +287,6 @@ const EXPLORE_SECTIONS = [
     ),
   },
   {
-    href: "/request",
-    title: "Payment Request",
-    desc: "Create a shareable invoice link — get paid in PROS with one click.",
-    color: "#6ee7b7",
-    tag: "Payments",
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-        <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-      </svg>
-    ),
-  },
-  {
     href: "/chat",
     title: "Wallet Intelligence",
     desc: "On-chain profile of any wallet + plain-language transaction explainer.",
