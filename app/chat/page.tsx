@@ -2417,7 +2417,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         )}
 
         {msg.txHash && (
-          <a href={`https://pharos.socialscan.io/tx/${msg.txHash}`} target="_blank" rel="noopener noreferrer"
+          <a href={`${PHAROS_NETWORKS[getSelectedNetwork()].explorerTx}${msg.txHash}`} target="_blank" rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-200 text-xs font-semibold"
             style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.18)", color: "rgba(52,211,153,0.85)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(16,185,129,0.14)"; }}
@@ -3121,6 +3121,21 @@ export default function ChatPage() {
   // Short "cancel"-style messages abort active flows instantly, no LLM round-trip.
   const CANCEL_RE = /^\s*(cancela(r)?|cancel|stop|para|parar|aborta(r)?|esquece|deixa)\s*[.!]?\s*$/i;
 
+  // DeFi contracts (FaroSwap V3, LI.FI, CCIP/CCTP) only exist on Pharos
+  // Mainnet — on Atlantic Testnet those flows stop early with a clear
+  // explanation of what DOES work there, so networks never get mixed up.
+  function testnetGateText(lang: "pt" | "en"): string {
+    return lang === "pt"
+      ? "Você está na **Atlantic Testnet** 🧪\n\nOs contratos que eu uso para swap, bridge e liquidez (FaroSwap V3, LI.FI, Chainlink CCIP, Circle CCTP) só existem na **Pharos Mainnet** — então essas funções ficam desativadas aqui para não misturar as redes.\n\nO que funciona na testnet:\n- 💸 **Enviar PHRS** — ex.: \"envie 0.1 PHRS para 0x…\"\n- 👛 **Análise de carteira** — saldo de PHRS + contagem de transações\n- 🔎 **Explicar transação** — cole um hash da testnet\n- 🚰 **Faucet** — pegue PHRS de teste em https://testnet.pharosnetwork.xyz\n\nPara swap, bridge ou liquidez, troque para **Pharos Mainnet** no seletor de rede no topo. 🔄"
+      : "You're on **Atlantic Testnet** 🧪\n\nThe contracts I use for swap, bridge and liquidity (FaroSwap V3, LI.FI, Chainlink CCIP, Circle CCTP) only exist on **Pharos Mainnet** — so those flows are disabled here to keep the networks from mixing.\n\nWhat works on testnet:\n- 💸 **Send PHRS** — e.g. \"send 0.1 PHRS to 0x…\"\n- 👛 **Wallet analysis** — PHRS balance + transaction count\n- 🔎 **Explain a transaction** — paste a testnet hash\n- 🚰 **Faucet** — grab test PHRS at https://testnet.pharosnetwork.xyz\n\nFor swap, bridge or liquidity, switch to **Pharos Mainnet** in the network selector at the top. 🔄";
+  }
+
+  function gateTestnetDeFi(msgId: string, lang: "pt" | "en"): boolean {
+    if (selectedNetwork !== "testnet") return false;
+    updateMessage(msgId, { isLoading: false, text: testnetGateText(lang) });
+    return true;
+  }
+
   // ── Guided bridge flow ─────────────────────────────────────────────────
   // Every bridge request goes through this wizard: token pick (with live
   // balances), amount (typed or 25/50/75/100%), destination chain — then a
@@ -3128,6 +3143,7 @@ export default function ChatPage() {
   async function startBridgeWizard(msgId: string, pre: { token?: string; amount?: number; chain?: string }) {
     const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
+    if (gateTestnetDeFi(msgId, lang)) return;
     updateMessage(msgId, {
       isLoading: true,
       text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
@@ -3289,6 +3305,7 @@ export default function ChatPage() {
   async function startSwapWizard(msgId: string, pre: { from?: string; amount?: number; to?: string }) {
     const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
+    if (gateTestnetDeFi(msgId, lang)) return;
     updateMessage(msgId, {
       isLoading: true,
       text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
@@ -3373,6 +3390,7 @@ export default function ChatPage() {
   async function startLiquidityWizard(msgId: string, pre: { amount?: number; feeTier?: number; rangePercent?: number }) {
     const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
+    if (gateTestnetDeFi(msgId, lang)) return;
     updateMessage(msgId, {
       isLoading: true,
       text: lang === "pt" ? "Lendo os saldos da sua carteira…" : "Reading your wallet balances…",
@@ -3442,6 +3460,7 @@ export default function ChatPage() {
   // ── Direct read-only actions (no LLM round-trip) ─────────────────────────
   async function runViewPositions(msgId: string) {
     const seq = opSeqRef.current;
+    if (gateTestnetDeFi(msgId, guessUserLang(messages))) return;
     try {
       const positions = await fetchUserPositions(walletAddress);
       if (opSeqRef.current !== seq) return;
@@ -3458,9 +3477,9 @@ export default function ChatPage() {
     const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
     try {
-      const analysis = await getWalletAnalysis(walletAddress);
+      const analysis = await getWalletAnalysis(walletAddress, selectedNetwork);
       if (opSeqRef.current !== seq) return;
-      updateMessage(msgId, { isLoading: false, text: formatWalletAnalysis(analysis, lang) });
+      updateMessage(msgId, { isLoading: false, text: formatWalletAnalysis(analysis, lang, selectedNetwork) });
     } catch (err) {
       if (opSeqRef.current !== seq) return;
       const msg = err instanceof Error ? err.message : String(err);
@@ -3542,7 +3561,10 @@ export default function ChatPage() {
     if (pastedHash) {
       updateMessage(thinkingId, { isLoading: true });
       try {
-        const explanation = await explainTx(pastedHash, "mainnet");
+        // Look on the selected network first, then fall back to the other one
+        // (a pasted hash may belong to either network).
+        const other: PharosNetworkId = selectedNetwork === "mainnet" ? "testnet" : "mainnet";
+        const explanation = await explainTx(pastedHash, selectedNetwork).catch(() => explainTx(pastedHash, other));
         updateMessage(thinkingId, { isLoading: false, text: formatTxExplanation(explanation, fastLang) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -3704,7 +3726,8 @@ export default function ChatPage() {
         if (groqResult.action === "explain_tx" && groqResult.txHash) {
           const lang = guessUserLang(messages);
           try {
-            const explanation = await explainTx(groqResult.txHash, "mainnet");
+            const other: PharosNetworkId = selectedNetwork === "mainnet" ? "testnet" : "mainnet";
+            const explanation = await explainTx(groqResult.txHash, selectedNetwork).catch(() => explainTx(groqResult.txHash!, other));
             updateMessage(thinkingId, { isLoading: false, text: formatTxExplanation(explanation, lang) });
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -3847,8 +3870,8 @@ export default function ChatPage() {
           }
           updateMessage(thinkingId, { text: safeReply + "\n\nReading Pharos balances…" });
           try {
-            const analysis = await getWalletAnalysis(target);
-            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + formatWalletAnalysis(analysis, lang) });
+            const analysis = await getWalletAnalysis(target, selectedNetwork);
+            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + formatWalletAnalysis(analysis, lang, selectedNetwork) });
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             updateMessage(thinkingId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });
@@ -4107,7 +4130,7 @@ export default function ChatPage() {
   // card with an honest failure + Pharosscan link. NOT a success.
   function handleTxReverted(id: string, hash: string) {
     const lang = guessUserLang(messages);
-    const link = `https://pharos.socialscan.io/tx/${hash}`;
+    const link = `${PHAROS_NETWORKS[selectedNetwork].explorerTx}${hash}`;
     updateMessage(id, {
       pending: undefined,
       liquidityPending: undefined,

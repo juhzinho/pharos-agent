@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import PriceTicker from "@/components/PriceTicker";
 import NetworkSwitcher from "@/components/NetworkSwitcher";
 import type { WalletOption } from "@/lib/wallet";
+import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
+import { getSelectedNetwork, onNetworkChange } from "@/lib/network";
 
 interface WalletPicker {
   options: WalletOption[];
@@ -38,6 +40,12 @@ export default function Navbar({
 }: NavbarProps) {
   const pathname = usePathname();
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [network, setNetwork] = useState<PharosNetworkId>("mainnet");
+
+  useEffect(() => {
+    setNetwork(getSelectedNetwork());
+    return onNetworkChange(setNetwork);
+  }, []);
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -140,7 +148,7 @@ export default function Navbar({
                     <span className="text-xs font-data font-semibold" style={{ color: "#fbbf24" }}>Wrong network</span>
                   ) : (
                     <span className="text-xs font-data font-semibold" style={{ color: "#00d4ff" }}>
-                      {balance} <span className="opacity-60">PROS</span>
+                      {balance} <span className="opacity-60">{PHAROS_NETWORKS[network].nativeSymbol}</span>
                     </span>
                   )}
                   {onDisconnect && (
