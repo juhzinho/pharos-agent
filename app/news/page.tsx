@@ -44,14 +44,15 @@ export default function NewsPage() {
       const problems: string[] = [];
 
       if (nj?.items) {
-        for (const it of nj.items as Array<{ title: string; date: string; kind: "news" | "blog" }>) {
+        for (const it of nj.items as Array<{ title: string; date: string; kind: "news" | "blog"; url?: string; image?: string }>) {
           const ms = Date.parse(it.date);
           merged.push({
             kind: it.kind,
             title: it.title,
             date: it.date,
             sortKey: Number.isNaN(ms) ? 0 : ms,
-            url: "https://www.pharos.xyz/resources",
+            url: it.url || "https://www.pharos.xyz/resources",
+            image: it.image,
           });
         }
       } else problems.push("site feed");
