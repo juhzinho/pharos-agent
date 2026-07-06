@@ -1,13 +1,16 @@
 // Web search engine for the agent (server-side only).
 //
-// Layered strategy:
-//  1. Tavily "advanced" search — best quality, LLM-ready summaries.
-//     • Pharos-related queries get the query enriched with "Pharos Network"
-//       context so results don't drift to the Egyptian lighthouse 🗼.
-//     • Recency questions (news/announcements/price moves) switch to Tavily's
-//       news topic with a 30-day window.
-//  2. DuckDuckGo HTML fallback — no API key needed; used when Tavily is
-//     missing/over quota/down, so the agent NEVER loses web access entirely.
+// Multi-engine cascade — each engine is tried in order until one returns
+// usable results, so the agent never loses web access:
+//  1. Tavily (advanced, LLM-ready summaries; news mode for recency questions)
+//  2. Google Programmable Search — enabled when GOOGLE_SEARCH_KEY +
+//     GOOGLE_SEARCH_CX are set (free tier: 100 queries/day)
+//  3. Brave Search API — enabled when BRAVE_SEARCH_KEY is set (free tier)
+//  4. DuckDuckGo HTML — no key needed, always available as the last resort
+//
+// ALL engines search the whole web; Pharos-related queries get "(Pharos
+// Network blockchain)" appended so results anchor to the crypto Pharos, and
+// official ecosystem domains are ranked first.
 
 export interface SearchResult {
   title: string;
@@ -31,19 +34,25 @@ const PHAROS_DOMAINS = [
 const PHAROS_RE = /\bpharos|pros token|faroswap|faroo|stpros|aquaflux|bitverse|realfi|spn\b/i;
 const NEWS_RE = /\b(news|not[ií]cia|announce|anunci|lately|recent|latest|hoje|today|this week|essa semana|price today|listing|airdrop|update)\b/i;
 
-async function tavilySearch(query: string): Promise<SearchResponse | null> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) {
-    console.warn("[pharos:tavily] TAVILY_API_KEY is not set");
-    return null;
-  }
-
-  const isPharos = PHAROS_RE.test(query);
-  const isNews = NEWS_RE.test(query);
-  // Keep results anchored to the crypto Pharos, not unrelated homonyms.
-  const finalQuery = isPharos && !/network|crypto|blockchain/i.test(query)
+/** Anchor Pharos queries to the crypto project (not the Alexandria lighthouse). */
+function anchorQuery(query: string): string {
+  return PHAROS_RE.test(query) && !/network|crypto|blockchain/i.test(query)
     ? `${query} (Pharos Network blockchain)`
     : query;
+}
+
+/** Official Pharos sources first for ecosystem questions. */
+function rankResults(query: string, results: SearchResult[]): SearchResult[] {
+  if (!PHAROS_RE.test(query)) return results;
+  const officialFirst = (u: string) => (PHAROS_DOMAINS.some((d) => u.includes(d)) ? 0 : 1);
+  return [...results].sort((a, b) => officialFirst(a.url) - officialFirst(b.url));
+}
+
+// ── Engine 1: Tavily ─────────────────────────────────────────────────────────
+
+async function tavilySearch(query: string): Promise<SearchResponse | null> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return null;
 
   try {
     const res = await fetch("https://api.tavily.com/search", {
@@ -51,47 +60,94 @@ async function tavilySearch(query: string): Promise<SearchResponse | null> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: apiKey,
-        query: finalQuery,
+        query: anchorQuery(query),
         search_depth: "advanced",
         include_answer: true,
         max_results: 8,
-        ...(isNews ? { topic: "news", days: 30 } : {}),
+        ...(NEWS_RE.test(query) ? { topic: "news", days: 30 } : {}),
       }),
+      signal: AbortSignal.timeout(12000),
     });
-
     if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.warn("[pharos:tavily] non-OK response:", res.status, errText.slice(0, 200));
+      console.warn("[pharos:tavily] non-OK response:", res.status);
       return null;
     }
-
     const data = await res.json();
-    let results: SearchResult[] = (data.results ?? []).map((r: { title?: string; url?: string; content?: string }) => ({
-      title:   r.title   ?? "",
-      url:     r.url     ?? "",
-      content: r.content ?? "",
+    const results: SearchResult[] = (data.results ?? []).map((r: { title?: string; url?: string; content?: string }) => ({
+      title: r.title ?? "", url: r.url ?? "", content: r.content ?? "",
     }));
-
-    // Rank official Pharos sources first for ecosystem questions.
-    if (isPharos) {
-      const officialFirst = (u: string) => (PHAROS_DOMAINS.some((d) => u.includes(d)) ? 0 : 1);
-      results = [...results].sort((a, b) => officialFirst(a.url) - officialFirst(b.url));
-    }
-
-    const response: SearchResponse = { answer: data.answer ?? "", results };
-    console.log("[pharos:tavily] success — answer length:", response.answer.length, "| results:", response.results.length);
-    return response;
+    console.log("[pharos:tavily] ok — results:", results.length);
+    return { answer: data.answer ?? "", results: rankResults(query, results) };
   } catch (err) {
-    console.error("[pharos:tavily] fetch error:", err);
+    console.error("[pharos:tavily] error:", err);
     return null;
   }
 }
 
-// Key-less fallback: DuckDuckGo's HTML endpoint. Coarser than Tavily but keeps
-// the agent's web access alive if Tavily is down or the key hits its quota.
+// ── Engine 2: Google Programmable Search (optional keys) ────────────────────
+// Get free keys: https://developers.google.com/custom-search/v1/overview
+//   GOOGLE_SEARCH_KEY = API key | GOOGLE_SEARCH_CX = search engine ID (cx)
+
+async function googleSearch(query: string): Promise<SearchResponse | null> {
+  const key = process.env.GOOGLE_SEARCH_KEY;
+  const cx = process.env.GOOGLE_SEARCH_CX;
+  if (!key || !cx) return null;
+
+  try {
+    const url = `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}&num=8&q=${encodeURIComponent(anchorQuery(query))}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      console.warn("[pharos:google] non-OK response:", res.status);
+      return null;
+    }
+    const data = await res.json();
+    const results: SearchResult[] = (data.items ?? []).map((r: { title?: string; link?: string; snippet?: string }) => ({
+      title: r.title ?? "", url: r.link ?? "", content: r.snippet ?? "",
+    }));
+    if (results.length === 0) return null;
+    console.log("[pharos:google] ok — results:", results.length);
+    return { answer: "", results: rankResults(query, results) };
+  } catch (err) {
+    console.error("[pharos:google] error:", err);
+    return null;
+  }
+}
+
+// ── Engine 3: Brave Search API (optional key) ────────────────────────────────
+// Get a free key: https://brave.com/search/api/  (BRAVE_SEARCH_KEY)
+
+async function braveSearch(query: string): Promise<SearchResponse | null> {
+  const key = process.env.BRAVE_SEARCH_KEY;
+  if (!key) return null;
+
+  try {
+    const url = `https://api.search.brave.com/res/v1/web/search?count=8&q=${encodeURIComponent(anchorQuery(query))}`;
+    const res = await fetch(url, {
+      headers: { "X-Subscription-Token": key, Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) {
+      console.warn("[pharos:brave] non-OK response:", res.status);
+      return null;
+    }
+    const data = await res.json();
+    const results: SearchResult[] = (data.web?.results ?? []).map((r: { title?: string; url?: string; description?: string }) => ({
+      title: r.title ?? "", url: r.url ?? "", content: r.description ?? "",
+    }));
+    if (results.length === 0) return null;
+    console.log("[pharos:brave] ok — results:", results.length);
+    return { answer: "", results: rankResults(query, results) };
+  } catch (err) {
+    console.error("[pharos:brave] error:", err);
+    return null;
+  }
+}
+
+// ── Engine 4: DuckDuckGo HTML (no key — last resort) ─────────────────────────
+
 async function duckDuckGoSearch(query: string): Promise<SearchResponse | null> {
   try {
-    const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+    const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(anchorQuery(query))}`, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PharosAgent/1.0" },
       signal: AbortSignal.timeout(8000),
     });
@@ -113,18 +169,23 @@ async function duckDuckGoSearch(query: string): Promise<SearchResponse | null> {
       results.push({ title: strip(links[i][2]), url, content: snippets[i] ? strip(snippets[i][1]) : "" });
     }
     if (results.length === 0) return null;
-    console.log("[pharos:ddg] fallback success — results:", results.length);
-    return { answer: "", results };
+    console.log("[pharos:ddg] ok — results:", results.length);
+    return { answer: "", results: rankResults(query, results) };
   } catch (err) {
-    console.error("[pharos:ddg] fetch error:", err);
+    console.error("[pharos:ddg] error:", err);
     return null;
   }
 }
 
+// ── Cascade ──────────────────────────────────────────────────────────────────
+
 export async function webSearch(query: string): Promise<SearchResponse | null> {
-  const tavily = await tavilySearch(query);
-  if (tavily && (tavily.answer || tavily.results.length > 0)) return tavily;
-  return duckDuckGoSearch(query);
+  const engines = [tavilySearch, googleSearch, braveSearch, duckDuckGoSearch];
+  for (const engine of engines) {
+    const r = await engine(query);
+    if (r && (r.answer || r.results.length > 0)) return r;
+  }
+  return null;
 }
 
 export function formatSearchContext(sr: SearchResponse): string {
