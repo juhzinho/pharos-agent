@@ -47,7 +47,7 @@ import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } fro
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
-import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getStakeNav, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
+import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getStakeNav, getWprosBalanceRaw, buildUnwrapData, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
 import { estimateGasCost, formatGasCost } from "@/lib/gas";
 import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
 import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
@@ -3087,7 +3087,20 @@ function StakeCard({ build, lang, onDone, from }: { build: StakeBuild; lang: "pt
       for (let i = 0; i < build.txs.length; i++) {
         setProgress(i + 1);
         const tx = build.txs[i];
-        lastHash = await sendTransaction({ to: tx.to, data: tx.data, value: "0x" + tx.value.toString(16) });
+        let data = tx.data;
+        // Unstake's final unwrap: the WPROS received from redeem can differ by
+        // a few wei from the build-time preview (vault NAV moves every block).
+        // Re-read the live balance and unwrap min(planned, balance) so the
+        // WPROS contract never reverts with require(false).
+        if (tx.adjustToWprosBalance && from) {
+          const bal = await getWprosBalanceRaw(from);
+          if (bal <= 0n) {
+            throw new Error("No WPROS to unwrap — the redeem step may not have settled yet. Please try again.");
+          }
+          const planned = tx.rawAmount ?? bal;
+          data = buildUnwrapData(planned < bal ? planned : bal);
+        }
+        lastHash = await sendTransaction({ to: tx.to, data, value: "0x" + tx.value.toString(16) });
         // Each step depends on the previous one landing (wrap → approve → deposit).
         const ok = await waitForTxSuccess(lastHash);
         if (!ok) throw new Error(`Step ${i + 1} (${tx.label.replace(/…$/, "")}) reverted on-chain.`);
@@ -3101,7 +3114,7 @@ function StakeCard({ build, lang, onDone, from }: { build: StakeBuild; lang: "pt
     }
   }
 
-  const inSym = isStake ? "PROS" : "stPROS";
+  const inSym = isStake ? "PROS" : build.rescue ? "WPROS" : "stPROS";
   const outSym = isStake ? "stPROS" : "PROS";
 
   return (
@@ -4220,9 +4233,26 @@ export default function ChatPage() {
     const lang = guessUserLang(messages);
     if (gateTestnetDeFi(msgId, lang)) return;
     try {
-      const [bal, nav] = await Promise.all([getStakedBalance(walletAddress), getStakeNav().catch(() => 1)]);
+      const [bal, wprosRaw, nav] = await Promise.all([
+        getStakedBalance(walletAddress),
+        getWprosBalanceRaw(walletAddress),
+        getStakeNav().catch(() => 1),
+      ]);
       if (opSeqRef.current !== seq) return;
       if (bal <= 0) {
+        const wpros = Number(wprosRaw) / 1e18;
+        if (wpros > 0.000001) {
+          // Stranded WPROS from an unstake whose final unwrap failed — offer to
+          // finish the job (buildUnstakeTxs returns the 1-tx unwrap rescue).
+          updateMessage(msgId, {
+            isLoading: false,
+            text: lang === "pt"
+              ? `Você não tem stPROS em stake, mas encontrei **${wpros.toFixed(6)} WPROS** na sua carteira — provavelmente de um unstake que parou no meio. Vou montar a transação para converter em PROS nativo. 👇`
+              : `You have no stPROS staked, but I found **${wpros.toFixed(6)} WPROS** in your wallet — likely from an unstake that stopped halfway. Building the transaction to convert it to native PROS. 👇`,
+          });
+          void buildStakeCardFor(wpros, "unstake");
+          return;
+        }
         updateMessage(msgId, {
           isLoading: false,
           text: lang === "pt"

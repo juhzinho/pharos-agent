@@ -79,6 +79,22 @@ export interface StakeStepTx {
   data: string;
   value: bigint;
   label: string; // button progress label
+  // Final unwrap of an unstake: the WPROS actually received from redeem can
+  // differ by a few wei from the preview (the vault NAV moves every block).
+  // When set, the signer re-reads the live WPROS balance right before sending
+  // and unwraps min(rawAmount, balance) — prevents "require(false)" reverts.
+  adjustToWprosBalance?: boolean;
+  rawAmount?: bigint;
+}
+
+/** Calldata for WPROS.withdraw(raw). */
+export function buildUnwrapData(raw: bigint): string {
+  return SEL.UNWRAP + pad(raw);
+}
+
+/** Live WPROS balance (raw 18-dec units). */
+export async function getWprosBalanceRaw(addr: string): Promise<bigint> {
+  return ethCall(FAROO.WPROS, SEL.BALANCE_OF + pad(addr)).then(hexToBig).catch(() => 0n);
 }
 
 export interface StakeBuild {
@@ -88,6 +104,7 @@ export interface StakeBuild {
   nav: number;           // WPROS per stPROS share
   txs: StakeStepTx[];
   description: string;
+  rescue?: boolean;      // unwrap-only build (finishing a half-done unstake)
 }
 
 export interface StakeError { error: string }
@@ -175,13 +192,38 @@ export async function buildUnstakeTxs(amount: number, signer: string): Promise<S
   const raw = toRaw(amount);
   const owner = pad(signer);
 
-  const [shares, previewHex, nav] = await Promise.all([
+  const [shares, wprosBal, previewHex, nav] = await Promise.all([
     ethCall(FAROO.STPROS, SEL.BALANCE_OF + owner).then(hexToBig).catch(() => 0n),
+    getWprosBalanceRaw(signer),
     ethCall(FAROO.STPROS, SEL.PREVIEW_RED + pad(raw)).catch(() => "0x"),
     getStakeNav().catch(() => 1),
   ]);
 
   if (shares < raw) {
+    // Rescue path: a previous unstake may have redeemed stPROS → WPROS but
+    // failed on the final unwrap, leaving WPROS stranded. If the WPROS balance
+    // covers the request, finish the job with a single unwrap tx.
+    if (wprosBal >= raw) {
+      return {
+        kind: "unstake",
+        amount,
+        expectedOut: amount,
+        nav,
+        txs: [{
+          to: FAROO.WPROS,
+          data: buildUnwrapData(raw),
+          value: 0n,
+          label: "Unwrapping to PROS…",
+          adjustToWprosBalance: true,
+          rawAmount: raw,
+        }],
+        description:
+          `Faroo Liquid Staking · unwrap ${amount} WPROS\n` +
+          `You already redeemed this from stPROS — finishing the unstake: WPROS → native PROS.\n` +
+          `Steps: 1 tx — unwrap`,
+        rescue: true,
+      };
+    }
     return {
       error:
         `Insufficient stPROS: you have ${(Number(shares) / 1e18).toFixed(6)} ` +
@@ -192,6 +234,7 @@ export async function buildUnstakeTxs(amount: number, signer: string): Promise<S
   const outRaw = hexToBig(previewHex);
   const expectedOut = Number(outRaw) / 1e18 || amount * nav;
 
+  const unwrapRaw = outRaw > 0n ? outRaw : toRaw(expectedOut);
   const txs: StakeStepTx[] = [
     {
       to: FAROO.STPROS,
@@ -201,9 +244,11 @@ export async function buildUnstakeTxs(amount: number, signer: string): Promise<S
     },
     {
       to: FAROO.WPROS,
-      data: SEL.UNWRAP + pad(outRaw > 0n ? outRaw : toRaw(expectedOut)),
+      data: buildUnwrapData(unwrapRaw),
       value: 0n,
       label: "Unwrapping to PROS…",
+      adjustToWprosBalance: true,
+      rawAmount: unwrapRaw,
     },
   ];
 
