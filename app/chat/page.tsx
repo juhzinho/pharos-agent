@@ -54,7 +54,8 @@ import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, noti
 import { formatRwaMarket, type RwaMarketData } from "@/lib/rwa-live";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
-import { t, useSiteLang } from "@/lib/i18n";
+import { t, chipT, useSiteLang } from "@/lib/i18n";
+import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
@@ -2651,7 +2652,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -2676,32 +2677,28 @@ const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; 
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 4h10v6H2zM5 4V2.5a2 2 0 014 0V4"/></svg> },
 ];
 
-const WELCOME_CARDS: Array<{ icon: React.ReactNode; title: string; desc: string; color: string; prompt?: string; action?: QuickActionKind }> = [
+const WELCOME_CARDS: Array<{ icon: React.ReactNode; tkey: string; color: string; prompt?: string; action?: QuickActionKind }> = [
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>,
-    title: "Swap tokens",
-    desc: "Guided flow: pick a token from your balance, choose the amount and compare quotes.",
+    tkey: "swap",
     action: "swap",
     color: "#00d4ff",
   },
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M10 2L2 6l8 4 8-4-8-4zM2 14l8 4 8-4M2 10l8 4 8-4" /></svg>,
-    title: "Cross-chain bridge",
-    desc: "Move assets to Ethereum, Base, Arbitrum — routes compared for the best return.",
+    tkey: "bridge",
     action: "bridge",
     color: "#818cf8",
   },
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M10 2v18M15 5H8a3 3 0 000 6h4a3 3 0 010 6H5" /></svg>,
-    title: "FaroSwap Liquidity",
-    desc: "Add V3 concentrated liquidity: pick pair, fee tier, range and amount.",
+    tkey: "liq",
     action: "liquidity",
     color: "#34d399",
   },
   {
     icon: <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="10" cy="10" r="8"/><path d="M10 7v4l2.5 2.5"/></svg>,
-    title: "Pharos Expert",
-    desc: "Deep knowledge of every protocol, RWA, DeFi, architecture, and latest news.",
+    tkey: "expert",
     prompt: "what protocols are on Pharos and what can I earn?",
     color: "#f472b6",
   },
@@ -4163,6 +4160,28 @@ export default function ChatPage() {
     }
   }
 
+  // ── Wallet transaction history (SocialScan explorer, via /api/txhistory) ──
+  async function runTxHistory(msgId: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const res = await fetch(`/api/txhistory?address=${walletAddress}&limit=10`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: TxHistoryResult = await res.json();
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, { isLoading: false, text: formatTxHistory(data, lang) });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false, isError: true,
+        text: lang === "pt"
+          ? `Não consegui puxar seu histórico do explorer agora (${msg}). Tente de novo em instantes ou veja direto em https://pharos.socialscan.io/address/${walletAddress}`
+          : `Couldn't fetch your history from the explorer right now (${msg}). Try again shortly or check https://pharos.socialscan.io/address/${walletAddress} directly.`,
+      });
+    }
+  }
+
   // ── Guided stake flow (Faroo): balance → % pick → stake card ─────────────
   async function startStakeFlow(msgId: string) {
     const seq = opSeqRef.current;
@@ -4373,6 +4392,10 @@ export default function ChatPage() {
         updateMessage(id, { text: lang === "pt" ? "Lendo sua posição de staking na Faroo…" : "Reading your Faroo staking position…" });
         void runMyStaking(id);
         break;
+      case "txhistory":
+        updateMessage(id, { text: lang === "pt" ? "Buscando suas últimas transações no explorer…" : "Fetching your latest transactions from the explorer…" });
+        void runTxHistory(id);
+        break;
       case "rwamarket":
         updateMessage(id, { text: lang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…" });
         void runRwaMarket(id);
@@ -4469,6 +4492,18 @@ export default function ChatPage() {
         text: fastLang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…",
       });
       await runRwaMarket(thinkingId);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Tx history fast path: list the connected wallet's recent transactions.
+    if (walletAddress && /\b(minhas?\s+([úu]ltimas?\s+)?(transa[çc][õo]es|txs?)\b|meu\s+hist[óo]rico|hist[óo]rico\s+de\s+transa[çc][õo]es|my\s+(last\s+|recent\s+)?(transactions?|txs?)\b|(transaction|tx)\s+history|recent\s+activity|minha\s+atividade)/i.test(text)) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Buscando suas últimas transações no explorer…" : "Fetching your latest transactions from the explorer…",
+      });
+      await runTxHistory(thinkingId);
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -5449,6 +5484,7 @@ export default function ChatPage() {
                 { label: "My LP Positions",    icon: "◈", action: "positions" as const, color: "#fbbf24" },
                 { label: "Wallet Analysis",    icon: "◎", action: "wallet" as const, color: "#f472b6" },
                 { label: "Wallet Score",       icon: "★", action: "score" as const, color: "#f59e0b" },
+                { label: "Tx History",         icon: "📜", action: "txhistory" as const, color: "#94a3b8" },
                 { label: "RealFi Positions",   icon: "🏦", action: "realfi" as const, color: "#34d399" },
                 { label: "RWA Market (live)",  icon: "🌍", action: "rwamarket" as const, color: "#38bdf8" },
                 { label: "Pharos Protocols",   icon: "⬡", prompt: "what DeFi protocols are on Pharos?", color: "#38bdf8" },
@@ -5472,7 +5508,7 @@ export default function ChatPage() {
                     style={{ background: `${item.color}12`, color: item.color }}>
                     {item.icon}
                   </span>
-                  {item.label}
+                  {chipT(item.label, siteLang)}
                 </button>
               ))}
             </div>
@@ -5615,7 +5651,7 @@ export default function ChatPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
                 {WELCOME_CARDS.map((card, i) => (
                   <button
-                    key={card.title}
+                    key={card.tkey}
                     onClick={() => {
                       if (card.action) handleQuickAction(card.action);
                       else if (card.prompt) { setInput(card.prompt); inputRef.current?.focus(); }
@@ -5648,8 +5684,8 @@ export default function ChatPage() {
                         {card.icon}
                       </div>
                       <div className="min-w-0 pt-0.5">
-                        <p className="font-semibold text-[13px] text-white mb-0.5 tracking-[-0.01em]">{card.title}</p>
-                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(148,163,184,0.48)" }}>{card.desc}</p>
+                        <p className="font-semibold text-[13px] text-white mb-0.5 tracking-[-0.01em]">{t(`chat.card.${card.tkey}.title`, siteLang)}</p>
+                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(148,163,184,0.48)" }}>{t(`chat.card.${card.tkey}.desc`, siteLang)}</p>
                       </div>
                     </div>
                   </button>
@@ -5661,7 +5697,7 @@ export default function ChatPage() {
           {messages.map((msg) => (
             <ChatBubble
               key={msg.id}
-              msg={msg}
+              msg={msg.id === "welcome" ? { ...msg, text: t("chat.welcome", siteLang) } : msg}
               walletAddress={walletAddress}
               lang={guessUserLang(messages)}
               onTxSuccess={handleTxSuccess}
@@ -5762,7 +5798,7 @@ export default function ChatPage() {
                         (e.currentTarget as HTMLButtonElement).style.transform = "";
                       }}>
                       {s.icon}
-                      {s.label}
+                      {chipT(s.label, siteLang)}
                     </button>
                   ))}
                 </div>
