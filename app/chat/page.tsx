@@ -2941,17 +2941,10 @@ export default function ChatPage() {
 
   const hasMessages = messages.length > 1;
 
-  // Returning-user stats: shown as a small corner toast (not a chat message).
-  const [welcomeToast, setWelcomeToast] = useState<string | null>(null);
+  // Local usage stats (this browser's localStorage — NOT on-chain data).
+  // Loaded silently for agent context; no welcome toast, it annoyed users.
   useEffect(() => {
-    const s = getStats();
-    setStats(s);
-    if (s.totalCount > 0) {
-      const fav = s.favoriteToken ? ` · Most-used token: ${s.favoriteToken}` : "";
-      setWelcomeToast(`👋 Welcome back — ${s.totalCount} tx${s.totalCount === 1 ? "" : "s"} completed${fav}`);
-      const t = setTimeout(() => setWelcomeToast(null), 8000);
-      return () => clearTimeout(t);
-    }
+    setStats(getStats());
   }, []);
 
   useEffect(() => {
@@ -4728,7 +4721,7 @@ export default function ChatPage() {
           onDisconnect={handleDisconnect}
           isWrongNetwork={isWrongNetwork}
           onSwitchNetwork={handleSwitchNetwork}
-          stats={stats}
+          stats={walletAddress ? stats : null}
           walletPicker={walletPickerOptions ? {
             options: walletPickerOptions,
             onChoose: (opt) => { connectTo(opt); setWalletPickerOptions(null); },
@@ -4758,20 +4751,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Returning-user toast — bottom-right corner, auto-dismisses */}
-      {welcomeToast && (
-        <div className="fixed bottom-6 right-5 z-50 max-w-xs px-4 py-3 rounded-2xl text-xs font-medium flex items-start gap-2"
-          style={{
-            background: "rgba(6,14,32,0.92)", border: "1px solid rgba(0,212,255,0.25)",
-            color: "rgba(226,232,240,0.92)", backdropFilter: "blur(16px)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
-            animation: "heroFadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both",
-          }}>
-          <span className="flex-1 leading-relaxed">{welcomeToast}</span>
-          <button onClick={() => setWelcomeToast(null)} aria-label="Dismiss"
-            className="shrink-0 opacity-50 hover:opacity-100 transition-opacity">✕</button>
-        </div>
-      )}
 
       {/* Body: sidebar + chat */}
       <div className="flex flex-1 min-h-0 relative z-10">
