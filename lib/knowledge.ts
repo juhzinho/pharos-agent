@@ -645,6 +645,88 @@ More Pharos ecosystem dapps (categories; check port.pharos.xyz/ecosystem for liv
 • Pizza Zone / PROS Pixel: community / GameFi-style apps (mini-games, points, social/NFT mechanics) — fun engagement that often ties into campaigns.
 New dapps launch frequently; for anything not in this directory, search and point to port.pharos.xyz/ecosystem rather than guessing specifics.
 `,
+  dapp_profiles_trading: `
+DAPP PROFILES — DEX, TRADING & LENDING ON PHAROS (what each is, mechanism, role):
+
+AGRA (bonds.agra.gg): exchange for ON-CHAIN CREDIT and tokenized bonds. Mechanism: tokenized debt instruments (bonds, credit notes) are listed and traded on-chain; investors buy exposure to fixed-income cash flows, issuers get financing. Role on Pharos: the bond-market leg of RealFi — where tokenized credit meets secondary-market liquidity, complementing AquaFlux (structuring) and R25 (origination).
+
+OKU (oku.trade): professional DEX trading front-end + aggregator built by GFX Labs, live on 35+ chains including Pharos. Mechanism: routes orders across 14 swap routers and 11 bridge routers to find the best price, charging 0% platform fees; adds pro tools on top of AMM liquidity — limit orders, TWAP-style analytics, full order history and position charts. Role on Pharos: an advanced-trader interface to Pharos liquidity (including FaroSwap pools) with cross-chain routing built in.
+
+MORPHO (morpho.org): major lending protocol (multi-billion TVL across chains). Mechanism: Morpho Blue creates ISOLATED lending markets (one collateral / one loan asset / one oracle / one LLTV each), and MetaMorpho vaults curate deposits across those markets; the original innovation was P2P matching that pairs lenders and borrowers directly to tighten the rate spread vs pooled models like Aave/Compound. Role on Pharos: institutional-grade credit rails for RWA collateral — isolated markets suit tokenized assets because risk stays compartmentalized per market.
+
+TERMMAX (app.termmax.ts.finance/earn/pharos): FIXED-RATE, FIXED-TERM lending & borrowing by Term Structure Labs. Mechanism: markets have a maturity date; lenders lock a known APY to maturity (like buying a zero-coupon bond), borrowers lock a known cost; on Pharos it exposes an ERC-4626 vault (tmPHRC, 0xd04d1a8bd7944e06e25192aad833700115c88480) whose share price accrues the fixed yield. Role on Pharos: predictable TradFi-style yield curves on-chain — the fixed-income counterpart to floating-rate money markets. The agent tracks tmPHRC in RealFi Positions.
+
+LI.FI (li.fi): bridge & DEX AGGREGATION protocol (not a bridge itself). Mechanism: one API/SDK quotes routes across dozens of bridges and DEXes, picks the best path (cost/speed/security), and returns a single transaction for the user to sign. Role on Pharos: powers the agent's swap and bridge execution and the Jumper interface — it's how Pharos connects to Ethereum, Base, Arbitrum, Polygon liquidity.
+
+JUMPER (jumper.exchange): the consumer cross-chain app built ON LI.FI. Mechanism: same routing engine as LI.FI with a retail UI — pick token/chain, get the best bridge+swap combo in one click. Role on Pharos: easiest manual on/off-ramp between Pharos and other EVM chains; the agent quotes the same routes programmatically.
+`,
+  dapp_profiles_rwa_payments: `
+DAPP PROFILES — RWA & PAYMENTS ON PHAROS:
+
+ASSETO (asseto.finance): next-generation on-chain RWA asset platform ("RWA tokenized fintech"). Mechanism: originates and tokenizes real-world assets into compliant on-chain products with institutional custody and reporting; investors subscribe on-chain and hold transferable asset tokens. Role on Pharos: broadens the RWA menu beyond energy (R25) and credit (AquaFlux) — part of the RealFi Alliance pipeline feeding assets into Pharos vaults and lending markets.
+
+CIRCLE (circle.com): issuer of USDC, live NATIVELY on Pharos (0xc879c018db60520f4355c26ed1a6d572cdac1815, 6 decimals). Mechanism: CCTP v2 (Cross-Chain Transfer Protocol) moves USDC across chains by BURNING on the source chain and MINTING on the destination — no wrapped IOUs, no bridge liquidity risk. Role on Pharos: the settlement dollar of RealFi; the agent executes CCTP v2 transfers directly.
+
+ALCHEMY PAY (alchemypay.org): fiat↔crypto payment gateway. Mechanism: connects card networks, local payment methods (PIX, bank transfers, wallets in 170+ countries) to on-chain settlement — users buy crypto with fiat (on-ramp) or cash out (off-ramp); also offers crypto card issuing. Role on Pharos: the fiat entrance for users entering the Pharos ecosystem without going through a CEX.
+`,
+  dapp_profiles_wallets: `
+DAPP PROFILES — WALLETS & CUSTODY ON PHAROS:
+
+OKX WALLET (web3.okx.com): multi-chain self-custody wallet (extension + mobile) from OKX. Mechanism: EIP-6963 provider, built-in DEX aggregator, NFT marketplace and dApp browser; supports 100+ chains. Role on Pharos: one of the main wallets for connecting to Pharos dApps and the agent (detected automatically via EIP-6963).
+
+TOPNOD (topnod.com): self-custody wallet focused on RWA & digital assets, connected to the Ant Digital/ZAN ecosystem. Mechanism: non-custodial key management with an interface designed around holding and tracking tokenized real-world assets. Role on Pharos: RWA-native wallet — ran the "TopNod Cup" campaign with Pharos (June–July 2026).
+
+ONEKEY (onekey.so): fully OPEN-SOURCE wallet — hardware devices + software apps. Mechanism: keys stay in the secure element of the hardware device (or encrypted locally in software); all code is auditable on GitHub. Role on Pharos: security-first self-custody option for PROS and Pharos assets.
+
+KUCOIN WALLET (kucoin.com/web3): Web3 self-custody wallet by the KuCoin exchange. Mechanism: standard EVM wallet with multi-chain support, dApp browser, integrated swaps. Role on Pharos: retail gateway — KuCoin also lists PROS spot, so users move between CEX and Pharos DeFi easily.
+
+FORDEFI (fordefi.com): INSTITUTIONAL MPC wallet platform. Mechanism: private keys are split via multi-party computation (no single point of compromise), with a programmable policy engine (spending limits, address allowlists, approval quorums) and transaction simulation before signing. Role on Pharos: how funds/desks/DAOs custody and operate on Pharos safely (officially documented in docs.pharos.xyz).
+
+SAFE (app.safe.global): the industry-standard SMART-CONTRACT MULTISIG (formerly Gnosis Safe). Mechanism: a contract account that requires M-of-N owner signatures per transaction; supports modules, spending policies, and account abstraction. Role on Pharos: treasury-grade custody for teams/DAOs on Pharos (officially documented in docs.pharos.xyz).
+
+ANCHORAGE DIGITAL (anchorage.com): US federally chartered crypto BANK. Mechanism: regulated qualified custody with segregated cold storage, plus institutional staking and trading services. Role on Pharos: the compliance-grade custodian for institutions holding PROS/RWA positions — key for RealFi's institutional adoption story.
+`,
+  dapp_profiles_infra: `
+DAPP PROFILES — ORACLES, RPC & INFRA ON PHAROS:
+
+SUPRA (supra.com): oracle network. Mechanism: DORA (Distributed Oracle Agreement) aggregates price data from many sources with fast finality; also provides on-chain VRF (verifiable randomness). Role on Pharos: price feeds for DeFi protocols (officially documented in docs.pharos.xyz/tooling-and-infrastructure/oracles/supra).
+
+ZAN (zan.top): Web3 infra brand of Ant Digital Technologies (Ant Group). Mechanism: managed RPC nodes for 28+ chains including Pharos, plus smart-contract audit services (AI Scan + expert audit), ZK acceleration hardware, and KYC/identity tooling; agent-ready skills via x402 pay-per-call. Role on Pharos: enterprise-grade RPC provider (docs.pharos.xyz/tooling-and-infrastructure/rpc/zan) and part of the compliance/tokenization stack for RWA issuers.
+
+ALCHEMY (alchemy.com): leading Web3 developer platform. Mechanism: managed nodes + enhanced APIs (getAssetTransfers, NFT API, webhooks), SDKs, and reliability layers on top of raw RPC. Role on Pharos: official RPC/dev infrastructure option (docs.pharos.xyz/tooling-and-infrastructure/rpc/alchemy) for teams building Pharos dApps.
+
+NIRVANA LABS (nirvanalabs.io): Web3 infrastructure specializing in DEDICATED bare-metal nodes. Mechanism: single-tenant RPC nodes (no shared rate limits) tuned for latency-sensitive workloads. Role on Pharos: high-performance RPC option for trading bots, indexers and demanding dApps (documented in docs.pharos.xyz).
+
+HEMERA (thehemera.com): ACCOUNT-CENTRIC indexing network — the team behind SocialScan. Mechanism: indexes chain data organized around accounts/entities rather than blocks, powering rich profiles, token histories and social-style exploration. Role on Pharos: runs pharos.socialscan.io, the main Pharos explorer — the same data source the agent uses for wallet analysis.
+
+GOLDSKY (goldsky.com): real-time blockchain data pipelines. Mechanism: managed subgraphs (GraphQL indexes of contract events) + "Mirror" pipelines that stream on-chain data straight into your own database. Role on Pharos: how dApp teams index Pharos events without running infra (docs.pharos.xyz/tooling-and-infrastructure/indexing/goldsky).
+`,
+  dapp_profiles_security: `
+DAPP PROFILES — SECURITY & COMPLIANCE ON PHAROS:
+
+HYPERNATIVE (hypernative.io): real-time on-chain THREAT DETECTION. Mechanism: monitors mempools, contracts and protocol state with ML models; flags exploits/attacks minutes before or as they happen and can trigger automated defenses (pausing contracts, pulling liquidity). Role on Pharos: protocol-level security monitoring for Pharos DeFi/RWA protocols.
+
+ZELLIC (zellic.io): elite smart-contract AUDIT firm (roots in CTF team perfect blue). Mechanism: manual expert code review + formal analysis of contracts before deployment. Role on Pharos: audits ecosystem protocols — a quality signal users should look for before depositing.
+
+EXVUL (exvul.com): smart-contract audits & penetration testing. Mechanism: code review plus offensive-security testing of the full stack (contracts, frontends, infra). Role on Pharos: another audit option in the ecosystem's security supply chain.
+
+OPENZEPPELIN (openzeppelin.com): the standard library of secure smart contracts (ERC-20/721/4626 implementations, AccessControl, upgrades) + Defender platform. Mechanism: battle-tested reusable contract code and operational tooling (monitoring, automated ops, access management). Role on Pharos: most Pharos contracts are built on OpenZeppelin libraries — foundational security infrastructure.
+
+TRM LABS (trmlabs.com): blockchain intelligence & COMPLIANCE (KYT — Know Your Transaction). Mechanism: traces funds across chains, screens addresses against sanctions/illicit-activity risk, scores transactions for AML programs. Role on Pharos: the transaction-monitoring layer institutions need to operate RWA/RealFi compliantly.
+
+TRUSTA LABS (trustalabs.ai): Web3 AI security & data analytics. Mechanism: on-chain behavior analysis — MEDIA reputation scores for wallets, Sybil-attack detection (used by major airdrops), attestation infrastructure. Role on Pharos: wallet-reputation and anti-Sybil layer, relevant for fair airdrops and campaign integrity.
+`,
+  dapp_profiles_identity: `
+DAPP PROFILES — IDENTITY, NFT & COMMUNITY ON PHAROS:
+
+PNS — PHAROS NAME SERVICE (pharosname.com): the official .pharos domain service. Mechanism: ENS-style on-chain registry — a readable name (alice.pharos) resolves to your address; names are NFTs you own and can transfer. Role on Pharos: human-readable identity for payments — instead of 0x… addresses, send to a name.
+
+ZNS CONNECT (zns.bio): multi-chain Web3 identity layer. Mechanism: domain names deployable across many chains with a unified profile (socials, wallets, badges) attached. Role on Pharos: cross-chain identity option alongside PNS.
+
+GRANDLINE (app.grandline.world): Pharos-native NFT LAUNCH & TRADING platform. Mechanism: launchpad for NFT collections (mint pages, allowlists) + secondary marketplace; LP-position NFTs and RWA-linked NFTs can also trade here. Role on Pharos: THE native NFT venue of the ecosystem.
+
+PHAROSVERSE (pharosverse.xyz): community-built ecosystem NAVIGATOR. Mechanism: aggregates projects, insights, campaign guides and community content about Pharos in one dashboard. Role on Pharos: discovery layer — where newcomers map what exists in the ecosystem.
+`,
   pharos_port: `
 PHAROS PORT (port.pharos.xyz) — Official All-in-One RealFi Entry Hub:
 • Bridge & Swap: cross-chain transfers and token swaps powered by LI.FI, CCIP, CCTP
@@ -1194,6 +1276,12 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["defi protocols", "protocols on pharos", "protocols are", "quais protocolos", "que protocolos", "dapps", "dapp list", "lista de dapps", "ecosystem list", "all projects", "todos os projetos", "port.pharos.xyz/ecosystem", "o que tem na pharos", "what's on pharos", "available on pharos", "projects on pharos"], section: "port_ecosystem_directory" },
   { keys: ["partner", "parceiro", "parceria", "investor", "investidor", "backer", "vc fund", "venture", "hack vc", "lightspeed", "snz", "dispersion capital", "chorus one", "hash global", "legend star", "reforge", "mh ventures", "sumitomo", "flow traders", "quem investiu", "who invested", "funding round"], section: "pharos_partners" },
   { keys: ["r25", "vrpcw", "vrpcs", "vrpcq"], section: "r25" },
+  { keys: ["agra", "oku", "oku.trade", "morpho", "termmax", "term max", "fixed rate lending", "taxa fixa", "jumper", "li.fi", "lifi", "tokenized bond", "onchain credit"], section: "dapp_profiles_trading" },
+  { keys: ["asseto", "alchemy pay", "alchemypay", "on-ramp", "off-ramp", "onramp", "offramp", "comprar cripto com fiat"], section: "dapp_profiles_rwa_payments" },
+  { keys: ["okx wallet", "topnod", "top nod", "onekey", "one key", "kucoin wallet", "fordefi", "safe wallet", "gnosis", "anchorage", "custódia institucional", "institutional custody", "mpc wallet"], section: "dapp_profiles_wallets" },
+  { keys: ["supra", "zan.top", "zan rpc", "alchemy", "nirvana", "hemera", "goldsky", "gold sky", "subgraph", "indexer", "rpc provider", "provedor rpc"], section: "dapp_profiles_infra" },
+  { keys: ["hypernative", "zellic", "exvul", "openzeppelin", "open zeppelin", "trm labs", "trusta", "audit", "auditoria", "kyt", "threat detection"], section: "dapp_profiles_security" },
+  { keys: ["pns", "pharos name", ".pharos domain", "dominio .pharos", "zns", "grandline", "grand line", "pharosverse", "nft marketplace", "marketplace de nft"], section: "dapp_profiles_identity" },
   { keys: ["faroo", "stpros", "st pros", "bifrost", "slpx"], section: "faroo" },
   { keys: ["zona", "colateral", "collateral", "susde", "wstpros", "sUSDai", "zona lending"], section: "zona" },
   { keys: ["aquaflux", "aqua flux", "p token", "c token", "s token", "tri-token", "coupon token"], section: "aquaflux" },

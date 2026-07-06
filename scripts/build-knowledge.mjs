@@ -108,6 +108,12 @@ const SOURCE_LABELS = {
   agent_center:             "Pharos Agent Center",
   research:                 "Pharos Research",
   dapps_extra:              "Pharos Ecosystem dApps",
+  dapp_profiles_trading:      "Ecosystem — DEX, Trading & Lending",
+  dapp_profiles_rwa_payments: "Ecosystem — RWA & Payments",
+  dapp_profiles_wallets:      "Ecosystem — Wallets & Custody",
+  dapp_profiles_infra:        "Ecosystem — Oracles, RPC & Infra",
+  dapp_profiles_security:     "Ecosystem — Security & Compliance",
+  dapp_profiles_identity:     "Ecosystem — Identity, NFT & Community",
 };
 
 // ~300 tokens ≈ ~1200 chars. Split a long text on blank lines, then greedily
