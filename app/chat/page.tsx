@@ -3883,6 +3883,17 @@ export default function ChatPage() {
   async function handleSend() {
     const text = input.trim();
     if (!text || isSending) return;
+
+    // Wallet gate: the agent only works for connected users. The composer is
+    // already replaced by a connect panel when disconnected — this is the
+    // safety net for any other path that calls handleSend.
+    if (!walletAddress) {
+      addMessage({
+        role: "agent",
+        text: "🔒 **Conecte sua carteira para usar o agente.** / **Connect your wallet to use the agent.**\n\nClique em **Connect Wallet** — eu só preciso do endereço público para ler seus saldos. Nunca peço sua seed phrase e toda transação exige a sua assinatura.",
+      });
+      return;
+    }
     setInput("");
 
     // Cancel: abort active flows immediately, no LLM round-trip.
@@ -5035,8 +5046,8 @@ export default function ChatPage() {
             }}>
             <div className="max-w-3xl mx-auto">
 
-              {/* Suggestion chips — only on empty state */}
-              {!hasMessages && (
+              {/* Suggestion chips — only on empty state, and only when connected */}
+              {!hasMessages && walletAddress && (
                 <div className="flex gap-1.5 flex-wrap mb-3">
                   {SUGGESTIONS.map((s) => (
                     <button key={s.label}
@@ -5065,7 +5076,39 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Input + send */}
+              {/* Wallet gate — the agent is unlocked only for connected wallets */}
+              {!walletAddress ? (
+                <div className="rounded-2xl p-[1px]"
+                  style={{ background: "linear-gradient(135deg, rgba(0,212,255,0.4), rgba(56,189,248,0.2), rgba(99,102,241,0.25))" }}>
+                  <div className="rounded-[15px] px-5 py-5 flex flex-col sm:flex-row items-center gap-4"
+                    style={{ background: "rgba(5,11,26,0.97)", backdropFilter: "blur(20px)" }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: "rgba(0,212,255,0.1)", border: "1px solid rgba(0,212,255,0.25)" }}>
+                      <svg viewBox="0 0 20 20" className="w-5 h-5" fill="rgba(0,212,255,0.9)">
+                        <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <p className="text-sm font-semibold text-white">Conecte sua carteira para usar o agente</p>
+                      <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>
+                        Connect your wallet to unlock the agent · Só leio seu endereço público — nunca peço a seed phrase
+                      </p>
+                    </div>
+                    <button onClick={handleConnect} disabled={isConnecting}
+                      className="shrink-0 h-10 px-5 rounded-xl font-semibold text-sm text-black transition-all duration-200 flex items-center gap-2"
+                      style={{
+                        background: "linear-gradient(135deg, #00d4ff, #38bdf8)",
+                        boxShadow: "0 4px 18px rgba(0,212,255,0.4)",
+                        opacity: isConnecting ? 0.7 : 1,
+                      }}
+                      onMouseEnter={(e) => { if (!isConnecting) (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
+                      {isConnecting && <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+                      {isConnecting ? "Conectando…" : "Connect Wallet"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className="relative">
                 <div className="rounded-2xl p-[1px] transition-all duration-300"
                   style={{ background: input.trim() ? "linear-gradient(135deg, rgba(0,212,255,0.5), rgba(56,189,248,0.3), rgba(99,102,241,0.28))" : "rgba(255,255,255,0.07)" }}>
@@ -5122,6 +5165,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               </div>
+              )}
 
               <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.35)" }}>
                 Pharos Mainnet · Chain ID 1672 · Non-custodial · Shift+Enter new line
