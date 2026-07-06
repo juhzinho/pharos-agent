@@ -4,9 +4,11 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import PriceTicker from "@/components/PriceTicker";
 import NetworkSwitcher from "@/components/NetworkSwitcher";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { WalletOption } from "@/lib/wallet";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { getSelectedNetwork, onNetworkChange } from "@/lib/network";
+import { t, useSiteLang } from "@/lib/i18n";
 
 interface WalletPicker {
   options: WalletOption[];
@@ -41,6 +43,7 @@ export default function Navbar({
   const pathname = usePathname();
   const pickerRef = useRef<HTMLDivElement>(null);
   const [network, setNetwork] = useState<PharosNetworkId>("mainnet");
+  const [lang] = useSiteLang();
 
   useEffect(() => {
     setNetwork(getSelectedNetwork());
@@ -60,14 +63,14 @@ export default function Navbar({
   }, [walletPicker]);
 
   const navLinks = [
-    { label: "Chat",      href: "/chat"      },
-    { label: "Wallet",    href: "/wallet"    },
-    { label: "Ecosystem", href: "/ecosystem" },
-    { label: "Trade",     href: "/trade"     },
-    { label: "Campaigns", href: "/campaigns" },
-    { label: "News",      href: "/news"      },
-    { label: "Network",   href: "/network"   },
-    { label: "Guide",     href: "/guide"     },
+    { label: t("nav.chat", lang),      href: "/chat"      },
+    { label: t("nav.wallet", lang),    href: "/wallet"    },
+    { label: t("nav.ecosystem", lang), href: "/ecosystem" },
+    { label: t("nav.trade", lang),     href: "/trade"     },
+    { label: t("nav.campaigns", lang), href: "/campaigns" },
+    { label: t("nav.news", lang),      href: "/news"      },
+    { label: t("nav.network", lang),   href: "/network"   },
+    { label: t("nav.guide", lang),     href: "/guide"     },
   ];
 
   return (
@@ -124,6 +127,7 @@ export default function Navbar({
         {/* Wallet / CTA */}
         <div className="flex items-center gap-2.5 shrink-0">
           <PriceTicker />
+          <LanguageSwitcher />
           <NetworkSwitcher />
 
           {walletAddress ? (
@@ -133,7 +137,7 @@ export default function Navbar({
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-black transition-all duration-150 hover:scale-[1.03]"
                   style={{ background: "linear-gradient(135deg, #f59e0b, #fbbf24)", boxShadow: "0 4px 14px rgba(245,158,11,0.35)" }}
                   title="Switch to Pharos network">
-                  <span>⚠</span> Switch to Pharos
+                  <span>⚠</span> {t("wallet.switch", lang)}
                 </button>
               )}
               <div className="p-px rounded-xl"
@@ -147,7 +151,7 @@ export default function Navbar({
                   </span>
                   <span className="w-px h-3 shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
                   {isWrongNetwork ? (
-                    <span className="text-xs font-data font-semibold" style={{ color: "#fbbf24" }}>Wrong network</span>
+                    <span className="text-xs font-data font-semibold" style={{ color: "#fbbf24" }}>{t("wallet.wrongNetwork", lang)}</span>
                   ) : (
                     <span className="text-xs font-data font-semibold" style={{ color: "#00d4ff" }}>
                       {balance} <span className="opacity-60">{PHAROS_NETWORKS[network].nativeSymbol}</span>
@@ -194,7 +198,7 @@ export default function Navbar({
                       <path d="M12 4H2a.88.88 0 00-.88.88v3.5A.88.88 0 002 9.25h10a.88.88 0 00.88-.87v-3.5A.88.88 0 0012 4zM2.88 8.12V6.63A.88.88 0 012 5.75a.88.88 0 01.88-.88v3.25z"/>
                     </svg>
                   )}
-                  {isConnecting ? "Connecting…" : "Connect Wallet"}
+                  {isConnecting ? t("wallet.connecting", lang) : t("wallet.connect", lang)}
                 </button>
               ) : (
                 <Link
@@ -207,7 +211,7 @@ export default function Navbar({
                   onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-1px) scale(1.03)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = ""; }}
                 >
-                  Launch App →
+                  {t("wallet.launch", lang)}
                 </Link>
               )}
 
@@ -222,7 +226,7 @@ export default function Navbar({
                   }}>
                   <div className="px-3.5 py-2.5 border-b" style={{ borderColor: "rgba(0,212,255,0.1)" }}>
                     <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(0,212,255,0.45)" }}>
-                      Choose wallet
+                      {t("wallet.choose", lang)}
                     </p>
                   </div>
                   <div className="p-2 flex flex-col gap-1">

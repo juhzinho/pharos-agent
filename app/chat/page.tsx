@@ -49,6 +49,7 @@ import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
+import { t, useSiteLang } from "@/lib/i18n";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import WaveBackground from "@/components/WaveBackground";
@@ -2907,6 +2908,7 @@ export default function ChatPage() {
   const [chainId, setChainId] = useState<string | null>(null);
   const [walletPickerOptions, setWalletPickerOptions] = useState<WalletOption[] | null>(null);
   const [selectedNetwork, setSelectedNetworkState] = useState<PharosNetworkId>("mainnet");
+  const [siteLang] = useSiteLang();
 
   useEffect(() => {
     setSelectedNetworkState(getSelectedNetwork());
@@ -4783,12 +4785,12 @@ export default function ChatPage() {
             <Link href="/"
               className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border transition-all hover:border-cyan-400/40"
               style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.8)" }}>
-              ⌂ Home
+              ⌂ {t("chat.home", siteLang)}
             </Link>
             <button onClick={handleResetChat}
               className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border transition-all hover:border-cyan-400/40"
               style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.8)" }}>
-              ↺ New chat
+              ↺ {t("chat.newChat", siteLang)}
             </button>
           </div>
 
@@ -4887,11 +4889,11 @@ export default function ChatPage() {
           <div className="lg:hidden flex items-center gap-2 px-4 pt-2">
             <Link href="/" className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border"
               style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.75)" }}>
-              ⌂ Home
+              ⌂ {t("chat.home", siteLang)}
             </Link>
             <button onClick={handleResetChat} className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border"
               style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(203,213,225,0.75)" }}>
-              ↺ New chat
+              ↺ {t("chat.newChat", siteLang)}
             </button>
           </div>
 
@@ -5089,9 +5091,9 @@ export default function ChatPage() {
                       </svg>
                     </div>
                     <div className="flex-1 text-center sm:text-left">
-                      <p className="text-sm font-semibold text-white">Conecte sua carteira para usar o agente</p>
+                      <p className="text-sm font-semibold text-white">{t("gate.title", siteLang)}</p>
                       <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>
-                        Connect your wallet to unlock the agent · Só leio seu endereço público — nunca peço a seed phrase
+                        {t("gate.subtitle", siteLang)}
                       </p>
                     </div>
                     <button onClick={handleConnect} disabled={isConnecting}
@@ -5104,7 +5106,7 @@ export default function ChatPage() {
                       onMouseEnter={(e) => { if (!isConnecting) (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}>
                       {isConnecting && <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />}
-                      {isConnecting ? "Conectando…" : "Connect Wallet"}
+                      {isConnecting ? t("wallet.connecting", siteLang) : t("wallet.connect", siteLang)}
                     </button>
                   </div>
                 </div>
@@ -5119,7 +5121,7 @@ export default function ChatPage() {
                       value={input}
                       onChange={handleInputChange}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                      placeholder="Swap, bridge, add liquidity, ou pergunte qualquer coisa sobre Pharos…"
+                      placeholder={t("chat.placeholder", siteLang)}
                       disabled={isSending}
                       rows={1}
                       className="flex-1 text-sm text-white outline-none disabled:opacity-60 resize-none overflow-hidden bg-transparent"
@@ -5168,7 +5170,7 @@ export default function ChatPage() {
               )}
 
               <p className="mt-2 text-center text-[10px]" style={{ color: "rgba(71,85,105,0.35)" }}>
-                Pharos Mainnet · Chain ID 1672 · Non-custodial · Shift+Enter new line
+                {t("chat.footer", siteLang)}
               </p>
             </div>
           </div>
