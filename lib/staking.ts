@@ -17,6 +17,11 @@ export const FAROO = {
   WPROS:  "0x52c48d4213107b20bc583832b0d951fb9ca8f0b0",
 } as const;
 
+// The vault itself has NO on-chain minimum (previewDeposit accepts 1 wei —
+// verified via RPC). This is the agent's practical minimum: below it, gas
+// costs would eat any staking yield.
+export const MIN_STAKE_PROS = 0.1;
+
 const RPC = "https://rpc.pharos.xyz";
 
 const SEL = {
@@ -104,6 +109,9 @@ export async function getStakeNav(): Promise<number> {
  */
 export async function buildStakeTxs(amount: number, signer: string): Promise<StakeBuild | StakeError> {
   if (!(amount > 0)) return { error: "Invalid amount." };
+  if (amount < MIN_STAKE_PROS) {
+    return { error: `Minimum stake is ${MIN_STAKE_PROS} PROS (you entered ${amount}).` };
+  }
   const raw = toRaw(amount);
   const owner = pad(signer);
 

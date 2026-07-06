@@ -47,7 +47,7 @@ import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } fro
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
-import { buildStakeTxs, buildUnstakeTxs, type StakeBuild } from "@/lib/staking";
+import { buildStakeTxs, buildUnstakeTxs, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
 import { estimateGasCost, formatGasCost } from "@/lib/gas";
 import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
 import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
@@ -105,6 +105,7 @@ interface AmountQueryState {
   token: string;
   balance: number;
   chain: string;
+  min?: number; // minimum accepted amount (e.g. Faroo stake minimum)
 }
 
 interface TokenChoiceState {
@@ -1854,7 +1855,9 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
 
 // ─── percentage quick-pick buttons ──────────────────────────────────────────
 
-function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (amount: number) => void }) {
+function PercentageButtons({ balance, onSelect, min, token }: { balance: number; onSelect: (amount: number) => void; min?: number; token?: string }) {
+  const [custom, setCustom] = useState("");
+  const [customErr, setCustomErr] = useState<string | null>(null);
   const percentages = [
     { label: "25%", pct: 0.25 },
     { label: "50%", pct: 0.50 },
@@ -1862,7 +1865,17 @@ function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (
     { label: "100%", pct: 1.00 },
   ];
 
+  const submitCustom = () => {
+    const amt = parseFloat(custom.replace(",", "."));
+    if (!(amt > 0)) { setCustomErr("Enter a valid amount."); return; }
+    if (min != null && amt < min) { setCustomErr(`Minimum: ${min} ${token ?? ""}`.trim()); return; }
+    if (amt > balance) { setCustomErr(`You only have ${balance.toFixed(4)} ${token ?? ""}`.trim()); return; }
+    setCustomErr(null);
+    onSelect(amt);
+  };
+
   return (
+    <>
     <div className="mt-4 flex gap-2 flex-wrap">
       {percentages.map((p) => (
         <button key={p.label} onClick={() => onSelect(balance * p.pct)}
@@ -1882,6 +1895,29 @@ function PercentageButtons({ balance, onSelect }: { balance: number; onSelect: (
         </button>
       ))}
     </div>
+    <div className="mt-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={custom}
+          onChange={(e) => { setCustom(e.target.value); setCustomErr(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitCustom(); } }}
+          placeholder={min != null ? `Custom amount (min ${min})` : "Custom amount"}
+          className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{ background: "rgba(10,22,40,0.6)", border: "1px solid rgba(0,212,255,0.2)", color: "rgba(215,228,245,0.92)" }}
+        />
+        <button onClick={submitCustom}
+          className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+          style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.3)", color: "rgba(0,212,255,0.9)" }}>
+          OK
+        </button>
+      </div>
+      {customErr && (
+        <p className="mt-1.5 text-xs" style={{ color: "rgba(251,113,133,0.9)" }}>{customErr}</p>
+      )}
+    </div>
+    </>
   );
 }
 
@@ -2486,8 +2522,13 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
           <div className="mt-3">
             <p className="text-sm mb-2" style={{ color: "rgba(215,228,245,0.88)" }}>
               You have <span className="font-semibold text-white">{msg.amountQuery.balance.toFixed(4)} {msg.amountQuery.token}</span> on {msg.amountQuery.chain}.
+              {msg.amountQuery.min != null && (
+                <span className="block mt-0.5 text-xs" style={{ color: "rgba(148,197,255,0.75)" }}>
+                  Minimum: {msg.amountQuery.min} {msg.amountQuery.token}
+                </span>
+              )}
             </p>
-            <PercentageButtons balance={msg.amountQuery.balance} onSelect={(amount) => {
+            <PercentageButtons balance={msg.amountQuery.balance} min={msg.amountQuery.min} token={msg.amountQuery.token} onSelect={(amount) => {
               onAmountPicked(amount, msg.amountQuery!.token);
             }} />
           </div>
@@ -4088,12 +4129,12 @@ export default function ChatPage() {
     try {
       const bal = parseFloat(await getBalance(walletAddress)) || 0;
       if (opSeqRef.current !== seq) return;
-      if (bal <= 0.011) {
+      if (bal < MIN_STAKE_PROS + 0.011) {
         updateMessage(msgId, {
           isLoading: false,
           text: lang === "pt"
-            ? "Você não tem PROS suficiente para fazer stake (precisa sobrar ~0.01 para o gas). Faça um swap ou bridge primeiro. 💧"
-            : "You don't have enough PROS to stake (keep ~0.01 for gas). Do a swap or bridge first. 💧",
+            ? `Você não tem PROS suficiente para fazer stake — o mínimo é **${MIN_STAKE_PROS} PROS** (e precisa sobrar ~0.01 para o gas). Faça um swap ou bridge primeiro. 💧`
+            : `You don't have enough PROS to stake — the minimum is **${MIN_STAKE_PROS} PROS** (plus ~0.01 kept for gas). Do a swap or bridge first. 💧`,
         });
         return;
       }
@@ -4101,9 +4142,9 @@ export default function ChatPage() {
       updateMessage(msgId, {
         isLoading: false,
         text: lang === "pt"
-          ? "Vamos fazer stake na **Faroo**! Você deposita PROS e recebe **stPROS**, que rende com as recompensas de staking da rede. Quanto quer colocar?"
-          : "Let's stake on **Faroo**! You deposit PROS and receive **stPROS**, which accrues the network's staking rewards. How much do you want to stake?",
-        amountQuery: { token: "PROS", balance: bal, chain: "Pharos" },
+          ? `Vamos fazer stake na **Faroo**! Você deposita PROS e recebe **stPROS**, que rende com as recompensas de staking da rede. Quanto quer colocar? Escolha uma porcentagem ou digite o valor (mínimo: **${MIN_STAKE_PROS} PROS**).`
+          : `Let's stake on **Faroo**! You deposit PROS and receive **stPROS**, which accrues the network's staking rewards. How much do you want to stake? Pick a percentage or type the amount (minimum: **${MIN_STAKE_PROS} PROS**).`,
+        amountQuery: { token: "PROS", balance: bal, chain: "Pharos", min: MIN_STAKE_PROS },
       });
     } catch (err) {
       if (opSeqRef.current !== seq) return;
@@ -4258,6 +4299,32 @@ export default function ChatPage() {
     history.push({ role: "user", content: text });
 
     const thinkingId = addMessage({ role: "agent", text: "Thinking…", isLoading: true });
+
+    // Guided stake flow: a typed amount (e.g. "0.25" or "0.25 pros") builds the
+    // Faroo stake card directly, mirroring the percentage buttons.
+    if (pendingStakeRef.current) {
+      const m = text.match(/^\s*([\d]+(?:[.,]\d+)?)\s*(?:pros)?\s*$/i);
+      if (m) {
+        const amt = parseFloat(m[1].replace(",", "."));
+        const lang: "pt" | "en" = /[ãõáéíóúâêôç]/i.test(text) ? "pt" : guessUserLang(messages);
+        if (!(amt > 0) || amt < MIN_STAKE_PROS) {
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: lang === "pt"
+              ? `O mínimo de stake é **${MIN_STAKE_PROS} PROS**. Digite um valor maior ou escolha uma porcentagem acima. 🙂`
+              : `The minimum stake is **${MIN_STAKE_PROS} PROS**. Type a larger amount or pick a percentage above. 🙂`,
+          });
+        } else {
+          pendingStakeRef.current = false;
+          setMessages((prev) => prev.map((msg) => msg.amountQuery ? { ...msg, amountQuery: undefined } : msg));
+          updateMessage(thinkingId, { isLoading: false, text: lang === "pt" ? "Perfeito! 👇" : "Perfect! 👇" });
+          void buildStakeCardFor(amt);
+        }
+        setIsSending(false);
+        inputRef.current?.focus();
+        return;
+      }
+    }
 
     // Deterministic fast path: ecosystem/dApp listing questions are answered
     // straight from the local directory — instant, complete, never dangles.
