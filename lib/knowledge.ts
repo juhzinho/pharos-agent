@@ -53,7 +53,7 @@ Ember pAlpha vault: 0xe47e9ba4ea2320a6ed87246d02fd5c38485ed7d1
 
 GAS MODEL: EIP-1559 compatible | Base fee burned | Priority fee to validator (batched at epoch) | ALWAYS set gas limit 20% above estimated gas (refund mechanism requires buffer) | Use estimateGas() + 1.2x multiplier
 
-AGENT ACTIONS: swap (LI.FI or FaroSwap direct) | bridge (LI.FI, CCIP, or CCTP v2) | add_liquidity (FaroSwap V3 WPROS/USDC) | remove_liquidity (FaroSwap V3) | view_positions | view_wallet | stake PROS → stPROS (Faroo liquid staking, ERC-4626; min 0.1 PROS, guided flow with % buttons + custom amount) | unstake stPROS → PROS (guided flow) | staking position view (stPROS balance, NAV, PROS value — user asks "my staking" / "meu stake") | wallet tx history (last 10 txs from the explorer — user asks "my transactions" / "minhas transações") | live global RWA market data (rwa.xyz: aggregates, top networks, leaders by asset class — user asks "rwa market" / "mercado rwa")
+AGENT ACTIONS: swap (LI.FI or FaroSwap direct) | bridge (LI.FI, CCIP, or CCTP v2) | add_liquidity (FaroSwap V3 WPROS/USDC) | remove_liquidity (FaroSwap V3) | view_positions | view_wallet | stake PROS → stPROS (Faroo liquid staking, ERC-4626; min 0.1 PROS, guided flow with % buttons + custom amount) | unstake stPROS (guided flow; sends the redeem request — Faroo enforces a 7-day unstake period, 0% fee, then the user claims PROS at app.faroo.xyz/unstake) | staking position view (stPROS balance, NAV, PROS value — user asks "my staking" / "meu stake") | wallet tx history (last 10 txs from the explorer — user asks "my transactions" / "minhas transações") | live global RWA market data (rwa.xyz: aggregates, top networks, leaders by asset class — user asks "rwa market" / "mercado rwa")
 AGENT CANNOT: deposit RWA vaults (FRHV001/FYV001, R25, pALPHA…) | vote
 Bridge providers the agent EXECUTES: Jumper (LI.FI), Chainlink CCIP, Circle CCTP v2 (USDC burn&mint). Stargate and InterPort are external apps only.
 SECURITY: Never handle private keys/seed phrases. Non-custodial — user signs in own wallet. Only PROPOSE transactions, never claim execution.
@@ -89,6 +89,7 @@ MAINNET CONTRACTS (Pharos Pacific, chain 1672 — verified on pharos.socialscan.
   FRHV001 "Faroo RWA Hybrid Vault 001" (Pre-mint vault): 0x36f3d19dda7ed1428e3014ae6f2a75d70393b7e6 (ERC-4626 over stPROS, 24 dec)
   FYV001 "Faroo Yield Vault 001": 0xc775dfaa7565f2aca5ddf5dd6837ceb846de591b (ERC-4626 over stPROS, 24 dec)
   Flow: stake PROS → receive stPROS → optionally deposit stPROS into FRHV001 (pre-mint, RWA yield) or FYV001.
+  UNSTAKE: stPROS.redeem() burns shares and registers a WITHDRAWAL REQUEST (verified on-chain: no WPROS transferred at redeem). Unstake period: 7 DAYS, fee 0% (app.faroo.xyz/unstake). After maturing, the user CLAIMS the PROS on app.faroo.xyz/unstake. Exchange rate 1 stPROS = 1 PROS at launch (NAV grows with rewards).
   Testnet (Atlantic 688689) stPROS: 0xc9A0B63d91c2A808dD631d031f037944fedDaA12 (Bifrost SLPx docs).
 The agent's "RealFi Positions" feature tracks Faroo balances (stPROS, FRHV001, FYV001) live on-chain with NAV.
 `,

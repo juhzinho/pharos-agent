@@ -8,9 +8,13 @@
 //   1. WPROS.deposit()            — wrap native PROS (only the missing amount)
 //   2. WPROS.approve(stPROS, x)   — only if allowance is short
 //   3. stPROS.deposit(x, user)    — mint stPROS shares
-// Unstake flow (2 txs):
-//   1. stPROS.redeem(shares, user, user) — burn shares, receive WPROS
-//   2. WPROS.withdraw(x)                 — unwrap to native PROS
+// Unstake flow (1 tx + waiting period):
+//   1. stPROS.redeem(shares, user, user) — burns the shares and REGISTERS a
+//      withdrawal request (verified on-chain: the redeem tx emits a request
+//      event and transfers NO WPROS). Faroo enforces a 7-DAY unstake period
+//      (app.faroo.xyz/unstake: "Unstake period: 7 Days · fee 0%"); the user
+//      claims the PROS on app.faroo.xyz once it matures.
+export const UNSTAKE_PERIOD_DAYS = 7;
 
 export const FAROO = {
   STPROS: "0x6b0a44c64190279f7034b77c13a566e914fe5ec4",
@@ -79,10 +83,8 @@ export interface StakeStepTx {
   data: string;
   value: bigint;
   label: string; // button progress label
-  // Final unwrap of an unstake: the WPROS actually received from redeem can
-  // differ by a few wei from the preview (the vault NAV moves every block).
-  // When set, the signer re-reads the live WPROS balance right before sending
-  // and unwraps min(rawAmount, balance) — prevents "require(false)" reverts.
+  // Unwrap of loose WPROS: re-read the live balance right before sending and
+  // unwrap min(rawAmount, balance) — the balance can drift by a few wei.
   adjustToWprosBalance?: boolean;
   rawAmount?: bigint;
 }
@@ -104,7 +106,8 @@ export interface StakeBuild {
   nav: number;           // WPROS per stPROS share
   txs: StakeStepTx[];
   description: string;
-  rescue?: boolean;      // unwrap-only build (finishing a half-done unstake)
+  rescue?: boolean;          // unwrap-only build (converting loose WPROS → PROS)
+  claimAfterDays?: number;   // unstake: PROS claimable on app.faroo.xyz after this many days
 }
 
 export interface StakeError { error: string }
@@ -186,7 +189,12 @@ export async function buildStakeTxs(amount: number, signer: string): Promise<Sta
   };
 }
 
-/** Builds the unstake flow: redeem stPROS shares → WPROS → native PROS. */
+/**
+ * Builds the unstake flow: a single stPROS.redeem() tx that registers the
+ * withdrawal request. The PROS matures after Faroo's 7-day unstake period and
+ * is claimed on app.faroo.xyz/unstake. (Also handles a rescue path: loose
+ * WPROS in the wallet is unwrapped to native PROS in one tx.)
+ */
 export async function buildUnstakeTxs(amount: number, signer: string): Promise<StakeBuild | StakeError> {
   if (!(amount > 0)) return { error: "Invalid amount." };
   const raw = toRaw(amount);
@@ -234,21 +242,16 @@ export async function buildUnstakeTxs(amount: number, signer: string): Promise<S
   const outRaw = hexToBig(previewHex);
   const expectedOut = Number(outRaw) / 1e18 || amount * nav;
 
-  const unwrapRaw = outRaw > 0n ? outRaw : toRaw(expectedOut);
+  // IMPORTANT (verified on-chain): stPROS.redeem() burns the shares and
+  // REGISTERS a withdrawal request — it does NOT transfer WPROS immediately.
+  // Faroo enforces a 7-day unstake period; the PROS is claimed on
+  // app.faroo.xyz once it matures. So the flow is a single redeem tx.
   const txs: StakeStepTx[] = [
     {
       to: FAROO.STPROS,
       data: SEL.REDEEM_4626 + pad(raw) + owner + owner,
       value: 0n,
-      label: "Unstaking…",
-    },
-    {
-      to: FAROO.WPROS,
-      data: buildUnwrapData(unwrapRaw),
-      value: 0n,
-      label: "Unwrapping to PROS…",
-      adjustToWprosBalance: true,
-      rawAmount: unwrapRaw,
+      label: "Requesting unstake…",
     },
   ];
 
@@ -261,7 +264,8 @@ export async function buildUnstakeTxs(amount: number, signer: string): Promise<S
     description:
       `Faroo Liquid Staking · unstake ${amount} stPROS\n` +
       `You receive: ~${expectedOut.toFixed(6)} PROS (NAV ${nav.toFixed(6)} PROS/stPROS)\n` +
-      `Steps: 2 txs — redeem → unwrap`,
+      `Unstake period: ${UNSTAKE_PERIOD_DAYS} days — claim on app.faroo.xyz after it matures`,
+    claimAfterDays: UNSTAKE_PERIOD_DAYS,
   };
 }
 

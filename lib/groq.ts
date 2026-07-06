@@ -366,7 +366,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "When the user wants to STAKE native PROS ('stake 10 PROS', 'fazer stake de 5 PROS', 'stakear meus PROS', 'quero stPROS'):\n" +
     "  action='stake', amount=10 (PROS). The app wraps PROS → WPROS, approves, and deposits into the Faroo stPROS vault (ERC-4626) — the user receives stPROS that accrues staking rewards.\n" +
     "When the user wants to UNSTAKE ('unstake 5 stPROS', 'tirar do stake', 'resgatar stPROS', 'converter stPROS em PROS'):\n" +
-    "  action='unstake', amount=5 (stPROS). The app redeems stPROS → WPROS → native PROS.\n" +
+    "  action='unstake', amount=5 (stPROS). The app sends the redeem tx, which REGISTERS a withdrawal request — Faroo has a 7-DAY unstake period (0% fee); the user claims the PROS at app.faroo.xyz/unstake after it matures. NEVER say the PROS arrives immediately.\n" +
     "  If NO amount given: amount=null, needsAmount=true, ask how much in reply. Mainnet only.\n" +
     "── PAYMENT AGENT (action='transfer') ──\n" +
     "When the user wants to SEND/PAY tokens to an address ('send 1 PROS to 0x…', 'manda 5 USDC pra 0x…', 'paga 2 PROS pro 0x…', 'transfere 0.5 PROS para 0x…'):\n" +

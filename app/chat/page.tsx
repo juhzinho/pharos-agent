@@ -3133,10 +3133,24 @@ function StakeCard({ build, lang, onDone, from }: { build: StakeBuild; lang: "pt
         </div>
         <span className="text-white/30">→</span>
         <div className="flex-1 px-3 py-2.5 rounded-xl" style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.14)" }}>
-          <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1" style={{ color: "rgba(52,211,153,0.6)" }}>{lang === "pt" ? "Você recebe" : "You receive"}</p>
+          <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1" style={{ color: "rgba(52,211,153,0.6)" }}>
+            {build.claimAfterDays
+              ? (lang === "pt" ? `Você recebe (após ${build.claimAfterDays} dias)` : `You receive (after ${build.claimAfterDays} days)`)
+              : (lang === "pt" ? "Você recebe" : "You receive")}
+          </p>
           <p className="text-sm font-data font-semibold text-white/90">~{build.expectedOut.toLocaleString("en-US", { maximumFractionDigits: 6 })} {outSym}</p>
         </div>
       </div>
+      {build.claimAfterDays && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-xl mb-3" style={{ background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)" }}>
+          <span style={{ color: "rgba(245,158,11,0.8)" }} className="mt-0.5 shrink-0 text-sm">⏳</span>
+          <span className="text-xs leading-relaxed" style={{ color: "rgba(245,158,11,0.75)" }}>
+            {lang === "pt"
+              ? <>A Faroo tem período de unstake de <b>{build.claimAfterDays} dias</b> (taxa 0%). Após esse prazo, resgate seus PROS em <a href="https://app.faroo.xyz/unstake" target="_blank" rel="noopener noreferrer" className="underline">app.faroo.xyz/unstake</a>.</>
+              : <>Faroo has a <b>{build.claimAfterDays}-day</b> unstake period (0% fee). After it matures, claim your PROS at <a href="https://app.faroo.xyz/unstake" target="_blank" rel="noopener noreferrer" className="underline">app.faroo.xyz/unstake</a>.</>}
+          </span>
+        </div>
+      )}
       <div className="space-y-1.5 mb-3">
         {build.txs.map((tx, i) => (
           <div key={i} className="flex items-center gap-2 text-xs text-white/70">
@@ -4265,8 +4279,8 @@ export default function ChatPage() {
       updateMessage(msgId, {
         isLoading: false,
         text: lang === "pt"
-          ? `Vamos resgatar! Você tem **${bal.toFixed(6)} stPROS** (~${(bal * nav).toFixed(6)} PROS no NAV atual). Quanto quer fazer unstake? Escolha uma porcentagem ou digite o valor.`
-          : `Let's redeem! You hold **${bal.toFixed(6)} stPROS** (~${(bal * nav).toFixed(6)} PROS at the current NAV). How much do you want to unstake? Pick a percentage or type the amount.`,
+          ? `Vamos resgatar! Você tem **${bal.toFixed(6)} stPROS** (~${(bal * nav).toFixed(6)} PROS no NAV atual). Quanto quer fazer unstake? Escolha uma porcentagem ou digite o valor.\n\n⏳ Atenção: a Faroo tem **período de unstake de 7 dias** (taxa 0%) — após o prazo, você resgata os PROS em [app.faroo.xyz/unstake](https://app.faroo.xyz/unstake).`
+          : `Let's redeem! You hold **${bal.toFixed(6)} stPROS** (~${(bal * nav).toFixed(6)} PROS at the current NAV). How much do you want to unstake? Pick a percentage or type the amount.\n\n⏳ Note: Faroo has a **7-day unstake period** (0% fee) — after it matures, you claim the PROS at [app.faroo.xyz/unstake](https://app.faroo.xyz/unstake).`,
         amountQuery: { token: "stPROS", balance: bal, chain: "Pharos" },
       });
     } catch (err) {
@@ -5320,7 +5334,9 @@ export default function ChatPage() {
         : m.stakePending
         ? (m.stakePending.kind === "stake"
             ? `Staked! ${m.stakePending.amount} PROS deposited into Faroo — you received ~${m.stakePending.expectedOut.toFixed(6)} stPROS, which accrues staking rewards over time.`
-            : `Unstaked! ${m.stakePending.amount} stPROS redeemed — you received ~${m.stakePending.expectedOut.toFixed(6)} PROS back in your wallet.`)
+            : m.stakePending.rescue
+            ? `Unwrapped! ${m.stakePending.amount} WPROS converted to native PROS in your wallet.`
+            : `Unstake requested! ${m.stakePending.amount} stPROS redeemed — ~${m.stakePending.expectedOut.toFixed(6)} PROS enters Faroo's ${m.stakePending.claimAfterDays ?? 7}-day unstake period. Claim it on [app.faroo.xyz/unstake](https://app.faroo.xyz/unstake) once it matures.`)
         : m.pending?.description ?? "Transaction sent!";
       return {
         ...m,
