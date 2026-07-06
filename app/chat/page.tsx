@@ -51,6 +51,7 @@ import { buildStakeTxs, buildUnstakeTxs, type StakeBuild } from "@/lib/staking";
 import { estimateGasCost, formatGasCost } from "@/lib/gas";
 import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
 import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
+import { formatRwaMarket, type RwaMarketData } from "@/lib/rwa-live";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { t, useSiteLang } from "@/lib/i18n";
@@ -2569,7 +2570,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi" | "stake" | "rwamarket";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -2578,6 +2579,10 @@ const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; 
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M3 4l4-3 4 3M3 10l4 3 4-3" /></svg> },
   { label: "Add Liquidity", action: "liquidity",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M1 7h12" /></svg> },
+  { label: "Stake PROS", action: "stake",
+    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 10.5l5 2.5 5-2.5M2 7l5 2.5L12 7M7 1L2 3.5 7 6l5-2.5L7 1z"/></svg> },
+  { label: "RWA Market", action: "rwamarket",
+    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="7" cy="7" r="6"/><path d="M1 7h12M7 1c1.8 1.6 2.8 3.7 2.8 6S8.8 11.4 7 13C5.2 11.4 4.2 9.3 4.2 7S5.2 2.6 7 1z"/></svg> },
   { label: "My Positions", action: "positions",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="1.5" y="4" width="11" height="8" rx="1.5"/><path d="M4 4V3a3 3 0 016 0v1"/></svg> },
   { label: "Wallet Score", action: "score",
@@ -3530,6 +3535,8 @@ export default function ChatPage() {
 
   // Pending transfer waiting for an amount (recipient + token already known).
   const pendingTransferRef = useRef<{ to: string; token: string; network: PharosNetworkId } | null>(null);
+  // Guided stake flow: when true, the next amount pick (PROS) builds a Faroo stake card.
+  const pendingStakeRef = useRef<boolean>(false);
 
   // Live mirror of `messages` for event handlers registered with stale closures
   // (e.g. the wallet accountsChanged listener).
@@ -4051,6 +4058,86 @@ export default function ChatPage() {
     }
   }
 
+  // ── Live global RWA market (rwa.xyz via /api/rwa) ────────────────────────
+  async function runRwaMarket(msgId: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const res = await fetch("/api/rwa");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: RwaMarketData = await res.json();
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, { isLoading: false, text: formatRwaMarket(data, lang) });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false, isError: true,
+        text: lang === "pt"
+          ? `Não consegui puxar os dados ao vivo do rwa.xyz agora (${msg}). Tente de novo em instantes ou veja direto em https://app.rwa.xyz`
+          : `Couldn't fetch live rwa.xyz data right now (${msg}). Try again shortly or check https://app.rwa.xyz directly.`,
+      });
+    }
+  }
+
+  // ── Guided stake flow (Faroo): balance → % pick → stake card ─────────────
+  async function startStakeFlow(msgId: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    if (gateTestnetDeFi(msgId, lang)) return;
+    try {
+      const bal = parseFloat(await getBalance(walletAddress)) || 0;
+      if (opSeqRef.current !== seq) return;
+      if (bal <= 0.011) {
+        updateMessage(msgId, {
+          isLoading: false,
+          text: lang === "pt"
+            ? "Você não tem PROS suficiente para fazer stake (precisa sobrar ~0.01 para o gas). Faça um swap ou bridge primeiro. 💧"
+            : "You don't have enough PROS to stake (keep ~0.01 for gas). Do a swap or bridge first. 💧",
+        });
+        return;
+      }
+      pendingStakeRef.current = true;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Vamos fazer stake na **Faroo**! Você deposita PROS e recebe **stPROS**, que rende com as recompensas de staking da rede. Quanto quer colocar?"
+          : "Let's stake on **Faroo**! You deposit PROS and receive **stPROS**, which accrues the network's staking rewards. How much do you want to stake?",
+        amountQuery: { token: "PROS", balance: bal, chain: "Pharos" },
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read balance: ${msg}` });
+    }
+  }
+
+  // Builds and shows the Faroo stake card for the picked amount.
+  async function buildStakeCardFor(amount: number) {
+    const lang = guessUserLang(messages);
+    const id = addMessage({
+      role: "agent", isLoading: true,
+      text: lang === "pt" ? "Montando a operação de staking na Faroo…" : "Building the Faroo staking operation…",
+    });
+    try {
+      const build = await buildStakeTxs(amount, walletAddress);
+      if ("error" in build) {
+        updateMessage(id, { isLoading: false, isError: true, text: friendlyTxError(build.error, lang) });
+        return;
+      }
+      updateMessage(id, {
+        isLoading: false,
+        text: lang === "pt"
+          ? `Pronto! Revise e assine para fazer stake de **${amount.toFixed(4)} PROS** na Faroo.`
+          : `Ready! Review and sign to stake **${amount.toFixed(4)} PROS** on Faroo.`,
+        stakePending: build,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(id, { isLoading: false, isError: true, text: friendlyTxError(msg, lang) });
+    }
+  }
+
   // ── Multi-wallet aggregator (2+ addresses in one message) ────────────────
   async function runMultiWallet(msgId: string, addresses: string[]) {
     const seq = opSeqRef.current;
@@ -4124,6 +4211,14 @@ export default function ChatPage() {
         updateMessage(id, { text: lang === "pt" ? "Lendo suas posições RealFi em todos os protocolos conhecidos…" : "Reading your RealFi positions across all known protocols…" });
         void runRealFiPositions(id, walletAddress);
         break;
+      case "stake":
+        updateMessage(id, { text: lang === "pt" ? "Lendo seu saldo de PROS…" : "Reading your PROS balance…" });
+        void startStakeFlow(id);
+        break;
+      case "rwamarket":
+        updateMessage(id, { text: lang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…" });
+        void runRwaMarket(id);
+        break;
     }
   }
 
@@ -4172,6 +4267,18 @@ export default function ChatPage() {
     if (isDappListQuestion(text) || isPartnerQuestion(text)) {
       const reply = isDappListQuestion(text) ? buildDappListReply(fastLang) : buildPartnersReply(fastLang);
       updateMessage(thinkingId, { isLoading: false, text: reply });
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Live RWA market fast path: global tokenization stats from rwa.xyz.
+    if (/\b(mercado\s+(de\s+)?rwa|rwa\s+market|rwa\s+global|global\s+rwa|dados\s+(de\s+)?rwa|rwa\.xyz|rwa\s+data|tokenized\s+assets?\s+market|mercado\s+de\s+tokeniza)/i.test(text)) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…",
+      });
+      await runRwaMarket(thinkingId);
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -5122,10 +5229,12 @@ export default function ChatPage() {
                 { label: "Swap tokens",        icon: "⇄", action: "swap" as const, color: "#00d4ff" },
                 { label: "Bridge cross-chain", icon: "⤡", action: "bridge" as const, color: "#818cf8" },
                 { label: "Add Liquidity",      icon: "+", action: "liquidity" as const, color: "#34d399" },
+                { label: "Stake PROS",         icon: "🥩", action: "stake" as const, color: "#a78bfa" },
                 { label: "My LP Positions",    icon: "◈", action: "positions" as const, color: "#fbbf24" },
                 { label: "Wallet Analysis",    icon: "◎", action: "wallet" as const, color: "#f472b6" },
                 { label: "Wallet Score",       icon: "★", action: "score" as const, color: "#f59e0b" },
                 { label: "RealFi Positions",   icon: "🏦", action: "realfi" as const, color: "#34d399" },
+                { label: "RWA Market (live)",  icon: "🌍", action: "rwamarket" as const, color: "#38bdf8" },
                 { label: "Pharos Protocols",   icon: "⬡", prompt: "what DeFi protocols are on Pharos?", color: "#38bdf8" },
               ] as Array<{ label: string; icon: string; color: string; action?: QuickActionKind; prompt?: string }>).map((item) => (
                 <button key={item.label}
@@ -5351,6 +5460,14 @@ export default function ChatPage() {
                 const amountQuery = messages.find(m => m.amountQuery?.token === token)?.amountQuery;
                 const isMax = amountQuery && Math.abs(amount - amountQuery.balance) < 0.0001;
                 const finalAmount = (isNative && isMax) ? Math.max(0, amount - 0.01) : amount;
+
+                // Guided stake flow? Build the Faroo stake card straight away.
+                if (pendingStakeRef.current && token === "PROS") {
+                  pendingStakeRef.current = false;
+                  setMessages((prev) => prev.map((m) => m.amountQuery ? { ...m, amountQuery: undefined } : m));
+                  void buildStakeCardFor(finalAmount);
+                  return;
+                }
 
                 // Pending transfer? Build the payment card straight away.
                 const pend = pendingTransferRef.current;
