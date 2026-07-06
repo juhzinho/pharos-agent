@@ -3,7 +3,7 @@ import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
 
 export interface GroqResult {
-  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | null;
+  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | "stake" | "unstake" | null;
   fromToken: string | null;
   toToken: string | null;
   amount: number | null;
@@ -361,7 +361,13 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "When in doubt about a token name, guess the closest match (PRS→PROS, pros→PROS, weth→WETH).\n\n" +
     "Tokens: PROS, WPROS, USDC, WETH, LINK, PGOLD, USDpm\n" +
     "Chains: Pharos (default), Ethereum, Base, Arbitrum, Polygon, Optimism\n" +
-    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet", "transfer", "approve", "explain_tx"\n' +
+    'Actions: "swap", "bridge", "add_liquidity", "remove_liquidity", "view_positions", "view_wallet", "transfer", "approve", "explain_tx", "stake", "unstake"\n' +
+    "── LIQUID STAKING (action='stake' / 'unstake') — Faroo ──\n" +
+    "When the user wants to STAKE native PROS ('stake 10 PROS', 'fazer stake de 5 PROS', 'stakear meus PROS', 'quero stPROS'):\n" +
+    "  action='stake', amount=10 (PROS). The app wraps PROS → WPROS, approves, and deposits into the Faroo stPROS vault (ERC-4626) — the user receives stPROS that accrues staking rewards.\n" +
+    "When the user wants to UNSTAKE ('unstake 5 stPROS', 'tirar do stake', 'resgatar stPROS', 'converter stPROS em PROS'):\n" +
+    "  action='unstake', amount=5 (stPROS). The app redeems stPROS → WPROS → native PROS.\n" +
+    "  If NO amount given: amount=null, needsAmount=true, ask how much in reply. Mainnet only.\n" +
     "── PAYMENT AGENT (action='transfer') ──\n" +
     "When the user wants to SEND/PAY tokens to an address ('send 1 PROS to 0x…', 'manda 5 USDC pra 0x…', 'paga 2 PROS pro 0x…', 'transfere 0.5 PROS para 0x…'):\n" +
     "  action='transfer', fill transfers=[{to:'0x…', amount:1, token:'PROS'}].\n" +
@@ -434,7 +440,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "REMINDER: Your ENTIRE response must be a single JSON object. No text before {. No text after }. No markdown fences. Only JSON.\n" +
     "Return ONLY valid JSON — no markdown, no explanation:\n" +
     "{\n" +
-    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|"transfer"|"approve"|"explain_tx"|null,\n' +
+    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|"transfer"|"approve"|"explain_tx"|"stake"|"unstake"|null,\n' +
     '  "transfers": [{"to":"0x...","amount":1,"token":"PROS"}]|null,\n' +
     '  "approveToken": "USDC"|null,\n' +
     '  "approveSpender": "0x..."|null,\n' +

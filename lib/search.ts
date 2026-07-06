@@ -87,6 +87,13 @@ async function tavilySearch(query: string): Promise<SearchResponse | null> {
 // ── Engine 2: Google Programmable Search (optional keys) ────────────────────
 // Get free keys: https://developers.google.com/custom-search/v1/overview
 //   GOOGLE_SEARCH_KEY = API key | GOOGLE_SEARCH_CX = search engine ID (cx)
+//
+// NOTE: since Jan 20, 2026, NEW Programmable Search engines can no longer
+// enable "search the entire web" — they are limited to up to 50 configured
+// domains. We therefore configure the engine with the official Pharos
+// ecosystem domains and use Google ONLY for Pharos-related queries, where a
+// domain-scoped Google search is actually ideal. General-web queries skip
+// Google and fall through to Brave/DuckDuckGo.
 
 async function googleSearch(query: string): Promise<SearchResponse | null> {
   const key = process.env.GOOGLE_SEARCH_KEY;
@@ -180,7 +187,11 @@ async function duckDuckGoSearch(query: string): Promise<SearchResponse | null> {
 // ── Cascade ──────────────────────────────────────────────────────────────────
 
 export async function webSearch(query: string): Promise<SearchResponse | null> {
-  const engines = [tavilySearch, googleSearch, braveSearch, duckDuckGoSearch];
+  // Google's engine is domain-scoped (Pharos ecosystem sites only) — great for
+  // Pharos questions, useless for the general web. Order engines accordingly.
+  const engines = PHAROS_RE.test(query)
+    ? [tavilySearch, googleSearch, braveSearch, duckDuckGoSearch]
+    : [tavilySearch, braveSearch, duckDuckGoSearch];
   for (const engine of engines) {
     const r = await engine(query);
     if (r && (r.answer || r.results.length > 0)) return r;

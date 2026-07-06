@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const inter = Inter({
@@ -33,6 +34,12 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
   },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Pharos Agent",
+  },
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
@@ -49,6 +56,10 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#050a1a",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,7 +67,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#050a1a]">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#050a1a]">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

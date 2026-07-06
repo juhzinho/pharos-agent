@@ -1,0 +1,18 @@
+{
+  "name": "Pharos Agent — AI DeFi Copilot",
+  "short_name": "Pharos Agent",
+  "description": "Swap, bridge, add liquidity and track RealFi positions on Pharos Network via natural language.",
+  "start_url": "/chat",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050a1a",
+  "theme_color": "#050a1a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

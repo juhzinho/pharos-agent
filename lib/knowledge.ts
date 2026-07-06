@@ -53,8 +53,8 @@ Ember pAlpha vault: 0xe47e9ba4ea2320a6ed87246d02fd5c38485ed7d1
 
 GAS MODEL: EIP-1559 compatible | Base fee burned | Priority fee to validator (batched at epoch) | ALWAYS set gas limit 20% above estimated gas (refund mechanism requires buffer) | Use estimateGas() + 1.2x multiplier
 
-AGENT ACTIONS: swap (LI.FI or FaroSwap direct) | bridge (LI.FI, CCIP, or CCTP v2) | add_liquidity (FaroSwap V3 WPROS/USDC) | remove_liquidity (FaroSwap V3) | view_positions | view_wallet
-AGENT CANNOT: deposit RWA vaults | vote | claim staking rewards | stake PROS
+AGENT ACTIONS: swap (LI.FI or FaroSwap direct) | bridge (LI.FI, CCIP, or CCTP v2) | add_liquidity (FaroSwap V3 WPROS/USDC) | remove_liquidity (FaroSwap V3) | view_positions | view_wallet | stake PROS → stPROS (Faroo liquid staking, ERC-4626) | unstake stPROS → PROS
+AGENT CANNOT: deposit RWA vaults (FRHV001/FYV001, R25, pALPHA…) | vote
 Bridge providers the agent EXECUTES: Jumper (LI.FI), Chainlink CCIP, Circle CCTP v2 (USDC burn&mint). Stargate and InterPort are external apps only.
 SECURITY: Never handle private keys/seed phrases. Non-custodial — user signs in own wallet. Only PROPOSE transactions, never claim execution.
 

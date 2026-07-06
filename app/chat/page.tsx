@@ -47,6 +47,10 @@ import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } fro
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
+import { buildStakeTxs, buildUnstakeTxs, type StakeBuild } from "@/lib/staking";
+import { estimateGasCost, formatGasCost } from "@/lib/gas";
+import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
+import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { t, useSiteLang } from "@/lib/i18n";
@@ -192,6 +196,7 @@ interface Message {
   txHash?: string;
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
   approvePending?: BuiltTx;            // ERC-20 approval to sign
+  stakePending?: StakeBuild;           // Faroo liquid staking (stake/unstake) txs
   priceChart?: { symbol: string };     // interactive price chart card
   walletIntel?: WalletIntel;           // wallet score intelligence card
   isLoading?: boolean;
@@ -1246,6 +1251,60 @@ function WalletChoiceButtons({ options, onChoose }: { options: WalletOption[]; o
 
 // ─── tx button ─────────────────────────────────────────────────────────────
 
+// ─── pre-signature gas estimate line ─────────────────────────────────────────
+// Shows the approximate network fee before the user signs. Best-effort: if the
+// estimate reverts (e.g. an approval step is still missing), the line is hidden
+// and the wallet's own estimate at signing time is the fallback. For multi-tx
+// flows only the estimable steps are summed, marked with "+" to signal "at least".
+
+function GasEstimateLine({ txs }: { txs: Array<{ from: string; to: string; data?: string; value?: string | bigint }> }) {
+  const [label, setLabel] = useState<string | null>(null);
+  const key = txs.map((t) => `${t.to}:${t.data ?? ""}:${String(t.value ?? "")}`).join("|");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const results = await Promise.all(txs.map((t) => estimateGasCost(t).catch(() => null)));
+      if (!alive) return;
+      const ok = results.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (ok.length === 0) { setLabel(null); return; }
+      const total = ok.reduce((s, r) => s + r.costPros, 0);
+      const partial = ok.length < txs.length;
+      setLabel(formatGasCost({ gasUnits: 0n, costPros: total }) + (partial ? "+" : ""));
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  if (!label) return null;
+  return (
+    <div className="mt-2 flex items-center gap-1.5 text-[11px]" style={{ color: "rgba(148,163,184,0.65)" }}>
+      <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2.5 12.5V3a1 1 0 011-1h4a1 1 0 011 1v9.5M1.5 12.5h8M8.5 5.5l2 .8a1 1 0 01.6.9v3.3a1 1 0 102 0V6l-2-2"/></svg>
+      <span>Network fee: <span className="font-data font-semibold" style={{ color: "rgba(215,228,245,0.8)" }}>{label}</span></span>
+    </div>
+  );
+}
+
+// Extracts the estimable tx params from a built swap/bridge PendingTx.
+function pendingToGasTxs(pending: PendingTx, walletAddress: string): Array<{ from: string; to: string; data?: string; value?: string | bigint }> {
+  if (pending.needsApproval) return []; // main tx reverts until the approval lands
+  if (pending.provider === "ccip" && pending.ccip) {
+    return [{ from: walletAddress, to: pending.ccip.routerAddress, data: pending.ccip.callData, value: pending.ccip.feeAmount }];
+  }
+  if (pending.provider === "cctp" && pending.cctpV2) {
+    return [{ from: walletAddress, to: pending.cctpV2.to, data: pending.cctpV2.data }];
+  }
+  if (pending.provider === "faroswap" && pending.faroswap) {
+    const t = pending.faroswap.txRequest as { to?: string; data?: string; value?: string };
+    if (t.to) return [{ from: walletAddress, to: t.to, data: t.data, value: t.value }];
+  }
+  if (pending.provider === "lifi" && pending.quote) {
+    const t = pending.quote.transactionRequest as { to?: string; data?: string; value?: string };
+    if (t.to) return [{ from: walletAddress, to: t.to, data: t.data, value: t.value }];
+  }
+  return [];
+}
+
 function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
   pending: PendingTx; walletAddress: string; onSuccess: (hash: string) => void; onError: (msg: string) => void; onReverted: (hash: string) => void;
 }) {
@@ -1311,8 +1370,11 @@ function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
   const stepLabels = { idle: pending.needsApproval ? "Approve & Sign" : "Sign & Execute", switching: `Switching to ${fromChain}…`, approving: "Approving token…", signing: `Waiting for ${walletLabel}…`, confirming: "Confirming on-chain…", done: "Done!" };
   const isIdle = step === "idle";
   const isDone = step === "done";
+  const gasTxs = fromChain === "Pharos" ? pendingToGasTxs(pending, walletAddress) : [];
 
   return (
+    <>
+    {gasTxs.length > 0 && <GasEstimateLine txs={gasTxs} />}
     <button onClick={handleSign} disabled={!isIdle}
       className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
       style={{
@@ -1326,6 +1388,7 @@ function TxButton({ pending, walletAddress, onSuccess, onError, onReverted }: {
       <span className="relative">{stepLabels[step]}</span>
       {isIdle && <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 relative shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 8h10M9 4l4 4-4 4" /></svg>}
     </button>
+    </>
   );
 }
 
@@ -1649,6 +1712,8 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
   const isIdle = step === "idle";
   const isDone = step === "done";
   return (
+    <>
+    {!needsAny && <GasEstimateLine txs={[{ from: walletAddress, to: FAROSWAP.NPM, data: result.mintCalldata }]} />}
     <button onClick={handleMint} disabled={!isIdle}
       className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
       style={{
@@ -1661,6 +1726,7 @@ function LiquidityTxButton({ liquidityPending, walletAddress, onSuccess, onError
       {!isIdle && !isDone && <Spinner />}
       <span className="relative">{stepLabels[step]}</span>
     </button>
+    </>
   );
 }
 
@@ -1765,6 +1831,13 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
     ? isCollectOnly ? "0 4px 18px rgba(251,191,36,0.32), inset 0 1px 0 rgba(255,255,255,0.2)" : "0 4px 18px rgba(239,68,68,0.32), inset 0 1px 0 rgba(255,255,255,0.2)"
     : "none";
   return (
+    <>
+    <GasEstimateLine txs={
+      isCollectOnly
+        ? [{ from: walletAddress, to: FAROSWAP.NPM, data: result.collectCalldata }]
+        : [{ from: walletAddress, to: FAROSWAP.NPM, data: result.decreaseCalldata },
+           { from: walletAddress, to: FAROSWAP.NPM, data: result.collectCalldata }]
+    } />
     <button onClick={handleRemove} disabled={!isIdle}
       className="mt-4 w-full h-11 px-6 rounded-xl font-semibold text-sm text-black transition-all duration-200 relative overflow-hidden flex items-center justify-center gap-2"
       style={{ background: btnBg, boxShadow: btnShadow }}
@@ -1774,6 +1847,7 @@ function RemoveLiquidityTxButton({ removeLiquidityPending, walletAddress, onSucc
       {!isIdle && !isDone && <Spinner />}
       <span className="relative">{stepLabels[step]}</span>
     </button>
+    </>
   );
 }
 
@@ -2444,6 +2518,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         {msg.transferPending && walletAddress && (
           <TransferCard
             build={msg.transferPending}
+            from={walletAddress}
             lang={/[ãõáéíóúâêôç]/i.test(msg.text) ? "pt" : "en"}
             onDone={(hash, error) => {
               if (error) onTxError(msg.id, error);
@@ -2455,6 +2530,19 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         {msg.approvePending && walletAddress && (
           <ApproveCard
             tx={msg.approvePending}
+            from={walletAddress}
+            lang={/[ãõáéíóúâêôç]/i.test(msg.text) ? "pt" : "en"}
+            onDone={(hash, error) => {
+              if (error) onTxError(msg.id, error);
+              else if (hash) onTxSuccess(msg.id, hash);
+            }}
+          />
+        )}
+
+        {msg.stakePending && walletAddress && (
+          <StakeCard
+            build={msg.stakePending}
+            from={walletAddress}
             lang={/[ãõáéíóúâêôç]/i.test(msg.text) ? "pt" : "en"}
             onDone={(hash, error) => {
               if (error) onTxError(msg.id, error);
@@ -2777,11 +2865,12 @@ function PriceChartCard({ symbol }: { symbol: string }) {
 // ─── Transfer (payment agent) card — sign 1..n txs sequentially ─────────────
 
 function TransferCard({
-  build, lang, onDone,
+  build, lang, onDone, from,
 }: {
   build: TransferBuild;
   lang: "pt" | "en";
   onDone: (lastHash: string | null, error?: string) => void;
+  from?: string;
 }) {
   const [signing, setSigning] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -2833,6 +2922,11 @@ function TransferCard({
       <div className="text-xs text-white/50 mb-3">
         {lang === "pt" ? "Total" : "Total"}: <span className="text-white/90 font-medium">{totals}</span>
       </div>
+      {from && build.network === "mainnet" && (
+        <div className="mb-3 -mt-1">
+          <GasEstimateLine txs={build.txs.map((tx) => ({ from, to: tx.to, data: tx.data, value: tx.value }))} />
+        </div>
+      )}
       <button
         onClick={sign}
         disabled={signing}
@@ -2851,7 +2945,7 @@ function TransferCard({
 
 // ─── ERC-20 approval card ────────────────────────────────────────────────────
 
-function ApproveCard({ tx, lang, onDone }: { tx: BuiltTx; lang: "pt" | "en"; onDone: (hash: string | null, error?: string) => void }) {
+function ApproveCard({ tx, lang, onDone, from }: { tx: BuiltTx; lang: "pt" | "en"; onDone: (hash: string | null, error?: string) => void; from?: string }) {
   const [signing, setSigning] = useState(false);
   const unlimited = /unlimited/i.test(tx.description);
 
@@ -2879,6 +2973,11 @@ function ApproveCard({ tx, lang, onDone }: { tx: BuiltTx; lang: "pt" | "en"; onD
             : "⚠️ UNLIMITED approval: the contract will be able to spend your entire balance of this token. Prefer approving only what you need."}
         </div>
       )}
+      {from && (
+        <div className="mb-3">
+          <GasEstimateLine txs={[{ from, to: tx.to, data: tx.data, value: tx.value }]} />
+        </div>
+      )}
       <button
         onClick={sign}
         disabled={signing}
@@ -2890,12 +2989,100 @@ function ApproveCard({ tx, lang, onDone }: { tx: BuiltTx; lang: "pt" | "en"; onD
   );
 }
 
+// ─── Faroo liquid staking card (stake PROS → stPROS / unstake) ──────────────
+
+function StakeCard({ build, lang, onDone, from }: { build: StakeBuild; lang: "pt" | "en"; onDone: (lastHash: string | null, error?: string) => void; from?: string }) {
+  const [signing, setSigning] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const isStake = build.kind === "stake";
+
+  async function sign() {
+    setSigning(true);
+    let lastHash: string | null = null;
+    try {
+      await switchToChain("Pharos");
+      for (let i = 0; i < build.txs.length; i++) {
+        setProgress(i + 1);
+        const tx = build.txs[i];
+        lastHash = await sendTransaction({ to: tx.to, data: tx.data, value: "0x" + tx.value.toString(16) });
+        // Each step depends on the previous one landing (wrap → approve → deposit).
+        const ok = await waitForTxSuccess(lastHash);
+        if (!ok) throw new Error(`Step ${i + 1} (${tx.label.replace(/…$/, "")}) reverted on-chain.`);
+      }
+      onDone(lastHash);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onDone(lastHash, msg);
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  const inSym = isStake ? "PROS" : "stPROS";
+  const outSym = isStake ? "stPROS" : "PROS";
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-semibold text-white/90">
+          {isStake ? "🥩 " : "🔓 "}
+          {lang === "pt" ? (isStake ? "Stake na Faroo" : "Unstake na Faroo") : (isStake ? "Faroo Staking" : "Faroo Unstaking")}
+        </div>
+        <span className="px-2 py-0.5 rounded-md text-[11px] border border-cyan-400/30 text-cyan-300 bg-cyan-500/10">Pharos Mainnet</span>
+      </div>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-1 px-3 py-2.5 rounded-xl" style={{ background: "rgba(0,212,255,0.05)", border: "1px solid rgba(0,212,255,0.14)" }}>
+          <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1" style={{ color: "rgba(0,212,255,0.6)" }}>{lang === "pt" ? "Você envia" : "You send"}</p>
+          <p className="text-sm font-data font-semibold text-white/90">{build.amount.toLocaleString("en-US", { maximumFractionDigits: 6 })} {inSym}</p>
+        </div>
+        <span className="text-white/30">→</span>
+        <div className="flex-1 px-3 py-2.5 rounded-xl" style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.14)" }}>
+          <p className="text-[9px] uppercase tracking-[0.1em] font-semibold mb-1" style={{ color: "rgba(52,211,153,0.6)" }}>{lang === "pt" ? "Você recebe" : "You receive"}</p>
+          <p className="text-sm font-data font-semibold text-white/90">~{build.expectedOut.toLocaleString("en-US", { maximumFractionDigits: 6 })} {outSym}</p>
+        </div>
+      </div>
+      <div className="space-y-1.5 mb-3">
+        {build.txs.map((tx, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs text-white/70">
+            <span className="text-white/30">{i + 1}.</span>
+            <span>{tx.label.replace(/…$/, "")}</span>
+            {signing && progress === i + 1 && <span className="text-cyan-300 animate-pulse">✍️</span>}
+            {signing && progress > i + 1 && <span className="text-emerald-400">✓</span>}
+          </div>
+        ))}
+      </div>
+      <div className="text-[11px] text-white/40 mb-3">
+        NAV: {build.nav.toFixed(6)} PROS/stPROS · {lang === "pt" ? "stPROS rende com as recompensas de staking da rede" : "stPROS accrues network staking rewards over time"}
+      </div>
+      {from && (
+        <div className="mb-3">
+          <GasEstimateLine txs={build.txs.map((tx) => ({ from, to: tx.to, data: tx.data, value: tx.value }))} />
+        </div>
+      )}
+      <button
+        onClick={sign}
+        disabled={signing}
+        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+      >
+        {signing
+          ? lang === "pt" ? `Assinando ${progress}/${build.txs.length}…` : `Signing ${progress}/${build.txs.length}…`
+          : lang === "pt"
+          ? `${isStake ? "Fazer stake" : "Fazer unstake"}${build.txs.length > 1 ? ` (${build.txs.length} txs)` : ""}`
+          : `${isStake ? "Stake" : "Unstake"}${build.txs.length > 1 ? ` (${build.txs.length} txs)` : ""}`}
+      </button>
+      <p className="text-[11px] text-white/30 mt-2 text-center">
+        {lang === "pt" ? "Você confirma cada transação na sua carteira." : "You confirm each transaction in your wallet."}
+      </p>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "agent",
-      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
+      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
     },
   ]);
   const [input, setInput] = useState("");
@@ -2909,6 +3096,69 @@ export default function ChatPage() {
   const [walletPickerOptions, setWalletPickerOptions] = useState<WalletOption[] | null>(null);
   const [selectedNetwork, setSelectedNetworkState] = useState<PharosNetworkId>("mainnet");
   const [siteLang] = useSiteLang();
+  const [chatId, setChatId] = useState<string>(() => newChatId());
+  const [chatList, setChatList] = useState<ChatListItem[]>([]);
+
+  // Persist the conversation (text only — interactive cards embed wallet-
+  // specific calldata that would be stale after a reload) and keep the
+  // sidebar history in sync. Only chats with at least one user message are saved.
+  useEffect(() => {
+    setChatList(listChats());
+  }, []);
+  useEffect(() => {
+    if (!messages.some((m) => m.role === "user")) return;
+    const stored: StoredMessage[] = messages
+      .filter((m) => !m.isLoading && !m.isSearching && m.text)
+      .map((m) => ({
+        id: m.id, role: m.role, text: m.text,
+        ...(m.txHash ? { txHash: m.txHash } : {}),
+        ...(m.isError ? { isError: true } : {}),
+        ...(m.sources?.length ? { sources: m.sources } : {}),
+      }));
+    if (stored.length === 0) return;
+    saveChat(chatId, deriveTitle(stored), stored);
+    setChatList(listChats());
+  }, [messages, chatId]);
+
+  // Reopen a saved conversation from the sidebar (text only; any transaction
+  // cards from that session are gone by design — the user just asks again).
+  function handleOpenChat(id: string) {
+    const chat = loadChat(id);
+    if (!chat) return;
+    opSeqRef.current++;
+    setChatId(id);
+    setInput("");
+    setMessages(chat.messages.map((m) => ({ id: m.id, role: m.role, text: m.text, txHash: m.txHash, isError: m.isError, sources: m.sources })));
+  }
+
+  function handleDeleteChat(id: string) {
+    deleteChat(id);
+    setChatList(listChats());
+    if (id === chatId) handleResetChat();
+  }
+
+  // Price-alert poller: while the app is open, check targets every minute.
+  // Triggered alerts fire a browser notification + a chat message and are
+  // removed from storage by checkAlerts().
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (listAlerts().length === 0) return;
+      const triggered = await checkAlerts();
+      if (triggered.length === 0) return;
+      const lang = guessUserLang(messagesRef.current);
+      for (const t of triggered) {
+        notifyTriggered(t, lang);
+        addMessage({
+          role: "agent",
+          text: lang === "pt"
+            ? `🔔 **Alerta de preço disparado!** ${t.symbol} está em **$${t.price.toFixed(4)}** — ${t.direction === "above" ? "acima" : "abaixo"} do seu alvo de $${t.target}.`
+            : `🔔 **Price alert triggered!** ${t.symbol} is at **$${t.price.toFixed(4)}** — ${t.direction === "above" ? "above" : "below"} your $${t.target} target.`,
+        });
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setSelectedNetworkState(getSelectedNetwork());
@@ -3297,7 +3547,7 @@ export default function ChatPage() {
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
         m.liquidityWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
         m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
-        m.transferPending || m.approvePending || m.tokenChoice || m.chainChoice || m.walletChoice;
+        m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
@@ -3306,7 +3556,7 @@ export default function ChatPage() {
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
         liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
         positions: undefined, removeMode: undefined,
-        transferPending: undefined, approvePending: undefined,
+        transferPending: undefined, approvePending: undefined, stakePending: undefined,
         tokenChoice: undefined, chainChoice: undefined, walletChoice: undefined,
         text: m.isLoading || m.isSearching
           ? (lang === "pt" ? "❌ Cancelado." : "❌ Cancelled.")
@@ -3331,7 +3581,7 @@ export default function ChatPage() {
     const isStaleBuiltCard = (m: Message) =>
       !!(m.pending || m.liquidityPending || m.removeLiquidityPending ||
          m.removePctPending || m.positions || m.bridgeChoice ||
-         m.transferPending || m.approvePending);
+         m.transferPending || m.approvePending || m.stakePending);
     const hasOpenFlow = messagesRef.current.some(
       (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.amountQuery || isStaleBuiltCard(m)
     );
@@ -3357,6 +3607,7 @@ export default function ChatPage() {
             bridgeChoice: undefined,
             transferPending: undefined,
             approvePending: undefined,
+            stakePending: undefined,
           };
         }
         if (m.bridgeWizard) return { ...m, bridgeWizard: { ...m.bridgeWizard, holdings } };
@@ -3382,11 +3633,12 @@ export default function ChatPage() {
   // Reset the conversation to a clean slate (keeps wallet connection).
   function handleResetChat() {
     opSeqRef.current++;
+    setChatId(newChatId());
     setInput("");
     setMessages([{
       id: "welcome",
       role: "agent",
-      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
+      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
     }]);
   }
 
@@ -3925,6 +4177,40 @@ export default function ChatPage() {
       return;
     }
 
+    // Price alerts fast path: create/list/clear alerts locally, no LLM round-trip.
+    const alertCmd = parseAlertCommand(text);
+    if (alertCmd) {
+      if (alertCmd.kind === "add") {
+        const granted = await ensureNotifyPermission();
+        addAlert(alertCmd.symbol, alertCmd.direction, alertCmd.target);
+        const dirLabel = fastLang === "pt"
+          ? (alertCmd.direction === "above" ? "passar de" : "cair abaixo de")
+          : (alertCmd.direction === "above" ? "goes above" : "drops below");
+        const permNote = granted
+          ? ""
+          : fastLang === "pt"
+          ? "\n\n⚠️ _As notificações do navegador estão bloqueadas — o aviso aparecerá só aqui no chat. Permita notificações no navegador para receber o alerta mesmo em outra aba._"
+          : "\n\n⚠️ _Browser notifications are blocked — the alert will only show here in the chat. Allow notifications to get alerted even from another tab._";
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: fastLang === "pt"
+            ? `🔔 Alerta criado! Eu te aviso quando **${alertCmd.symbol}** ${dirLabel} **$${alertCmd.target}**. Eu checo o preço a cada minuto enquanto o app estiver aberto.${permNote}`
+            : `🔔 Alert created! I'll let you know when **${alertCmd.symbol}** ${dirLabel} **$${alertCmd.target}**. I check the price every minute while the app is open.${permNote}`,
+        });
+      } else if (alertCmd.kind === "list") {
+        updateMessage(thinkingId, { isLoading: false, text: formatAlerts(listAlerts(), fastLang) });
+      } else {
+        clearAlerts();
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: fastLang === "pt" ? "🔕 Todos os alertas de preço foram removidos." : "🔕 All price alerts cleared.",
+        });
+      }
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
     // Tx explainer fast path: a full 66-char hash in the message → explain it
     // straight from the RPC (works on Mainnet + Atlantic Testnet).
     const pastedHash = extractTxHash(text);
@@ -4224,6 +4510,53 @@ export default function ChatPage() {
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
               updateMessage(thinkingId, { isLoading: false, isError: true, text: msg });
+            }
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // ── Faroo liquid staking: stake PROS → stPROS / unstake ────────────
+        if (groqResult.action === "stake" || groqResult.action === "unstake") {
+          const lang = guessUserLang(messages);
+          const isStake = groqResult.action === "stake";
+          if (!walletAddress) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: lang === "pt"
+                ? "Para fazer stake, conecte sua carteira primeiro (botão 'Conectar' no topo). 🔗"
+                : "To stake, connect your wallet first ('Connect' at the top). 🔗",
+            });
+          } else if (gateTestnetDeFi(thinkingId, lang)) {
+            // Faroo contracts are mainnet-only; the gate already replied.
+          } else if (groqResult.amount == null || groqResult.amount <= 0) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: groqResult.reply || (lang === "pt"
+                ? `Quanto você quer ${isStake ? "colocar em stake (em PROS)" : "tirar do stake (em stPROS)"}?`
+                : `How much do you want to ${isStake ? "stake (in PROS)" : "unstake (in stPROS)"}?`),
+            });
+          } else {
+            updateMessage(thinkingId, {
+              isLoading: true,
+              text: lang === "pt" ? "Montando a operação de staking na Faroo…" : "Building the Faroo staking operation…",
+            });
+            try {
+              const build = isStake
+                ? await buildStakeTxs(groqResult.amount, walletAddress)
+                : await buildUnstakeTxs(groqResult.amount, walletAddress);
+              if ("error" in build) {
+                updateMessage(thinkingId, { isLoading: false, isError: true, text: friendlyTxError(build.error, lang) });
+              } else {
+                const intro = sanitizeGroqReply(groqResult.reply) || (lang === "pt"
+                  ? `Pronto! Revise e assine para ${isStake ? "fazer stake de" : "resgatar"} ${build.amount} ${isStake ? "PROS" : "stPROS"} na Faroo.`
+                  : `Ready! Review and sign to ${isStake ? "stake" : "unstake"} ${build.amount} ${isStake ? "PROS" : "stPROS"} on Faroo.`);
+                updateMessage(thinkingId, { isLoading: false, text: intro, stakePending: build });
+              }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              updateMessage(thinkingId, { isLoading: false, isError: true, text: friendlyTxError(msg, lang) });
             }
           }
           setIsSending(false);
@@ -4598,6 +4931,10 @@ export default function ChatPage() {
           })()
         : m.approvePending
         ? `Approval confirmed! ${m.approvePending.description}`
+        : m.stakePending
+        ? (m.stakePending.kind === "stake"
+            ? `Staked! ${m.stakePending.amount} PROS deposited into Faroo — you received ~${m.stakePending.expectedOut.toFixed(6)} stPROS, which accrues staking rewards over time.`
+            : `Unstaked! ${m.stakePending.amount} stPROS redeemed — you received ~${m.stakePending.expectedOut.toFixed(6)} PROS back in your wallet.`)
         : m.pending?.description ?? "Transaction sent!";
       return {
         ...m,
@@ -4606,6 +4943,7 @@ export default function ChatPage() {
         removeLiquidityPending: undefined,
         transferPending: undefined,
         approvePending: undefined,
+        stakePending: undefined,
         text: successText,
         txHash: hash,
       };
@@ -4684,6 +5022,7 @@ export default function ChatPage() {
       removeLiquidityPending: undefined,
       transferPending: undefined,
       approvePending: undefined,
+      stakePending: undefined,
       isError: true,
       text: lang === "pt"
         ? `❌ A transação falhou (revertida on-chain). Veja no [Pharosscan](${link}). Quer tentar de novo?`
@@ -4816,6 +5155,39 @@ export default function ChatPage() {
 
           {/* Divider */}
           <div className="h-px mx-2 mb-5" style={{ background: "rgba(255,255,255,0.05)" }} />
+
+          {/* Chat history */}
+          {chatList.length > 0 && (
+            <div className="mb-6">
+              <p className="text-[9px] uppercase tracking-[0.15em] font-semibold mb-2.5 px-2" style={{ color: "rgba(0,212,255,0.35)" }}>
+                {siteLang === "pt" ? "Conversas" : "Chats"}
+              </p>
+              <div className="space-y-0.5 max-h-56 overflow-y-auto pr-0.5">
+                {chatList.map((c) => (
+                  <div key={c.id}
+                    className="group w-full flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl text-left transition-all duration-150 cursor-pointer"
+                    style={{ background: c.id === chatId ? "rgba(0,212,255,0.07)" : undefined }}
+                    onClick={() => handleOpenChat(c.id)}
+                    onMouseEnter={(e) => { if (c.id !== chatId) (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)"; }}
+                    onMouseLeave={(e) => { if (c.id !== chatId) (e.currentTarget as HTMLDivElement).style.background = ""; }}>
+                    <span className="flex-1 min-w-0 truncate text-[11px] font-medium"
+                      style={{ color: c.id === chatId ? "rgba(226,232,240,0.95)" : "rgba(148,163,184,0.7)" }}>
+                      {c.title}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteChat(c.id); }}
+                      title={siteLang === "pt" ? "Apagar conversa" : "Delete chat"}
+                      className="opacity-0 group-hover:opacity-100 shrink-0 w-5 h-5 rounded-md flex items-center justify-center transition-all"
+                      style={{ color: "rgba(148,163,184,0.5)" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,0.5)"; }}>
+                      <svg viewBox="0 0 14 14" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 8a1 1 0 001 1h4a1 1 0 001-1l.5-8"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Network info */}
           <div className="mb-5 px-2">
