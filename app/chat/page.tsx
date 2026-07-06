@@ -47,7 +47,7 @@ import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } fro
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
-import { buildStakeTxs, buildUnstakeTxs, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
+import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getStakeNav, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
 import { estimateGasCost, formatGasCost } from "@/lib/gas";
 import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
 import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
@@ -2216,6 +2216,46 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 }) {
   const isUser = msg.role === "user";
 
+  // ── Streaming reveal: when an agent message finishes loading, its text is
+  // typed out progressively instead of appearing all at once. Skipped for
+  // code blocks / tables (markdown flickers mid-parse) and very long texts.
+  const [revealLen, setRevealLen] = useState<number | null>(null);
+  const wasLoadingRef = useRef(!!(msg.isLoading || msg.isSearching));
+  const revealTextRef = useRef("");
+
+  useEffect(() => {
+    const nowLoading = !!(msg.isLoading || msg.isSearching);
+    if (
+      !isUser && wasLoadingRef.current && !nowLoading && msg.text &&
+      !msg.isError && msg.text.length <= 4000 &&
+      !msg.text.includes("```") && !/\n\s*\|/.test(msg.text)
+    ) {
+      revealTextRef.current = msg.text;
+      setRevealLen(0);
+    }
+    wasLoadingRef.current = nowLoading;
+  }, [msg.isLoading, msg.isSearching, msg.text, msg.isError, isUser]);
+
+  useEffect(() => {
+    if (revealLen === null) return;
+    const full = revealTextRef.current;
+    if (revealLen >= full.length || full !== msg.text) {
+      setRevealLen(null);
+      return;
+    }
+    // ~1.2s total reveal regardless of length, in word-sized steps.
+    const step = Math.max(3, Math.ceil(full.length / 50));
+    const t = setTimeout(() => {
+      setRevealLen((c) => (c === null ? null : Math.min(full.length, c + step)));
+    }, 24);
+    return () => clearTimeout(t);
+  }, [revealLen, msg.text]);
+
+  const displayText =
+    revealLen !== null && revealTextRef.current === msg.text
+      ? msg.text.slice(0, revealLen)
+      : msg.text;
+
   /* ── User message ────────────────────────────────────────────────────── */
   if (isUser) {
     return (
@@ -2337,7 +2377,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
                   td: ({ children }) => <td className="px-3 py-2.5 text-sm" style={{ color: "rgba(215,228,245,0.78)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>{children}</td>,
                 }}
               >
-                {safeText(msg.text ?? "")}
+                {safeText(displayText ?? "")}
               </ReactMarkdown>
             )}
           </div>
@@ -2611,7 +2651,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi" | "stake" | "rwamarket";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -3576,8 +3616,9 @@ export default function ChatPage() {
 
   // Pending transfer waiting for an amount (recipient + token already known).
   const pendingTransferRef = useRef<{ to: string; token: string; network: PharosNetworkId } | null>(null);
-  // Guided stake flow: when true, the next amount pick (PROS) builds a Faroo stake card.
-  const pendingStakeRef = useRef<boolean>(false);
+  // Guided staking flow: when set, the next amount pick builds a Faroo card —
+  // "stake" expects a PROS amount, "unstake" expects a stPROS amount.
+  const pendingStakeRef = useRef<false | "stake" | "unstake">(false);
 
   // Live mirror of `messages` for event handlers registered with stale closures
   // (e.g. the wallet accountsChanged listener).
@@ -3587,6 +3628,7 @@ export default function ChatPage() {
   function cancelActiveFlows() {
     opSeqRef.current++;
     pendingTransferRef.current = null;
+    pendingStakeRef.current = false;
     const lang = guessUserLang(messages);
     setMessages((prev) => prev.map((m) => {
       // Covers EVERY interactive on-chain card: wizards, provider/token/chain
@@ -4138,7 +4180,7 @@ export default function ChatPage() {
         });
         return;
       }
-      pendingStakeRef.current = true;
+      pendingStakeRef.current = "stake";
       updateMessage(msgId, {
         isLoading: false,
         text: lang === "pt"
@@ -4153,15 +4195,82 @@ export default function ChatPage() {
     }
   }
 
-  // Builds and shows the Faroo stake card for the picked amount.
-  async function buildStakeCardFor(amount: number) {
+  // Guided unstake flow: shows the user's staked stPROS and asks how much to redeem.
+  async function startUnstakeFlow(msgId: string) {
+    const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
+    if (gateTestnetDeFi(msgId, lang)) return;
+    try {
+      const [bal, nav] = await Promise.all([getStakedBalance(walletAddress), getStakeNav().catch(() => 1)]);
+      if (opSeqRef.current !== seq) return;
+      if (bal <= 0) {
+        updateMessage(msgId, {
+          isLoading: false,
+          text: lang === "pt"
+            ? "Você não tem **stPROS** em stake nesta carteira. Quer fazer stake de PROS primeiro? É só dizer \"stake\" ou clicar em **Stake PROS**. 🥩"
+            : "You don't have any **stPROS** staked in this wallet. Want to stake PROS first? Just say \"stake\" or click **Stake PROS**. 🥩",
+        });
+        return;
+      }
+      pendingStakeRef.current = "unstake";
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? `Vamos resgatar! Você tem **${bal.toFixed(6)} stPROS** (~${(bal * nav).toFixed(6)} PROS no NAV atual). Quanto quer fazer unstake? Escolha uma porcentagem ou digite o valor.`
+          : `Let's redeem! You hold **${bal.toFixed(6)} stPROS** (~${(bal * nav).toFixed(6)} PROS at the current NAV). How much do you want to unstake? Pick a percentage or type the amount.`,
+        amountQuery: { token: "stPROS", balance: bal, chain: "Pharos" },
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read staked balance: ${msg}` });
+    }
+  }
+
+  // "My Staking": read-only view of the user's Faroo position (stPROS, NAV, value).
+  async function runMyStaking(msgId: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const [bal, nav] = await Promise.all([getStakedBalance(walletAddress), getStakeNav().catch(() => 1)]);
+      if (opSeqRef.current !== seq) return;
+      if (bal <= 0) {
+        updateMessage(msgId, {
+          isLoading: false,
+          text: lang === "pt"
+            ? "Você ainda não tem posição de staking na **Faroo** nesta carteira. Quer começar? Clique em **Stake PROS** ou diga \"stake\". 🥩"
+            : "You don't have a **Faroo** staking position in this wallet yet. Want to start? Click **Stake PROS** or say \"stake\". 🥩",
+        });
+        return;
+      }
+      const valuePros = bal * nav;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? `🥩 **Sua posição de staking na Faroo**\n\n| | |\n|---|---|\n| **stPROS em carteira** | ${bal.toFixed(6)} |\n| **NAV atual** | ${nav.toFixed(6)} PROS/stPROS |\n| **Valor estimado** | ~${valuePros.toFixed(6)} PROS |\n\nO NAV cresce com as recompensas de staking da rede — seu stPROS vale cada vez mais PROS com o tempo. Quer fazer **stake** de mais ou **unstake**?`
+          : `🥩 **Your Faroo staking position**\n\n| | |\n|---|---|\n| **stPROS held** | ${bal.toFixed(6)} |\n| **Current NAV** | ${nav.toFixed(6)} PROS/stPROS |\n| **Estimated value** | ~${valuePros.toFixed(6)} PROS |\n\nThe NAV grows with the network's staking rewards — your stPROS is worth more PROS over time. Want to **stake** more or **unstake**?`,
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read staking position: ${msg}` });
+    }
+  }
+
+  // Builds and shows the Faroo stake/unstake card for the picked amount.
+  async function buildStakeCardFor(amount: number, kind: "stake" | "unstake" = "stake") {
+    const lang = guessUserLang(messages);
+    const isStake = kind === "stake";
     const id = addMessage({
       role: "agent", isLoading: true,
-      text: lang === "pt" ? "Montando a operação de staking na Faroo…" : "Building the Faroo staking operation…",
+      text: lang === "pt"
+        ? (isStake ? "Montando a operação de staking na Faroo…" : "Montando a operação de unstake na Faroo…")
+        : (isStake ? "Building the Faroo staking operation…" : "Building the Faroo unstake operation…"),
     });
     try {
-      const build = await buildStakeTxs(amount, walletAddress);
+      const build = isStake
+        ? await buildStakeTxs(amount, walletAddress)
+        : await buildUnstakeTxs(amount, walletAddress);
       if ("error" in build) {
         updateMessage(id, { isLoading: false, isError: true, text: friendlyTxError(build.error, lang) });
         return;
@@ -4169,8 +4278,8 @@ export default function ChatPage() {
       updateMessage(id, {
         isLoading: false,
         text: lang === "pt"
-          ? `Pronto! Revise e assine para fazer stake de **${amount.toFixed(4)} PROS** na Faroo.`
-          : `Ready! Review and sign to stake **${amount.toFixed(4)} PROS** on Faroo.`,
+          ? `Pronto! Revise e assine para fazer ${isStake ? "stake" : "unstake"} de **${amount.toFixed(4)} ${isStake ? "PROS" : "stPROS"}** na Faroo.`
+          : `Ready! Review and sign to ${isStake ? "stake" : "unstake"} **${amount.toFixed(4)} ${isStake ? "PROS" : "stPROS"}** on Faroo.`,
         stakePending: build,
       });
     } catch (err) {
@@ -4256,6 +4365,14 @@ export default function ChatPage() {
         updateMessage(id, { text: lang === "pt" ? "Lendo seu saldo de PROS…" : "Reading your PROS balance…" });
         void startStakeFlow(id);
         break;
+      case "unstake":
+        updateMessage(id, { text: lang === "pt" ? "Lendo seu saldo de stPROS…" : "Reading your stPROS balance…" });
+        void startUnstakeFlow(id);
+        break;
+      case "mystake":
+        updateMessage(id, { text: lang === "pt" ? "Lendo sua posição de staking na Faroo…" : "Reading your Faroo staking position…" });
+        void runMyStaking(id);
+        break;
       case "rwamarket":
         updateMessage(id, { text: lang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…" });
         void runRwaMarket(id);
@@ -4300,25 +4417,31 @@ export default function ChatPage() {
 
     const thinkingId = addMessage({ role: "agent", text: "Thinking…", isLoading: true });
 
-    // Guided stake flow: a typed amount (e.g. "0.25" or "0.25 pros") builds the
-    // Faroo stake card directly, mirroring the percentage buttons.
+    // Guided stake/unstake flow: a typed amount (e.g. "0.25" or "0.25 pros")
+    // builds the Faroo card directly, mirroring the percentage buttons.
     if (pendingStakeRef.current) {
-      const m = text.match(/^\s*([\d]+(?:[.,]\d+)?)\s*(?:pros)?\s*$/i);
+      const kind = pendingStakeRef.current;
+      const m = text.match(/^\s*([\d]+(?:[.,]\d+)?)\s*(?:st\s*pros|pros)?\s*$/i);
       if (m) {
         const amt = parseFloat(m[1].replace(",", "."));
         const lang: "pt" | "en" = /[ãõáéíóúâêôç]/i.test(text) ? "pt" : guessUserLang(messages);
-        if (!(amt > 0) || amt < MIN_STAKE_PROS) {
+        if (kind === "stake" && (!(amt > 0) || amt < MIN_STAKE_PROS)) {
           updateMessage(thinkingId, {
             isLoading: false,
             text: lang === "pt"
               ? `O mínimo de stake é **${MIN_STAKE_PROS} PROS**. Digite um valor maior ou escolha uma porcentagem acima. 🙂`
               : `The minimum stake is **${MIN_STAKE_PROS} PROS**. Type a larger amount or pick a percentage above. 🙂`,
           });
+        } else if (!(amt > 0)) {
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: lang === "pt" ? "Digite um valor válido maior que zero. 🙂" : "Please type a valid amount above zero. 🙂",
+          });
         } else {
           pendingStakeRef.current = false;
           setMessages((prev) => prev.map((msg) => msg.amountQuery ? { ...msg, amountQuery: undefined } : msg));
           updateMessage(thinkingId, { isLoading: false, text: lang === "pt" ? "Perfeito! 👇" : "Perfect! 👇" });
-          void buildStakeCardFor(amt);
+          void buildStakeCardFor(amt, kind);
         }
         setIsSending(false);
         inputRef.current?.focus();
@@ -4346,6 +4469,18 @@ export default function ChatPage() {
         text: fastLang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…",
       });
       await runRwaMarket(thinkingId);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Faroo staking position fast path: read-only, no LLM round-trip.
+    if (walletAddress && /\b(meu\s+stake\b|minha\s+posi[çc][ãa]o\s+de\s+stak|meu\s+staking|my\s+stak(?:e|ing)\b(?:\s+position)?|quanto\s+(?:eu\s+)?tenho\s+(?:de\s+|em\s+)?stak|staked\s+balance|saldo\s+de\s+stpros|meu\s+stpros)\b/i.test(text)) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Lendo sua posição de staking na Faroo…" : "Reading your Faroo staking position…",
+      });
+      await runMyStaking(thinkingId);
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -4570,10 +4705,25 @@ export default function ChatPage() {
         : "sessionTx=none";
       const prefsContext = getPrefsContext();
 
+      // Staged status: instead of a static "Thinking…", the placeholder narrates
+      // progress while the model works — perceived latency drops a lot.
+      const statusTimers: Array<ReturnType<typeof setTimeout>> = [];
+      const stageStatus = (delayMs: number, pt: string, en: string) => {
+        statusTimers.push(setTimeout(() => {
+          setMessages((prev) => prev.map((m) =>
+            m.id === thinkingId && m.isLoading ? { ...m, text: fastLang === "pt" ? pt : en } : m
+          ));
+        }, delayMs));
+      };
+      stageStatus(1000, "Consultando a base de conhecimento…", "Consulting the knowledge base…");
+      stageStatus(3500, "Formulando a resposta…", "Composing the reply…");
+      stageStatus(8000, "Quase lá — finalizando…", "Almost there — wrapping up…");
+
       // Intent parsing + web search + deep docs all run SERVER-SIDE via /api/agent
       // so API keys never reach the browser. Price (CoinGecko) and all tx-building
       // (LI.FI/FaroSwap/CCIP/CCTP/RPC) use public endpoints and stay client-side.
       const groqResult = await callAgent({ history, prefsContext, txContext });
+      statusTimers.forEach(clearTimeout);
 
       if (groqResult) {
         // Persist detected language for future context
@@ -4705,12 +4855,9 @@ export default function ChatPage() {
           } else if (gateTestnetDeFi(thinkingId, lang)) {
             // Faroo contracts are mainnet-only; the gate already replied.
           } else if (groqResult.amount == null || groqResult.amount <= 0) {
-            updateMessage(thinkingId, {
-              isLoading: false,
-              text: groqResult.reply || (lang === "pt"
-                ? `Quanto você quer ${isStake ? "colocar em stake (em PROS)" : "tirar do stake (em stPROS)"}?`
-                : `How much do you want to ${isStake ? "stake (in PROS)" : "unstake (in stPROS)"}?`),
-            });
+            // No amount given → start the guided flow (balance + % buttons + custom input).
+            if (isStake) await startStakeFlow(thinkingId);
+            else await startUnstakeFlow(thinkingId);
           } else {
             updateMessage(thinkingId, {
               isLoading: true,
@@ -5297,6 +5444,8 @@ export default function ChatPage() {
                 { label: "Bridge cross-chain", icon: "⤡", action: "bridge" as const, color: "#818cf8" },
                 { label: "Add Liquidity",      icon: "+", action: "liquidity" as const, color: "#34d399" },
                 { label: "Stake PROS",         icon: "🥩", action: "stake" as const, color: "#a78bfa" },
+                { label: "Unstake stPROS",     icon: "↩", action: "unstake" as const, color: "#c084fc" },
+                { label: "My Staking",         icon: "◉", action: "mystake" as const, color: "#e879f9" },
                 { label: "My LP Positions",    icon: "◈", action: "positions" as const, color: "#fbbf24" },
                 { label: "Wallet Analysis",    icon: "◎", action: "wallet" as const, color: "#f472b6" },
                 { label: "Wallet Score",       icon: "★", action: "score" as const, color: "#f59e0b" },
@@ -5528,11 +5677,17 @@ export default function ChatPage() {
                 const isMax = amountQuery && Math.abs(amount - amountQuery.balance) < 0.0001;
                 const finalAmount = (isNative && isMax) ? Math.max(0, amount - 0.01) : amount;
 
-                // Guided stake flow? Build the Faroo stake card straight away.
-                if (pendingStakeRef.current && token === "PROS") {
+                // Guided stake/unstake flow? Build the Faroo card straight away.
+                if (pendingStakeRef.current === "stake" && token === "PROS") {
                   pendingStakeRef.current = false;
                   setMessages((prev) => prev.map((m) => m.amountQuery ? { ...m, amountQuery: undefined } : m));
-                  void buildStakeCardFor(finalAmount);
+                  void buildStakeCardFor(finalAmount, "stake");
+                  return;
+                }
+                if (pendingStakeRef.current === "unstake" && token === "stPROS") {
+                  pendingStakeRef.current = false;
+                  setMessages((prev) => prev.map((m) => m.amountQuery ? { ...m, amountQuery: undefined } : m));
+                  void buildStakeCardFor(amount, "unstake");
                   return;
                 }
 

@@ -70,6 +70,12 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[#050a1a]">
         {children}
         <Analytics />
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              `if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}`,
+          }}
+        />
       </body>
     </html>
   );
