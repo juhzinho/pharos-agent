@@ -230,6 +230,32 @@ interface Message {
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
+const WALLET_STATUS_ID = "wallet-status";
+
+const LEGACY_WALLET_CONNECT_RE =
+  /^(Connected|Conectado) .+:\s*0x[a-fA-F0-9]{40}/m;
+
+function walletStatusText(
+  walletName: string,
+  address: string,
+  bal: string,
+  lang: "pt" | "en",
+  switched: boolean,
+): string {
+  if (switched) {
+    return lang === "pt"
+      ? `Carteira atual: **${walletName}** — \`${address}\`\n\nSaldo: **${bal} PROS**. Pronto para operar!`
+      : `Current wallet: **${walletName}** — \`${address}\`\n\nBalance: **${bal} PROS**. Ready to trade!`;
+  }
+  return lang === "pt"
+    ? `Conectado **${walletName}**: ${address}\n\nVocê tem **${bal} PROS**. Pronto para operar!`
+    : `Connected ${walletName}: ${address}\n\nYou have **${bal} PROS**. Ready to trade!`;
+}
+
+function isLegacyWalletConnectMsg(m: Pick<Message, "id" | "role" | "text">): boolean {
+  return m.id !== WALLET_STATUS_ID && m.role === "agent" && LEGACY_WALLET_CONNECT_RE.test(m.text);
+}
+
 const EXECUTION_CLAIM_RE =
   /\b(iniciada|enviada|feita|conclu[íi]da|realizada|processada|done|sent|completed|confirmed|executed|finalized)\b/i;
 
@@ -3453,6 +3479,7 @@ export default function ChatPage() {
   const walletAddressRef = useRef("");
   const userConnectLockRef = useRef(false);
   const refreshOpenFlowsForRef = useRef<(addr: string) => Promise<void>>(async () => {});
+  const upsertWalletStatusRef = useRef<(name: string, address: string, bal: string, switched?: boolean) => void>(() => {});
   const [selectedNetwork, setSelectedNetworkState] = useState<PharosNetworkId>("mainnet");
   const [siteLang] = useSiteLang();
   const [chatId, setChatId] = useState<string>(() => newChatId());
@@ -3593,8 +3620,10 @@ export default function ChatPage() {
       walletAddressRef.current = addr;
       setWalletAddress(addr);
       setConnectedProviderId(getRememberedProviderId());
-      getBalance(addr).then(setBalance);
+      const bal = await getBalance(addr);
+      setBalance(bal);
       setChainId(await getCurrentChainId());
+      upsertWalletStatusRef.current(getWalletName(), addr, bal, true);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -3608,6 +3637,23 @@ export default function ChatPage() {
   function updateMessage(id: string, patch: Partial<Message>) {
     setMessages((prev) => prev.map((m) => m.id === id ? { ...m, ...patch } : m));
   }
+
+  function upsertWalletStatusMessage(walletName: string, address: string, bal: string, switched = false) {
+    const lang = siteLang === "pt" ? "pt" : "en";
+    const text = walletStatusText(walletName, address, bal, lang, switched);
+    setMessages((prev) => {
+      const cleaned = prev.filter((m) => !isLegacyWalletConnectMsg(m));
+      const idx = cleaned.findIndex((m) => m.id === WALLET_STATUS_ID);
+      const msg: Message = { id: WALLET_STATUS_ID, role: "agent", text };
+      if (idx >= 0) {
+        const next = [...cleaned];
+        next[idx] = { ...next[idx], ...msg, isError: false };
+        return next;
+      }
+      return [...cleaned, msg];
+    });
+  }
+  upsertWalletStatusRef.current = upsertWalletStatusMessage;
 
   async function handleConnect() {
     setIsConnecting(true);
@@ -3644,13 +3690,15 @@ export default function ChatPage() {
     userConnectLockRef.current = true;
     try {
       const address = await connectWallet(option.provider, option.id);
+      const wasSwitch = !!walletAddressRef.current &&
+        walletAddressRef.current.toLowerCase() !== address.toLowerCase();
       walletAddressRef.current = address;
       setConnectedProviderId(option.id);
       setWalletAddress(address);
       const bal = await getBalance(address);
       setBalance(bal);
       setChainId(await getCurrentChainId());
-      addMessage({ role: "agent", text: `Connected ${option.name}: ${address}\n\nYou have ${bal} PROS. Ready to trade!` });
+      upsertWalletStatusMessage(option.name, address, bal, wasSwitch);
       // If wizard cards are open from a previous account, refresh their balances.
       void refreshOpenFlowsFor(address);
     } catch (err: unknown) {
@@ -3668,6 +3716,7 @@ export default function ChatPage() {
     setWalletAddress("");
     setBalance("0");
     setChainId(null);
+    setMessages((prev) => prev.filter((m) => m.id !== WALLET_STATUS_ID && !isLegacyWalletConnectMsg(m)));
   }
 
   async function handleSwitchNetwork() {
@@ -4008,7 +4057,10 @@ export default function ChatPage() {
       setConnectedProviderId(pid);
       walletAddressRef.current = next;
       setWalletAddress(next);
-      getBalance(next).then(setBalance);
+      getBalance(next).then((bal) => {
+        setBalance(bal);
+        upsertWalletStatusRef.current(getWalletName(provider), next, bal, true);
+      });
       void refreshOpenFlowsForRef.current(next);
     };
 
@@ -4028,7 +4080,9 @@ export default function ChatPage() {
       if (addr && addr.toLowerCase() !== walletAddressRef.current.toLowerCase()) {
         walletAddressRef.current = addr;
         setWalletAddress(addr);
-        getBalance(addr).then(setBalance);
+        const bal = await getBalance(addr);
+        setBalance(bal);
+        upsertWalletStatusRef.current(getWalletName(), addr, bal, true);
         void refreshOpenFlowsForRef.current(addr);
       }
     };
