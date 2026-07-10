@@ -883,8 +883,7 @@ function TransferWizardCard({ state, lang, onSubmit }: {
   const amount = parseFloat(amountStr.replace(",", "."));
   const amountOk = Number.isFinite(amount) && amount > 0;
   const countOk = count != null && count >= 1 && count <= 20;
-  const totalNeeded = amountOk && countOk ? amount * count! : 0;
-  const totalOk = amountOk && countOk && totalNeeded <= maxAmount + 1e-9;
+  const validAddr = (a: string) => /^0x[a-fA-F0-9]{40}$/.test(a);
 
   useEffect(() => {
     if (!countOk) { setAddrs([]); return; }
@@ -895,20 +894,43 @@ function TransferWizardCard({ state, lang, onSubmit }: {
     });
   }, [count, countOk]);
 
-  // Same wallet for every transfer is allowed. Empty slots inherit destino 1.
+  // Same wallet: only destino 1 filled → repeat for all. Different wallets: fill
+  // in order; trailing empty slots are OK (e.g. 6 destinos when count=10).
   const resolvedRecipients = (() => {
     if (!countOk || addrs.length !== count) return null;
     const trimmed = addrs.map((a) => a.trim());
-    const valid = (a: string) => /^0x[a-fA-F0-9]{40}$/.test(a);
-    if (trimmed.every(valid)) return trimmed;
+    if (trimmed.every(validAddr)) return trimmed;
     const first = trimmed[0];
-    if (valid(first) && trimmed.slice(1).every((a) => !a)) return Array(count!).fill(first);
-    return null;
+    if (validAddr(first) && trimmed.slice(1).every((a) => !a)) return Array(count!).fill(first);
+    let lastNonEmpty = -1;
+    for (let i = trimmed.length - 1; i >= 0; i--) {
+      if (trimmed[i]) { lastNonEmpty = i; break; }
+    }
+    if (lastNonEmpty < 0) return null;
+    const used: string[] = [];
+    for (let i = 0; i <= lastNonEmpty; i++) {
+      const a = trimmed[i];
+      if (!a || !validAddr(a)) return null;
+      used.push(a);
+    }
+    return used.length > 0 ? used : null;
   })();
+  const effectiveCount = resolvedRecipients?.length ?? 0;
+  const plannedTotal = amountOk && countOk ? amount * count! : 0;
+  const totalNeeded = amountOk && effectiveCount > 0 ? amount * effectiveCount : plannedTotal;
+  const totalOk = amountOk && countOk && (
+    effectiveCount > 0
+      ? amount * effectiveCount <= maxAmount + 1e-9
+      : plannedTotal <= maxAmount + 1e-9
+  );
+  const canShowAddresses = amountOk && countOk && plannedTotal <= maxAmount + 1e-9;
   const recipientsOk = !!resolvedRecipients;
+  const addressGap = countOk && addrs.length === count && addrs.some((a) => a.trim()) && !resolvedRecipients
+    && addrs.map((a) => a.trim()).some(validAddr);
   const ready = !!token && amountOk && countOk && totalOk && recipientsOk;
-  const firstValid = /^0x[a-fA-F0-9]{40}$/.test(addrs[0]?.trim() ?? "");
-  const canFillAll = countOk && firstValid && addrs.slice(1).some((a) => !a.trim());
+  const firstValid = validAddr(addrs[0]?.trim() ?? "");
+  const canFillAll = countOk && firstValid && addrs.slice(1).every((a) => !a.trim());
+  const partialCount = effectiveCount > 0 && count && effectiveCount < count;
 
   const t = lang === "pt"
     ? {
@@ -925,6 +947,8 @@ function TransferWizardCard({ state, lang, onSubmit }: {
         custom: "Outro",
         addrPh: (n: number) => `Destino ${n} — 0x…`,
         fillAll: (n: number) => `Usar o mesmo endereço nas ${n} transferências`,
+        gap: "Preencha os destinos em ordem, sem buracos no meio",
+        partial: (filled: number, total: number) => `${filled} destino${filled > 1 ? "s" : ""} preenchido${filled > 1 ? "s" : ""} (de ${total})`,
       }
     : {
         step1: "1 · Which token?",
@@ -940,6 +964,8 @@ function TransferWizardCard({ state, lang, onSubmit }: {
         custom: "Other",
         addrPh: (n: number) => `Recipient ${n} — 0x…`,
         fillAll: (n: number) => `Use same address for all ${n} transfers`,
+        gap: "Fill recipients in order — no gaps in the middle",
+        partial: (filled: number, total: number) => `${filled} recipient${filled > 1 ? "s" : ""} filled (of ${total})`,
       };
 
   return (
@@ -1015,6 +1041,7 @@ function TransferWizardCard({ state, lang, onSubmit }: {
               </div>
               <p className="text-[11px] mt-2 font-data" style={{ color: totalOk ? "rgba(148,163,184,0.55)" : "rgba(251,113,133,0.85)" }}>
                 {t.total}: {totalNeeded.toFixed(6)} {token}
+                {partialCount && count ? ` (${t.partial(effectiveCount, count)})` : ""}
                 {!totalOk && amountOk ? ` — ${t.insufficient}` : ""}
               </p>
             </>
@@ -1022,21 +1049,29 @@ function TransferWizardCard({ state, lang, onSubmit }: {
         </div>
       )}
 
-      {token && amountOk && countOk && totalOk && (
+      {token && amountOk && countOk && canShowAddresses && (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(16,185,129,0.6)" }}>{t.step4}</p>
           <p className="text-[10px] mb-2" style={{ color: "rgba(148,163,184,0.5)" }}>{t.step4hint}</p>
+          {partialCount && count && (
+            <p className="text-[11px] font-data" style={{ color: "rgba(110,231,183,0.85)" }}>
+              {t.partial(effectiveCount, count)}
+            </p>
+          )}
           {addrs.map((a, i) => (
             <input key={i} type="text" value={a}
               onChange={(e) => setAddrs((prev) => { const n = [...prev]; n[i] = e.target.value.trim(); return n; })}
-              placeholder={i === 0 ? t.addrPh(i + 1) : (lang === "pt" ? `Destino ${i + 1} — opcional (usa destino 1)` : `Recipient ${i + 1} — optional (uses #1)`)}
+              placeholder={i === 0 ? t.addrPh(i + 1) : (lang === "pt" ? `Destino ${i + 1} — opcional` : `Recipient ${i + 1} — optional`)}
               className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
               style={{
                 background: "rgba(255,255,255,0.04)",
-                border: `1px solid ${a && !/^0x[a-fA-F0-9]{40}$/.test(a) ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}`,
+                border: `1px solid ${a && !validAddr(a) ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}`,
               }}
             />
           ))}
+          {addressGap && (
+            <p className="text-[11px]" style={{ color: "rgba(251,113,133,0.85)" }}>{t.gap}</p>
+          )}
           {canFillAll && count && (
             <button type="button"
               onClick={() => setAddrs(Array(count).fill(addrs[0].trim()))}
