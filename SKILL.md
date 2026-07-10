@@ -14,8 +14,30 @@ description: >-
 **Network:** Pharos Mainnet · Chain ID **1672** · PROS native gas  
 **Security:** Never request seed phrases or private keys. Never claim a tx executed without a hash.
 
-Deep references: `references/on-chain-actions.md`, `references/api-endpoints.md`, `references/live-snapshot.md`  
+Deep references: `references/on-chain-actions.md`, `references/api-endpoints.md`, `references/live-snapshot.md`, `references/anvita-flow.md`  
 Assets: `assets/tokens.json`, `assets/networks.json`, `assets/contracts.json`
+
+---
+
+## Anvita Flow (marketplace & publishing)
+
+**Anvita Flow** (`flow.anvita.xyz`) is Pharos's agent marketplace by Ant Digital. This Skill is published as a **Managed Service Agent** there.
+
+| Concept | Meaning |
+|---------|---------|
+| **Service Agent** | Hosted runtime wrapping this Skill — you publish via Developer Console |
+| **Steward Agent (Anvita On)** | End-user's personal AI — searches Marketplace and calls Service Agents |
+| **Agent Card** | Public listing: capabilities, example tasks, price (set **Free** during beta) |
+| **Customer Service Strategy** | Instructions for routing, security, live-data fallback, on-chain redirect |
+| **x402** | Per-call USDC micropayments (HTTP 402); agent wallet at dashboard is for **earnings**, not user signing |
+
+**URLs:** Console https://flow.anvita.xyz/service-agents · Chat https://flow.anvita.xyz/agent/chat · Publish guide https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af
+
+**Debugger vs web app (critical):** The Anvita **Debug** tab is a **text sandbox** (LLM + Strategy + Skill docs). It has **no** user wallet/passport — cannot sign swap, bridge, transfer, stake, or LP. For on-chain actions, always direct users to **https://pharos-agent-pi.vercel.app/chat** (connect Rabby/MetaMask on chain 1672). For developer CLI demos, point to [Pharos Skill Engine](https://github.com/PharosNetwork/pharos-skill-engine) with `$PRIVATE_KEY`.
+
+**Sandbox live data:** Outbound HTTP to pharos.xyz / X is often blocked — embed `references/live-snapshot.md` in Customer Service Strategy for campaigns, news, tweets.
+
+Full Anvita reference: `references/anvita-flow.md`.
 
 ---
 
@@ -137,6 +159,16 @@ Contracts: stPROS `0x6b0a…5ec4`, WPROS `0x52c4…f0b0` — see `assets/contrac
 | I6 | **Streaming-style replies** | Progressive text + staged "Thinking" status |
 | I7 | **PWA** | Installable via manifest + service worker |
 
+### J — Anvita Flow & agent commerce
+
+| # | Skill | Triggers | Execution | Delivery |
+|---|-------|----------|-----------|----------|
+| J1 | **Anvita / publish Q&A** | "what is Anvita", "how to publish", "Service Agent", "Steward" | `references/anvita-flow.md` + RAG | Step-by-step + URLs |
+| J2 | **Debugger limits** | "wallet in debugger", "passport", "sandbox" | Static knowledge | Explain sandbox; redirect to `/chat` |
+| J3 | **x402 / agent payments** | "x402", "micropayment", "per-call billing" | RAG `x402_protocol` | Protocol flow + beta Free pricing |
+| J4 | **Agent Carnival** | "hackathon", "Agent Carnival", "DoraHacks" | RAG `agent_carnival` | Phases, prizes, deadlines |
+| J5 | **Callable by other agents** | Steward delegates swap/quote/wallet | API routes or web redirect | Structured JSON or chat link |
+
 ---
 
 ## Detailed execution instructions
@@ -209,12 +241,16 @@ Returns LI.FI quote JSON with `transactionRequest` — **unsigned**.
 - RWA global market data  
 - List all Pharos DeFi protocols  
 - Generate Foundry script to read ERC-20 balance  
+- How do I publish this Skill on Anvita Flow?  
+- What is the difference between Steward and Service Agent?  
+- Why can't I sign transactions in the Anvita debugger?  
 
 ---
 
 ## What this agent cannot do
 
 - Sign or broadcast transactions server-side  
+- Sign transactions inside Anvita Flow debugger (no user wallet there — use web `/chat`)  
 - Access private keys / seed phrases  
 - Deposit into Faroo pre-mint vault (FRHV001) or Ember/R25 vaults — redirect to dApp  
 - Execute Stargate / LayerZero bridges in-app  

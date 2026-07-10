@@ -15,6 +15,7 @@ TOKENS (Mainnet addresses):
   LINK: 0x51e2A24742Db77604B881d6781Ee16B5b8fcBE29 (18 dec) | ETH LINK: 0x514910771AF9Ca656af840dff83E8264EcF986CA
 DOCS: docs.pharos.xyz | pharos.xyz | port.pharos.xyz | x.com/pharos_network (390.6K followers) | github.com/PharosNetwork | pharos.xyz/agent-center | pharos.xyz/devhub
 PHAROS PORT (port.pharos.xyz): Official RealFi hub — campaigns/rewards, PROS staking (~10% APY), bridge/swap, Harbor (curated RWA), AI Agent Carnival, full ecosystem directory.
+ANVITA FLOW (flow.anvita.xyz): Pharos agent marketplace by Ant Digital — publish Skills as Service Agents; Steward Agents (Anvita On) discover and call them; x402 USDC micropayments. Console: flow.anvita.xyz/service-agents | Chat: flow.anvita.xyz/agent/chat | Publish guide: docs.pharos.xyz/.../publish-skill-af. Debugger = text sandbox (no user wallet signing); on-chain txs → pharos-agent-pi.vercel.app/chat.
 COMMUNITY (July 2026): 312K members | 390.6K Twitter followers | 174M wallet addresses | 3B testnet users | 93,552 mainnet unique addresses | 2.7M mainnet txs | 431K daily active txs
 
 TVL LEADERS: R25 ~$93M | Centrifuge ~$15M | Ember ~$13M | FaroSwap ~$695K
@@ -288,34 +289,88 @@ Atlantic Testnet canonical contracts: same addresses as mainnet for Create2Deplo
 `,
 
   x402_protocol: `
-x402 PROTOCOL ON PHAROS:
-x402 is the micropayment protocol powering per-call billing on Anvita Flow. Named after HTTP 402 "Payment Required".
-How it works: enables AI agents and services to charge per API call using USDC or PROS automatically, without subscriptions or credit cards.
-On Pharos: x402 is the settlement layer for Anvita Flow Service Agents — each call is billed and settled automatically.
-Developer use: integrate x402 into any HTTP endpoint to gate it behind a payment wall that accepts crypto micropayments (as small as $0.001).
-Resources: docs.pharos.xyz/developer-guide/x402
+x402 PROTOCOL ON PHAROS & ANVITA FLOW:
+x402 repurposes HTTP 402 "Payment Required" for machine-to-machine crypto payments.
+Co-developed by Coinbase and Cloudflare. Enables sub-cent USDC payments without subscriptions, credit cards, or human approval.
+Flow: (1) Agent requests paid resource (2) Server returns 402 + payment instructions (3) Agent signs USDC tx on-chain (4) Agent retries with cryptographic payment proof (5) Resource delivered — seconds end-to-end.
+On Pharos: native settlement layer for Anvita Flow Service Agents — each Marketplace call can be billed per-call automatically.
+Developer use: gate any HTTP API behind x402 micropayments (as small as ~$0.001) for agent commerce.
+Anvita Flow beta: set Service Agent unit price to FREE in Agent Card — paid USDC pricing can cause call failures until beta ends.
+Agent wallet (flow.anvita.xyz/dashboard): auto-generated per published Service Agent for receiving x402 earnings — NOT the end-user's MetaMask/Rabby for signing DeFi txs.
+Docs: docs.pharos.xyz/developer-guide/x402
+Related: Google & Visa exploring agent payment protocols; Base is a major x402 deployment chain.
 `,
 
   anvita_flow_full: `
-ANVITA FLOW:
-AI agent infrastructure for Pharos. Converts Pharos Skills into hosted, discoverable, callable Service Agents.
-Core concepts:
-• Skill: packaged set of on-chain capabilities using the Pharos Skill Engine
-• Service Agent: hosted runtime wrapping a Skill — has identity, callable by other agents
-• Steward Agent: user's personal AI (Anvita On) — finds and calls Service Agents
-• Agent Card: public profile of a Service Agent (name, capabilities, pricing)
-• Marketplace: registry of all published Service Agents
-• x402 Protocol: micropayment billing per call
+ANVITA FLOW — COMPLETE GUIDE:
+Anvita = Ant Digital Technologies (Ant Group blockchain arm). Two products: Anvita TaaS (institutional tokenization) + Anvita Flow (individual agent marketplace). Launched March 31, 2026 (Real Up, Cannes).
+
+URLS:
+• Home/register: https://flow.anvita.xyz/home
+• Anvita On (Steward chat): https://flow.anvita.xyz/agent/chat
 • Developer Console: https://flow.anvita.xyz/service-agents
+• Dashboard/agent wallet: https://flow.anvita.xyz/dashboard
+• Cyber Cup: https://flow.anvita.xyz/activities/cyber-cup
+• Publish guide: https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af
 
-Call flow: User → Anvita On → Steward Agent → Marketplace search → Service Agent → Skill execution → Result → Settlement via x402.
+AGENT TYPES:
+• Service Agent — wraps YOUR Skill; hosted in cloud; listed in Marketplace; callable by any Steward/other agents. YOU create via Developer Console.
+• Steward Agent (Anvita On) — end-user's personal AI; searches Marketplace; delegates tasks to Service Agents. Created via "Add Agent" on chat OR auto for each user.
 
-To publish a Service Agent:
-1. Create SKILL.md with frontmatter (name + description)
-2. Package as zip: pharos-agent/ folder at zip root with SKILL.md inside
-3. Upload to Developer Console
-4. Configure Agent Card (name, capabilities, example tasks, pricing)
-5. Debug → Publish → Live in Marketplace
+CALL FLOW: User → Anvita On → Steward Agent → Marketplace search → Service Agent → Skill + Customer Service Strategy → result → optional x402 USDC settlement.
+
+PUBLISH STEPS:
+1. Skill package: folder/your-skill/SKILL.md (UPPERCASE) + optional scripts/, references/, assets/
+2. Frontmatter name must match folder name exactly
+3. Zip the FOLDER (not loose files): your-skill.zip → your-skill/SKILL.md
+4. flow.anvita.xyz/service-agents → Create A Managed Service Agent
+5. Upload zip (structure check must pass)
+6. Customer Service Strategy — routing, security, live-data fallback, on-chain redirect
+7. Runtime: max concurrent sessions + max execution time
+8. Debug tab — ≥1 end-to-end test ("go find [name] to do [task]")
+9. Publish — Agent Card: name, intro, capabilities, ≥2 example tasks, deliverables, unsupported scope, duration, unit price
+10. Price = Free (beta). Enable wallet at dashboard for future earnings.
+
+AGENT CARD FIELDS: Agent name | One-sentence intro | Capability description | Example tasks (min 2) | Info required from customer | Deliverables | Range not supported | Estimated duration | Unit price (Free or USDC/call).
+
+ONE AGENT PER SKILL: split multiple Skills into separate packages.
+
+SAME ACCOUNT: one Anvita account = Steward user + developer publisher.
+
+IGNORE: "Add Agent" on chat page = personal Steward only — NOT Service Agent publishing.
+
+A2A: agents discover/call each other; Agent Store has pre-built modules (data, finance, gaming); supports OpenClaw, Claude Code, Open Code; local or cloud hosting.
+
+PHAROS HACKATHON (Agent Carnival): Skill = reusable module; Agent = full assistant on Anvita Flow; Phase 2 agents use Phase 1 Skills; pharos.xyz/agent-carnival | port.pharos.xyz/agent-carnival.
+
+PHAROS AGENT AS SERVICE AGENT: Web app https://pharos-agent-pi.vercel.app/chat for signing; API https://pharos-agent-pi.vercel.app for read-only (wallet-profile, wallet-score, explain-tx, price, campaigns, news, tweets, rwa, quote). Strategy must embed LIVE SNAPSHOT when sandbox blocks HTTP.
+`,
+
+  anvita_debugger_sandbox: `
+ANVITA DEBUGGER & SANDBOX LIMITATIONS (CRITICAL):
+The Debug tab runs your Service Agent in a MANAGED TEXT SANDBOX (LLM + Strategy + Skill docs). It is NOT a browser with wallet/passport/MetaMask/Rabby.
+
+WORKS IN DEBUGGER:
+• Knowledge Q&A (ecosystem, protocols, RWA, gas, contracts)
+• Wallet analysis when user PASTES 0x address (read-only)
+• Price quotes, swap/bridge instructions (text), script generation (cast/forge)
+• Campaigns/news/tweets via LIVE SNAPSHOT embedded in Customer Service Strategy (outbound HTTP often blocked)
+• Guiding user: "Open https://pharos-agent-pi.vercel.app/chat and connect wallet"
+
+DOES NOT WORK IN DEBUGGER:
+• User wallet connection or transaction signing (no passport/wallet hook)
+• Executing swap, bridge, liquidity, transfer, stake on-chain
+• Reliable live HTTP to pharos.xyz, x.com, or external APIs
+• Holding or using private keys
+
+WHERE ON-CHAIN RUNS:
+1. Pharos Agent web app — user connects Rabby/MetaMask, signs txs (non-custodial)
+2. Pharos Skill Engine local — developer runs cast/forge with $PRIVATE_KEY in terminal (github.com/PharosNetwork/pharos-skill-engine)
+3. Anvita agent wallet — x402 earnings to publisher only, NOT user DeFi signing
+
+HACKATHON DEMO: Debugger = Q&A + guided flows. Sample Work screenshots = web app for on-chain skills.
+
+COMMON CONFUSION (from community): "No function to call wallet in debugger" — expected; redirect to /chat or explain Skill Engine CLI for true on-chain demos (token deploy + FaroSwap LP, ProsPixel drawing, etc.).
 `,
 
   pharos_skill_engine: `
@@ -1345,7 +1400,7 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["campaign", "campanha", "world cup", "topnod", "alpha summer", "quest", "points", "pontos", "leaderboard", "rewards", "recompensa"], section: "campaigns" },
   { keys: ["pns", "name service", "pharos name", "nome pharos", ".pharos", "domain", "domínio", "ens"], section: "pns" },
   { keys: ["agent center", "install skill", "skills", "on-chain agent", "ai agent", "agentes"], section: "agent_center" },
-  { keys: ["agent carnival", "ai agent carnival", "hackathon", "dorahacks", "fase 1", "fase 2", "phase 1", "phase 2", "skill hackathon", "agent arena", "50000 pros", "50k pros", "prize pool"], section: "agent_carnival" },
+  { keys: ["agent carnival", "ai agent carnival", "hackathon", "dorahacks", "fase 1", "fase 2", "phase 1", "phase 2", "skill hackathon", "agent arena", "50000 pros", "50k pros", "prize pool", "anvita hackathon", "publish anvita"], section: "agent_carnival" },
   { keys: ["incubator", "incubadora", "10m fund", "$10m", "dragon draper", "lightspeed", "grant", "aplicar", "milestone"], section: "pharos_incubator" },
   { keys: ["pharos port", "port.pharos.xyz", "harbor", "staking pros", "campaigns", "rewards", "port hub", "realfi hub", "portfolio", "port pharos", "palpha apy", "vrpc", "tulprwa", "melhor apy", "best apy", "rwa yield products", "onde render", "where to earn"], section: "pharos_port" },
   { keys: ["dtvm", "smartcogent", "stylus", "cargo-stylus", "concero", "gcl", "hku", "hong kong university", "scf fintech", "realfi access program", "news timeline", "linha do tempo", "noticias da pharos", "pharos news"], section: "pharos_latest" },
@@ -1368,9 +1423,11 @@ const DAPP_KEYWORDS: Array<{ keys: string[]; section: string }> = [
   { keys: ["tokenmessengerv2", "messagetransmitterv2", "cctp domain", "cctp v2", "burn limit", "domain id 31", "pharos=31"], section: "cctp_full" },
   { keys: ["layerzero", "layer zero", "stargate", "rusd", "wsrusd", "layerzero v2", "oft"], section: "layerzero_full" },
   { keys: ["canonical contract", "create2deployer", "multicall3", "gnosis safe", "permit2", "entrypoint", "erc-4337", "account abstraction", "createx"], section: "canonical_contracts_full" },
-  { keys: ["x402", "http 402", "payment required", "micropayment", "per-call billing", "per call billing"], section: "x402_protocol" },
-  { keys: ["anvita flow", "anvita on", "steward agent", "service agent", "flow.anvita", "agent card", "marketplace agent"], section: "anvita_flow_full" },
-  { keys: ["skill engine", "pharos skill", "pharos-skill-engine", "skill.md", "skill package", "piggy bank tutorial", "simplev ault", "cast forge"], section: "pharos_skill_engine" },
+  { keys: ["x402", "http 402", "payment required", "micropayment", "per-call billing", "per call billing", "machine-to-machine payment", "agent payment"], section: "x402_protocol" },
+  { keys: ["anvita flow", "anvita on", "flow.anvita", "anvita flow", "ant digital anvita"], section: "anvita_flow_full" },
+  { keys: ["steward agent", "service agent", "agent card", "marketplace agent", "managed service agent", "developer console anvita", "publish service agent", "publish skill", "customer service strategy", "anvita marketplace", "a2a", "agent-to-agent", "anvita taas"], section: "anvita_flow_full" },
+  { keys: ["anvita debug", "debugger anvita", "sandbox anvita", "passport wallet", "wallet no debugger", "no wallet in debug", "anvita sandbox", "managed runtime", "hosted runtime"], section: "anvita_debugger_sandbox" },
+  { keys: ["skill engine", "pharos skill", "pharos-skill-engine", "skill.md", "skill package", "piggy bank tutorial", "simplevault", "cast forge", "publish-skill-af"], section: "pharos_skill_engine" },
   { keys: ["validator", "validador", "hardware requirement", "cpu 32 cores", "256 gb", "node version", "ulimit", "equivocation", "double voting", "epoch reward"], section: "validator_info" },
   { keys: ["gas model", "gas refund", "eip-1559", "base fee burned", "priority fee", "gas limit buffer", "out of gas", "gas 20%"], section: "gas_model_full" },
 
