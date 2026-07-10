@@ -1,0 +1,21 @@
+{
+  "FaroSwap": {
+    "NonfungiblePositionManager": "0xc0479219f4feba5a668cff71bf96f4ffe124c3ab",
+    "DODORouteProxy": "0xa5ca5fbe34e444f366b373170541ec6902b0f75c",
+    "WPROS_USDC_Pool_001": "0x912c9ade24d44d8922f0866d8dcb079f1363f647"
+  },
+  "Faroo": {
+    "stPROS": "0x6b0a44c64190279f7034b77c13a566e914fe5ec4",
+    "WPROS": "0x52C48d4213107b20bC583832b0d951FB9CA8F0B0",
+    "FRHV001_PreMint": "0x36f3d19dda7ed1428e3014ae6f2a75d70393b7e6",
+    "FYV001": "0xc775dfaa7565f2aca5ddf5dd6837ceb846de591b",
+    "unstakeClaimUrl": "https://app.faroo.xyz/unstake",
+    "unstakePeriodDays": 7
+  },
+  "Bridge": {
+    "CCIP_Router": "0x8078A096587Cc4416C4Fa1B6e31E9D14eb6b2E6e",
+    "CCTP_TokenMessengerV2": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
+    "CCTP_MessageTransmitterV2": "0x81d40f21f12a8f0e3252bccb954d722d4c464b64",
+    "CCTP_Domain_Pharos": 31
+  }
+}

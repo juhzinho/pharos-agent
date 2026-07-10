@@ -1,0 +1,14 @@
+{
+  "name": "pharos-agent",
+  "version": "2.1",
+  "baseUrl": "https://pharos-agent-pi.vercel.app",
+  "webApp": "https://pharos-agent-pi.vercel.app/chat",
+  "discovery": "/api/info",
+  "skillCount": 40,
+  "categories": [
+    "knowledge", "market-data", "wallet-intelligence", "swap", "bridge",
+    "liquidity", "faroo-staking", "payments", "ux"
+  ],
+  "onChainSkillsRequireWallet": true,
+  "network": { "chainId": 1672, "symbol": "PROS", "explorer": "https://pharos.socialscan.io" }
+}

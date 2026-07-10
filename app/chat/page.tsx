@@ -176,6 +176,17 @@ interface LiquidityWizardState {
   preRangePercent?: number;
 }
 
+// Guided transfer flow: token (PROS/WPROS/USDC) → amount → count → addresses.
+interface TransferWizardState {
+  balances: Record<string, number>;
+  preToken?: string;
+  preAmount?: number;
+  preCount?: number;
+}
+
+const TRANSFER_WIZARD_TOKENS = ["PROS", "WPROS", "USDC"] as const;
+const TRANSFER_GAS_BUFFER_PROS = 0.01;
+
 interface Message {
   id: string;
   role: MessageRole;
@@ -195,6 +206,7 @@ interface Message {
   bridgeChoice?: BridgeChoice;      // Bridge route comparison (best return marked)
   swapWizard?: SwapWizardState;         // Guided swap flow (from → amount → to)
   liquidityWizard?: LiquidityWizardState; // Guided liquidity flow (pair → fee → range → amount)
+  transferWizard?: TransferWizardState;   // Guided transfer flow (token → amount → count → addresses)
   removeMode?: boolean;
   txHash?: string;
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
@@ -336,6 +348,8 @@ const CAMPAIGN_QUESTION_RE =
   /\b(campanhas?|campaigns?|quests?|eventos? ativ|active events?|atividades ativ|airdrops? ativ|rewards? (ativ|dispon)|o que (ta|tá|está) rolando|what'?s (happening|live|running))\b/i;
 const NEWS_QUESTION_RE =
   /\b(not[íi]cias?|news|novidades?|latest (from|on) pharos|[úu]ltimas (da|de|do) pharos|feed de not|what'?s new)\b/i;
+const TWEET_QUESTION_RE =
+  /\b(tweets?|twitter|x\.com|@\s*pharos|pharos_network|postou no x|posted on (x|twitter)|o que (a |)pharos postou|what did pharos post)\b/i;
 
 async function fetchCampaignsReply(lang: "pt" | "en"): Promise<string> {
   try {
@@ -371,6 +385,38 @@ async function fetchCampaignsReply(lang: "pt" | "en"): Promise<string> {
     return lang === "pt"
       ? "Não consegui carregar as campanhas ao vivo agora. Veja diretamente em [port.pharos.xyz](https://port.pharos.xyz/) — em julho de 2026 estão rolando: **Agent Carnival** (até 26/jul), **Anvita Cyber Cup** (até 19/jul), **TopNod Cup** (até 20/jul) e **AquaFlux Campaign** (até 31/jul)."
       : "Couldn't load live campaigns right now. Check [port.pharos.xyz](https://port.pharos.xyz/) directly — as of July 2026: **Agent Carnival** (until Jul 26), **Anvita Cyber Cup** (until Jul 19), **TopNod Cup** (until Jul 20) and **AquaFlux Campaign** (until Jul 31).";
+  }
+}
+
+async function fetchTweetsReply(lang: "pt" | "en"): Promise<string> {
+  try {
+    const res = await fetch("/api/tweets");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    const tweets: Array<{ text: string; createdAt: string; url: string; isRetweet: boolean }> = j.tweets ?? [];
+    if (tweets.length === 0) throw new Error("empty");
+    const fmtDate = (iso: string) => {
+      if (!iso) return "";
+      const d = new Date(iso);
+      return d.toLocaleDateString(lang === "pt" ? "pt-BR" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+    };
+    const rows = tweets.slice(0, 8).map((t, i) => {
+      const rt = t.isRetweet ? (lang === "pt" ? " (RT)" : " (RT)") : "";
+      const snippet = t.text.replace(/\n+/g, " ").slice(0, 220);
+      return `${i + 1}. **[${fmtDate(t.createdAt)}]${rt}** ${snippet}${t.text.length > 220 ? "…" : ""}\n   → [${lang === "pt" ? "ver post" : "view post"}](${t.url})`;
+    });
+    const stale = j.stale ? (lang === "pt" ? "\n\n_⚠️ Feed em cache — pode haver posts mais novos em [x.com/pharos_network](https://x.com/pharos_network)_" : "\n\n_⚠️ Cached feed — newer posts may exist at [x.com/pharos_network](https://x.com/pharos_network)_") : "";
+    const intro = lang === "pt"
+      ? "🐦 **Posts recentes de @pharos_network** (ao vivo via X):"
+      : "🐦 **Recent posts from @pharos_network** (live from X):";
+    const outro = lang === "pt"
+      ? `\n\nTodos em [x.com/pharos_network](https://x.com/pharos_network) · timeline completa em [pharos-agent/news](https://pharos-agent-pi.vercel.app/news)`
+      : `\n\nFollow [x.com/pharos_network](https://x.com/pharos_network) · full timeline at [pharos-agent/news](https://pharos-agent-pi.vercel.app/news)`;
+    return `${intro}\n\n${rows.join("\n\n")}${outro}${stale}`;
+  } catch {
+    return lang === "pt"
+      ? "Não consegui carregar os tweets ao vivo agora. Veja diretamente: [x.com/pharos_network](https://x.com/pharos_network)"
+      : "Couldn't load live tweets right now. Check directly: [x.com/pharos_network](https://x.com/pharos_network)";
   }
 }
 
@@ -773,6 +819,189 @@ function BridgeWizardCard({ state, lang, onSubmit }: {
         style={{
           background: ready ? "linear-gradient(135deg, rgba(99,102,241,0.85), rgba(0,150,220,0.85))" : "rgba(255,255,255,0.05)",
           border: "1px solid rgba(129,140,248,0.35)",
+          color: "white",
+        }}>
+        {t.submit}
+      </button>
+    </div>
+  );
+}
+
+// ─── transfer wizard (token → amount → count → addresses) ───────────────────
+
+function TransferWizardCard({ state, lang, onSubmit }: {
+  state: TransferWizardState;
+  lang: "pt" | "en";
+  onSubmit: (token: string, amount: number, recipients: string[]) => void;
+}) {
+  const [token, setToken] = useState<string | null>(
+    state.preToken && TRANSFER_WIZARD_TOKENS.includes(state.preToken as typeof TRANSFER_WIZARD_TOKENS[number])
+      ? state.preToken : null,
+  );
+  const [amountStr, setAmountStr] = useState(
+    state.preAmount != null && state.preAmount > 0 ? String(state.preAmount) : "",
+  );
+  const [count, setCount] = useState<number | null>(state.preCount && state.preCount >= 1 ? state.preCount : null);
+  const [addrs, setAddrs] = useState<string[]>([]);
+
+  const bal = token ? (state.balances[token] ?? 0) : 0;
+  const maxAmount = token === "PROS" ? Math.max(0, bal - TRANSFER_GAS_BUFFER_PROS) : bal;
+  const amount = parseFloat(amountStr.replace(",", "."));
+  const amountOk = Number.isFinite(amount) && amount > 0;
+  const countOk = count != null && count >= 1 && count <= 20;
+  const totalNeeded = amountOk && countOk ? amount * count! : 0;
+  const totalOk = amountOk && countOk && totalNeeded <= maxAmount + 1e-9;
+
+  useEffect(() => {
+    if (!countOk) { setAddrs([]); return; }
+    setAddrs((prev) => {
+      const next = [...prev];
+      while (next.length < count!) next.push("");
+      return next.slice(0, count!);
+    });
+  }, [count, countOk]);
+
+  const addrOk = countOk && addrs.length === count && addrs.every((a) => /^0x[a-fA-F0-9]{40}$/.test(a.trim()));
+  const uniqueAddrs = new Set(addrs.map((a) => a.trim().toLowerCase()));
+  const noDupes = uniqueAddrs.size === addrs.length;
+  const ready = !!token && amountOk && countOk && totalOk && addrOk && noDupes;
+
+  const t = lang === "pt"
+    ? {
+        step1: "1 · Qual token?",
+        step2: "2 · Quanto enviar em cada transferência?",
+        step3: "3 · Quantas transferências?",
+        step4: "4 · Endereço de destino (uma por transferência)",
+        max: "disponível",
+        total: "total necessário",
+        insufficient: "Saldo insuficiente para todas as transferências",
+        dup: "Endereços duplicados — use destinos diferentes",
+        invalid: "Endereço inválido (use 0x… 42 caracteres)",
+        submit: "Preparar transferências →",
+        custom: "Outro",
+        addrPh: (n: number) => `Destino ${n} — 0x…`,
+      }
+    : {
+        step1: "1 · Which token?",
+        step2: "2 · Amount per transfer?",
+        step3: "3 · How many transfers?",
+        step4: "4 · Recipient address (one per transfer)",
+        max: "available",
+        total: "total needed",
+        insufficient: "Insufficient balance for all transfers",
+        dup: "Duplicate addresses — use different recipients",
+        invalid: "Invalid address (use 0x… 42 chars)",
+        submit: "Prepare transfers →",
+        custom: "Other",
+        addrPh: (n: number) => `Recipient ${n} — 0x…`,
+      };
+
+  return (
+    <div className="mt-3 px-4 py-4 rounded-2xl space-y-4"
+      style={{ background: "rgba(7,14,30,0.9)", border: "1px solid rgba(16,185,129,0.22)", backdropFilter: "blur(16px)" }}>
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(16,185,129,0.6)" }}>{t.step1}</p>
+        <div className="flex gap-2 flex-wrap">
+          {TRANSFER_WIZARD_TOKENS.map((sym) => {
+            const active = token === sym;
+            const b = state.balances[sym] ?? 0;
+            return (
+              <button key={sym} onClick={() => { setToken(sym); setAmountStr(""); setCount(null); }}
+                className="flex-1 min-w-[100px] flex flex-col gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer"
+                style={{
+                  background: active ? "rgba(16,185,129,0.14)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${active ? "rgba(16,185,129,0.55)" : "rgba(255,255,255,0.08)"}`,
+                }}>
+                <span className="text-sm font-semibold text-white">{sym}</span>
+                <span className="text-[11px] font-data" style={{ color: active ? "rgba(110,231,183,0.9)" : "rgba(148,163,184,0.55)" }}>
+                  {b.toLocaleString("en-US", { maximumFractionDigits: 6 })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {token && (
+        <div>
+          <div className="flex items-baseline justify-between mb-2.5">
+            <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(16,185,129,0.6)" }}>{t.step2}</p>
+            <span className="text-[11px] font-data" style={{ color: "rgba(148,163,184,0.55)" }}>
+              {maxAmount.toLocaleString("en-US", { maximumFractionDigits: 6 })} {token} {t.max}
+            </span>
+          </div>
+          <input type="text" inputMode="decimal" value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.,]/g, ""))}
+            placeholder={`0.0 ${token}`}
+            className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}
+          />
+        </div>
+      )}
+
+      {token && amountOk && (
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(16,185,129,0.6)" }}>{t.step3}</p>
+          <div className="flex gap-2 flex-wrap">
+            {[1, 2, 3, 4, 5, 10].map((n) => (
+              <button key={n} onClick={() => setCount(n)}
+                className="min-w-[48px] px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer"
+                style={{
+                  background: count === n ? "rgba(16,185,129,0.14)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${count === n ? "rgba(16,185,129,0.55)" : "rgba(255,255,255,0.08)"}`,
+                  color: count === n ? "#6ee7b7" : "rgba(215,228,245,0.8)",
+                }}>
+                {n}
+              </button>
+            ))}
+          </div>
+          {countOk && (
+            <>
+              <div className="mt-2 flex gap-2 flex-wrap">
+                {[25, 50, 75, 100].map((pct) => (
+                  <button key={pct}
+                    onClick={() => setAmountStr(String(Number((maxAmount / count! * pct / 100).toFixed(6))))}
+                    className="flex-1 min-w-[64px] px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                    style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.22)", color: "rgba(110,231,183,0.85)" }}>
+                    {pct}% {lang === "pt" ? "do saldo ÷" : "balance ÷"} {count}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] mt-2 font-data" style={{ color: totalOk ? "rgba(148,163,184,0.55)" : "rgba(251,113,133,0.85)" }}>
+                {t.total}: {totalNeeded.toFixed(6)} {token}
+                {!totalOk && amountOk ? ` — ${t.insufficient}` : ""}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {token && amountOk && countOk && totalOk && (
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(16,185,129,0.6)" }}>{t.step4}</p>
+          {addrs.map((a, i) => (
+            <input key={i} type="text" value={a}
+              onChange={(e) => setAddrs((prev) => { const n = [...prev]; n[i] = e.target.value.trim(); return n; })}
+              placeholder={t.addrPh(i + 1)}
+              className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: `1px solid ${a && !/^0x[a-fA-F0-9]{40}$/.test(a) ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}`,
+              }}
+            />
+          ))}
+          {!noDupes && addrs.some((a) => a) && (
+            <p className="text-[11px]" style={{ color: "rgba(251,113,133,0.85)" }}>{t.dup}</p>
+          )}
+        </div>
+      )}
+
+      <button disabled={!ready}
+        onClick={() => ready && onSubmit(token!, amount, addrs.map((a) => a.trim()))}
+        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${ready ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
+        style={{
+          background: ready ? "linear-gradient(135deg, rgba(16,185,129,0.85), rgba(0,150,220,0.85))" : "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(16,185,129,0.35)",
           color: "white",
         }}>
         {t.submit}
@@ -2199,7 +2428,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit }: {
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit }: {
   msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -2214,6 +2443,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
   onBridgeRouteChoice: (msgId: string, opt: BridgeRouteOption) => void;
   onSwapWizardSubmit: (msgId: string, fromToken: string, amount: number, toToken: string) => void;
   onLiquidityWizardSubmit: (msgId: string, params: { feeTier: number; rangeMode: "percent" | "full"; rangePercent?: number; wprosAmount: number }) => void;
+  onTransferWizardSubmit: (msgId: string, token: string, amount: number, recipients: string[]) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -2423,6 +2653,11 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         {msg.liquidityWizard && walletAddress && (
           <LiquidityWizardCard state={msg.liquidityWizard} lang={lang}
             onSubmit={(params) => onLiquidityWizardSubmit(msg.id, params)} />
+        )}
+
+        {msg.transferWizard && walletAddress && (
+          <TransferWizardCard state={msg.transferWizard} lang={lang}
+            onSubmit={(token, amount, recipients) => onTransferWizardSubmit(msg.id, token, amount, recipients)} />
         )}
 
         {msg.pending && walletAddress && (
@@ -2652,7 +2887,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -2661,6 +2896,8 @@ const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; 
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M3 4l4-3 4 3M3 10l4 3 4-3" /></svg> },
   { label: "Add Liquidity", action: "liquidity",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M7 1v12M1 7h12" /></svg> },
+  { label: "Send tokens", action: "transfer",
+    icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 7h9M6 4l3 3-3 3M13 3v8"/></svg> },
   { label: "Stake PROS", action: "stake",
     icon: <svg viewBox="0 0 14 14" className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2 10.5l5 2.5 5-2.5M2 7l5 2.5L12 7M7 1L2 3.5 7 6l5-2.5L7 1z"/></svg> },
   { label: "RWA Market", action: "rwamarket",
@@ -3659,14 +3896,14 @@ export default function ChatPage() {
       // choices, amount queries, and all built tx cards (swap/bridge, add and
       // remove liquidity, position pickers, transfers, approvals).
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-        m.liquidityWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+        m.liquidityWizard || m.transferWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
         m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
         m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
         isLoading: false, isSearching: false,
-        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined,
+        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined,
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
         liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
         positions: undefined, removeMode: undefined,
@@ -3697,7 +3934,7 @@ export default function ChatPage() {
          m.removePctPending || m.positions || m.bridgeChoice ||
          m.transferPending || m.approvePending || m.stakePending);
     const hasOpenFlow = messagesRef.current.some(
-      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.amountQuery || isStaleBuiltCard(m)
+      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.transferWizard || m.amountQuery || isStaleBuiltCard(m)
     );
     if (!hasOpenFlow) return;
     const hadBuiltCards = messagesRef.current.some(isStaleBuiltCard);
@@ -3727,6 +3964,13 @@ export default function ChatPage() {
         if (m.bridgeWizard) return { ...m, bridgeWizard: { ...m.bridgeWizard, holdings } };
         if (m.swapWizard) return { ...m, swapWizard: { ...m.swapWizard, holdings } };
         if (m.liquidityWizard) return { ...m, liquidityWizard: { ...m.liquidityWizard, holdings } };
+        if (m.transferWizard) {
+          const map: Record<string, number> = {};
+          for (const sym of TRANSFER_WIZARD_TOKENS) {
+            map[sym] = holdings.find((h) => h.symbol.toUpperCase() === sym)?.balance ?? 0;
+          }
+          return { ...m, transferWizard: { ...m.transferWizard, balances: map } };
+        }
         if (m.amountQuery) return { ...m, amountQuery: { ...m.amountQuery, balance: balFor(m.amountQuery.token) } };
         return m;
       }));
@@ -3934,6 +4178,76 @@ export default function ChatPage() {
       text: opt.summary,
       pending: opt.pending,
     });
+  }
+
+  // ── Guided transfer flow ───────────────────────────────────────────────
+  async function startTransferWizard(
+    msgId: string,
+    pre: { token?: string; amount?: number; count?: number } = {},
+  ) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    if (selectedNetwork === "testnet") {
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Envio de USDC/WPROS no testnet não está disponível — use PHRS nativo ou troque para Mainnet."
+          : "USDC/WPROS sends on testnet aren't supported — use native PHRS or switch to Mainnet.",
+      });
+      return;
+    }
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Lendo saldos de PROS, WPROS e USDC…" : "Reading PROS, WPROS and USDC balances…",
+    });
+    try {
+      const balances = await getTokenBalancesFast(walletAddress, "mainnet");
+      if (opSeqRef.current !== seq) return;
+      const map: Record<string, number> = {};
+      for (const sym of TRANSFER_WIZARD_TOKENS) {
+        map[sym] = balances.find((b) => b.symbol.toUpperCase() === sym)?.balance ?? 0;
+      }
+      const preToken = pre.token && TRANSFER_WIZARD_TOKENS.includes(pre.token as typeof TRANSFER_WIZARD_TOKENS[number])
+        ? pre.token.toUpperCase() : undefined;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Vamos enviar tokens! Escolha **PROS**, **WPROS** ou **USDC**, a quantidade por transferência e quantas transferências fazer — depois informe cada endereço de destino."
+          : "Let's send tokens! Pick **PROS**, **WPROS** or **USDC**, the amount per transfer and how many transfers — then enter each recipient address.",
+        transferWizard: {
+          balances: map,
+          preToken,
+          preAmount: pre.amount,
+          preCount: pre.count,
+        },
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read balances: ${msg}` });
+    }
+  }
+
+  function handleTransferWizardSubmit(msgId: string, token: string, amount: number, recipients: string[]) {
+    const lang = guessUserLang(messages);
+    const network: PharosNetworkId = selectedNetwork === "testnet" ? "testnet" : "mainnet";
+    try {
+      const items = recipients.map((to) => ({ to, amount, token }));
+      const build = buildTransferTxs(items, network);
+      const n = recipients.length;
+      const total = amount * n;
+      updateMessage(msgId, {
+        transferWizard: undefined,
+        isLoading: false,
+        text: lang === "pt"
+          ? `Pronto! **${n}** transferência${n > 1 ? "s" : ""} de **${amount} ${token}** cada (total **${total.toFixed(4)} ${token}**). Confirme cada uma na sua carteira.`
+          : `Ready! **${n}** transfer${n > 1 ? "s" : ""} of **${amount} ${token}** each (total **${total.toFixed(4)} ${token}**). Confirm each one in your wallet.`,
+        transferPending: build,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { transferWizard: undefined, isLoading: false, isError: true, text: msg });
+    }
   }
 
   // ── Guided swap flow ─────────────────────────────────────────────────────
@@ -4408,6 +4722,7 @@ export default function ChatPage() {
       case "swap":      void startSwapWizard(id, {}); break;
       case "bridge":    void startBridgeWizard(id, {}); break;
       case "liquidity": void startLiquidityWizard(id, {}); break;
+      case "transfer":  void startTransferWizard(id, {}); break;
       case "positions":
         updateMessage(id, { text: lang === "pt" ? "Buscando suas posições na FaroSwap V3…" : "Fetching your FaroSwap V3 positions…" });
         void runViewPositions(id);
@@ -4669,23 +4984,25 @@ export default function ChatPage() {
       return;
     }
 
-    // ── Transfer fast path (deterministic, no LLM) ──────────────────────
-    // "envie 2 PROS para 0x…" → payment card instantly.
-    // "envie pros para 0x…" (NO amount) → ask how much, with balance + % picks.
-    const transferMatch =
+    // ── Transfer: wizard (guided) or fast path (complete intent) ───────
+    const transferIntent =
       /\b(envi[ae]r?|manda[r]?|transfer(?:e|ir)?|send|pag(?:a|ar|ue)|pay)\b/i.test(text) &&
-      typedAddresses.length === 1 &&
       !/\b(bridge|ponte|swap|troca|liquidez|liquidity|score|approve|aprova)\b/i.test(text);
-    if (transferMatch) {
+
+    if (transferIntent) {
       const network: PharosNetworkId = /\b(testnet|atlantic)\b/i.test(text) ? "testnet"
         : /\bmainnet\b/i.test(text) ? "mainnet" : selectedNetwork;
       const nativeSym = network === "testnet" ? "PHRS" : "PROS";
-      const tokenMatch = text.match(/\b(PROS|PHRS|WPROS|USDC|WETH|LINK|PGOLD|USDPM)\b/i);
-      const token = tokenMatch ? tokenMatch[1].toUpperCase() : nativeSym;
-      // Amount = a standalone number that is NOT part of the 0x address.
-      const textNoAddr = text.replace(/0x[a-fA-F0-9]{40}/g, " ");
+      const tokenMatch = text.match(/\b(PROS|PHRS|WPROS|USDC)\b/i);
+      const token = tokenMatch ? tokenMatch[1].toUpperCase() : undefined;
+      const textNoAddr = text.replace(/0x[a-fA-F0-9]{40}/gi, " ");
       const amountMatch = textNoAddr.match(/(\d+(?:[.,]\d+)?)/);
-      const to = typedAddresses[0];
+      const amount = amountMatch ? parseFloat(amountMatch[1].replace(",", ".")) : undefined;
+      const vague =
+        typedAddresses.length === 0 ||
+        !amount ||
+        /\b(quero|want|preciso|need)\s+(enviar|mandar|send|transfer)/i.test(text) ||
+        /\b(enviar|send|manda)\s+(token|tokens|pros|usdc|wpros)?\s*$/i.test(text.trim());
 
       if (!walletAddress) {
         updateMessage(thinkingId, {
@@ -4694,43 +5011,65 @@ export default function ChatPage() {
             ? "Para enviar tokens, conecte sua carteira primeiro (botão 'Conectar' no topo). 🔗"
             : "To send tokens, connect your wallet first ('Connect' at the top). 🔗",
         });
-      } else if (amountMatch) {
-        const amount = parseFloat(amountMatch[1].replace(",", "."));
+      } else if (vague) {
+        void startTransferWizard(thinkingId, { token, amount });
+      } else if (typedAddresses.length >= 2 && amount && token) {
         try {
-          const build = buildTransferTxs([{ to, amount, token }], network);
+          const build = buildTransferTxs(
+            typedAddresses.map((to) => ({ to, amount, token })),
+            network,
+          );
           updateMessage(thinkingId, {
             isLoading: false,
             text: fastLang === "pt"
-              ? `Pronto! Vou enviar **${amount} ${token}** para \`${to.slice(0, 6)}…${to.slice(-4)}\`. Confirme na sua carteira.`
-              : `Ready! Sending **${amount} ${token}** to \`${to.slice(0, 6)}…${to.slice(-4)}\`. Confirm in your wallet.`,
+              ? `Pronto! **${typedAddresses.length}** transferências de **${amount} ${token}** cada. Confirme na carteira.`
+              : `Ready! **${typedAddresses.length}** transfers of **${amount} ${token}** each. Confirm in your wallet.`,
             transferPending: build,
           });
         } catch (err) {
           updateMessage(thinkingId, { isLoading: false, isError: true, text: err instanceof Error ? err.message : String(err) });
         }
-      } else {
-        // No amount given — NEVER default. Ask, showing the live balance.
+      } else if (typedAddresses.length === 1 && amount) {
+        const sendToken = token ?? nativeSym;
+        const to = typedAddresses[0];
         try {
-          const balances = await getTokenBalancesFast(walletAddress, network);
-          const bal = balances.find((b) => b.symbol.toUpperCase() === token)?.balance ?? 0;
-          pendingTransferRef.current = { to, token, network };
+          const build = buildTransferTxs([{ to, amount, token: sendToken }], network);
           updateMessage(thinkingId, {
             isLoading: false,
             text: fastLang === "pt"
-              ? `Quanto de **${token}** você quer enviar para \`${to.slice(0, 6)}…${to.slice(-4)}\`? Escolha uma porcentagem ou digite o valor (ex.: "0.5").`
-              : `How much **${token}** do you want to send to \`${to.slice(0, 6)}…${to.slice(-4)}\`? Pick a percentage or type the amount (e.g. "0.5").`,
-            amountQuery: { token, balance: bal, chain: PHAROS_NETWORKS[network].label },
+              ? `Pronto! Vou enviar **${amount} ${sendToken}** para \`${to.slice(0, 6)}…${to.slice(-4)}\`. Confirme na sua carteira.`
+              : `Ready! Sending **${amount} ${sendToken}** to \`${to.slice(0, 6)}…${to.slice(-4)}\`. Confirm in your wallet.`,
+            transferPending: build,
           });
         } catch (err) {
           updateMessage(thinkingId, { isLoading: false, isError: true, text: err instanceof Error ? err.message : String(err) });
         }
+      } else if (typedAddresses.length === 1) {
+        const sendToken = token ?? nativeSym;
+        const to = typedAddresses[0];
+        try {
+          const balances = await getTokenBalancesFast(walletAddress, network);
+          const bal = balances.find((b) => b.symbol.toUpperCase() === sendToken)?.balance ?? 0;
+          pendingTransferRef.current = { to, token: sendToken, network };
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: fastLang === "pt"
+              ? `Quanto de **${sendToken}** você quer enviar para \`${to.slice(0, 6)}…${to.slice(-4)}\`? Escolha uma porcentagem ou digite o valor.`
+              : `How much **${sendToken}** do you want to send to \`${to.slice(0, 6)}…${to.slice(-4)}\`? Pick a percentage or type the amount.`,
+            amountQuery: { token: sendToken, balance: bal, chain: PHAROS_NETWORKS[network].label },
+          });
+        } catch (err) {
+          updateMessage(thinkingId, { isLoading: false, isError: true, text: err instanceof Error ? err.message : String(err) });
+        }
+      } else {
+        void startTransferWizard(thinkingId, { token, amount });
       }
       setIsSending(false);
       inputRef.current?.focus();
       return;
     }
 
-    // Follow-up: a pending transfer is waiting for an amount and the user
+    // Follow-up: pending single-address transfer waiting for amount only.
     // typed just a number ("0.5" or "0.5 PROS") → build the payment directly.
     if (pendingTransferRef.current) {
       const pend = pendingTransferRef.current;
@@ -4772,6 +5111,16 @@ export default function ChatPage() {
     if (NEWS_QUESTION_RE.test(text) && /\b(pharos|rede|network)\b/i.test(text)) {
       updateMessage(thinkingId, { isLoading: false, isSearching: true });
       const reply = await fetchNewsReply(fastLang);
+      updateMessage(thinkingId, { isSearching: false, text: reply });
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Live X/Twitter feed fast path
+    if (TWEET_QUESTION_RE.test(text)) {
+      updateMessage(thinkingId, { isLoading: false, isSearching: true, text: fastLang === "pt" ? "Buscando posts ao vivo de @pharos_network…" : "Fetching live posts from @pharos_network…" });
+      const reply = await fetchTweetsReply(fastLang);
       updateMessage(thinkingId, { isSearching: false, text: reply });
       setIsSending(false);
       inputRef.current?.focus();
@@ -4866,7 +5215,7 @@ export default function ChatPage() {
                 : "To send tokens, connect your wallet first ('Connect' at the top). 🔗",
             });
           } else if (!groqResult.transfers || groqResult.transfers.length === 0) {
-            updateMessage(thinkingId, { isLoading: false, text: groqResult.reply });
+            void startTransferWizard(thinkingId, {});
           } else {
             try {
               const network: PharosNetworkId = /\b(testnet|atlantic)\b/i.test(text)
@@ -5803,6 +6152,7 @@ export default function ChatPage() {
               onBridgeRouteChoice={handleBridgeRouteChoice}
               onSwapWizardSubmit={handleSwapWizardSubmit}
               onLiquidityWizardSubmit={handleLiquidityWizardSubmit}
+              onTransferWizardSubmit={handleTransferWizardSubmit}
             />
           ))}
           <div ref={bottomRef} />

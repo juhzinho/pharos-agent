@@ -1,0 +1,20 @@
+{
+  "Pharos": {
+    "chainId": 1672,
+    "rpc": "https://rpc.pharos.xyz",
+    "wss": "wss://rpc.pharos.xyz",
+    "explorer": "https://pharos.socialscan.io",
+    "nativeSymbol": "PROS"
+  },
+  "PharosAtlanticTestnet": {
+    "chainId": 688689,
+    "rpc": "https://atlantic.dplabs-internal.com",
+    "explorer": "https://atlantic.pharosscan.xyz",
+    "nativeSymbol": "PHRS"
+  },
+  "Ethereum": { "chainId": 1, "name": "Ethereum" },
+  "Base": { "chainId": 8453, "name": "Base" },
+  "Arbitrum": { "chainId": 42161, "name": "Arbitrum" },
+  "Polygon": { "chainId": 137, "name": "Polygon" },
+  "Optimism": { "chainId": 10, "name": "Optimism" }
+}

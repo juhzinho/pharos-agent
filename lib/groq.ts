@@ -287,13 +287,11 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
 
     "── X / TWITTER POSTS ───────────────────────────────────────────────────\n" +
     "When the user asks about what Pharos posted on X, recent tweets, or announcements from @pharos_network:\n" +
-    "  • Be SPECIFIC — mention what each post actually said and when it was posted (date).\n" +
-    "  • Format as a short numbered list of actual recent posts, e.g.:\n" +
-    "    1. [Jun 9] 'Pharos Mainnet is live!' — announced the Pacific Ocean mainnet launch.\n" +
-    "    2. [Jun 8] Shared a thread about RWA integration with Centrifuge.\n" +
-    "  • Do NOT vaguely summarize ('Pharos has been posting about...') — cite the actual posts.\n" +
-    "  • The citation links (Fontes) will be appended automatically — focus on the content.\n" +
-    "  • If live search returned X posts, report them with dates; if not, say you don't have real-time access and suggest visiting x.com/pharos_network directly.\n\n" +
+    "  • NEVER invent or recall tweets from training data — dates like Jun 8/Jun 9 are WRONG if not from a live fetch.\n" +
+    "  • Live source: GET https://pharos-agent-pi.vercel.app/api/tweets (returns { tweets: [{ text, createdAt, url }] }).\n" +
+    "  • Format as a numbered list with REAL dates from createdAt and link each post (url field).\n" +
+    "  • If you cannot fetch live data, say honestly: 'I don't have live tweets right now' and link x.com/pharos_network.\n" +
+    "  • Do NOT add a 'knowledge cutoff' disclaimer when live data was not attempted.\n\n" +
 
     "── SCRIPT GENERATION (BONUS for developers — action='generate_script') ──\n" +
     "Most users just swap/bridge via chat, but DEVELOPERS may ask for ready-to-run code to use from\n" +
@@ -369,14 +367,14 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  action='unstake', amount=5 (stPROS). The app sends the redeem tx, which REGISTERS a withdrawal request — Faroo has a 7-DAY unstake period (0% fee); the user claims the PROS at app.faroo.xyz/unstake after it matures. NEVER say the PROS arrives immediately.\n" +
     "  If NO amount given: amount=null, needsAmount=true, ask how much in reply. Mainnet only.\n" +
     "── PAYMENT AGENT (action='transfer') ──\n" +
-    "When the user wants to SEND/PAY tokens to an address ('send 1 PROS to 0x…', 'manda 5 USDC pra 0x…', 'paga 2 PROS pro 0x…', 'transfere 0.5 PROS para 0x…'):\n" +
-    "  action='transfer', fill transfers=[{to:'0x…', amount:1, token:'PROS'}].\n" +
-    "  BATCH: multiple recipients in one prompt → one array item each: 'send 1 PROS to 0xA and 2 PROS to 0xB' → transfers=[{to:'0xA',amount:1,token:'PROS'},{to:'0xB',amount:2,token:'PROS'}].\n" +
-    "  Same amount to many: 'airdrop 0.1 PROS to 0xA, 0xB, 0xC' → three items of 0.1 each.\n" +
-    "  If NO address given: action='transfer', transfers=null — ask for the address in reply.\n" +
-    "  If NO amount: transfers=null, needsAmount=true, and ASK how much in reply. NEVER invent or default an amount:\n" +
-    "  'envie pros para 0x…' has NO amount (pros = the token, not a quantity) → ask 'Quanto de PROS você quer enviar?'.\n" +
-    "  Only fill transfers[].amount with a number the user EXPLICITLY wrote.\n" +
+    "When the user wants to SEND/PAY tokens ('send', 'enviar', 'manda', 'transfer'):\n" +
+    "  Supported tokens: PROS, WPROS, USDC on Pharos Mainnet.\n" +
+    "  COMPLETE intent (address + amount + token) → action='transfer', fill transfers=[{to, amount, token}].\n" +
+    "  BATCH: multiple recipients → one array item per address (same or different amounts).\n" +
+    "  INCOMPLETE (no address, no amount, 'quero enviar tokens') → action='transfer', transfers=null.\n" +
+    "    Web app shows guided wizard: token → amount per transfer → count → recipient addresses.\n" +
+    "    Reply ONE short line (e.g. 'Pick a token below to start your transfers.').\n" +
+    "  NEVER invent amounts. Only use numbers the user explicitly wrote.\n" +
     "── ERC-20 APPROVAL (action='approve') ──\n" +
     "When the user wants to approve a contract to spend tokens ('approve 100 USDC for 0x…', 'aprova USDC ilimitado pro contrato 0x…', 'dá allowance de 50 USDC pra 0x…'):\n" +
     "  action='approve', approveToken='USDC', approveSpender='0x…', approveAmount=100 (number) or 'unlimited'.\n" +
