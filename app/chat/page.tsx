@@ -895,39 +895,49 @@ function TransferWizardCard({ state, lang, onSubmit }: {
     });
   }, [count, countOk]);
 
-  const addrOk = countOk && addrs.length === count && addrs.every((a) => /^0x[a-fA-F0-9]{40}$/.test(a.trim()));
-  const uniqueAddrs = new Set(addrs.map((a) => a.trim().toLowerCase()));
-  const noDupes = uniqueAddrs.size === addrs.length;
-  const ready = !!token && amountOk && countOk && totalOk && addrOk && noDupes;
+  // Same wallet for every transfer is allowed. Empty slots inherit destino 1.
+  const resolvedRecipients = (() => {
+    if (!countOk || addrs.length !== count) return null;
+    const trimmed = addrs.map((a) => a.trim());
+    const valid = (a: string) => /^0x[a-fA-F0-9]{40}$/.test(a);
+    if (trimmed.every(valid)) return trimmed;
+    const first = trimmed[0];
+    if (valid(first) && trimmed.slice(1).every((a) => !a)) return Array(count!).fill(first);
+    return null;
+  })();
+  const recipientsOk = !!resolvedRecipients;
+  const ready = !!token && amountOk && countOk && totalOk && recipientsOk;
+  const firstValid = /^0x[a-fA-F0-9]{40}$/.test(addrs[0]?.trim() ?? "");
+  const canFillAll = countOk && firstValid && addrs.slice(1).some((a) => !a.trim());
 
   const t = lang === "pt"
     ? {
         step1: "1 · Qual token?",
         step2: "2 · Quanto enviar em cada transferência?",
         step3: "3 · Quantas transferências?",
-        step4: "4 · Endereço de destino (uma por transferência)",
+        step4: "4 · Endereço de destino (pode ser a mesma carteira em todas)",
         max: "disponível",
         total: "total necessário",
         insufficient: "Saldo insuficiente para todas as transferências",
-        dup: "Endereços duplicados — use destinos diferentes",
         invalid: "Endereço inválido (use 0x… 42 caracteres)",
         submit: "Preparar transferências →",
         custom: "Outro",
         addrPh: (n: number) => `Destino ${n} — 0x…`,
+        fillAll: (n: number) => `Usar o mesmo endereço nas ${n} transferências`,
       }
     : {
         step1: "1 · Which token?",
         step2: "2 · Amount per transfer?",
         step3: "3 · How many transfers?",
-        step4: "4 · Recipient address (one per transfer)",
+        step4: "4 · Recipient address (same wallet for all is OK)",
         max: "available",
         total: "total needed",
         insufficient: "Insufficient balance for all transfers",
-        dup: "Duplicate addresses — use different recipients",
         invalid: "Invalid address (use 0x… 42 chars)",
         submit: "Prepare transfers →",
         custom: "Other",
         addrPh: (n: number) => `Recipient ${n} — 0x…`,
+        fillAll: (n: number) => `Use same address for all ${n} transfers`,
       };
 
   return (
@@ -1016,7 +1026,7 @@ function TransferWizardCard({ state, lang, onSubmit }: {
           {addrs.map((a, i) => (
             <input key={i} type="text" value={a}
               onChange={(e) => setAddrs((prev) => { const n = [...prev]; n[i] = e.target.value.trim(); return n; })}
-              placeholder={t.addrPh(i + 1)}
+              placeholder={i === 0 ? t.addrPh(i + 1) : (lang === "pt" ? `Destino ${i + 1} — opcional (usa destino 1)` : `Recipient ${i + 1} — optional (uses #1)`)}
               className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
               style={{
                 background: "rgba(255,255,255,0.04)",
@@ -1024,14 +1034,19 @@ function TransferWizardCard({ state, lang, onSubmit }: {
               }}
             />
           ))}
-          {!noDupes && addrs.some((a) => a) && (
-            <p className="text-[11px]" style={{ color: "rgba(251,113,133,0.85)" }}>{t.dup}</p>
+          {canFillAll && count && (
+            <button type="button"
+              onClick={() => setAddrs(Array(count).fill(addrs[0].trim()))}
+              className="text-[11px] font-semibold underline-offset-2 hover:underline"
+              style={{ color: "rgba(110,231,183,0.9)" }}>
+              {t.fillAll(count)}
+            </button>
           )}
         </div>
       )}
 
       <button disabled={!ready}
-        onClick={() => ready && onSubmit(token!, amount, addrs.map((a) => a.trim()))}
+        onClick={() => ready && onSubmit(token!, amount, resolvedRecipients!)}
         className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${ready ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
         style={{
           background: ready ? "linear-gradient(135deg, rgba(16,185,129,0.85), rgba(0,150,220,0.85))" : "rgba(255,255,255,0.05)",
