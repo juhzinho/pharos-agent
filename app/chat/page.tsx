@@ -916,6 +916,7 @@ function TransferWizardCard({ state, lang, onSubmit }: {
         step2: "2 · Quanto enviar em cada transferência?",
         step3: "3 · Quantas transferências?",
         step4: "4 · Endereço de destino (pode ser a mesma carteira em todas)",
+        step4hint: "PROS para várias carteiras = 1 assinatura. USDC/WPROS = 1 assinatura por destino.",
         max: "disponível",
         total: "total necessário",
         insufficient: "Saldo insuficiente para todas as transferências",
@@ -930,6 +931,7 @@ function TransferWizardCard({ state, lang, onSubmit }: {
         step2: "2 · Amount per transfer?",
         step3: "3 · How many transfers?",
         step4: "4 · Recipient address (same wallet for all is OK)",
+        step4hint: "PROS to multiple wallets = 1 signature. USDC/WPROS = 1 signature per recipient.",
         max: "available",
         total: "total needed",
         insufficient: "Insufficient balance for all transfers",
@@ -1023,6 +1025,7 @@ function TransferWizardCard({ state, lang, onSubmit }: {
       {token && amountOk && countOk && totalOk && (
         <div className="space-y-2">
           <p className="text-[10px] uppercase tracking-[0.12em] font-semibold" style={{ color: "rgba(16,185,129,0.6)" }}>{t.step4}</p>
+          <p className="text-[10px] mb-2" style={{ color: "rgba(148,163,184,0.5)" }}>{t.step4hint}</p>
           {addrs.map((a, i) => (
             <input key={i} type="text" value={a}
               onChange={(e) => setAddrs((prev) => { const n = [...prev]; n[i] = e.target.value.trim(); return n; })}
@@ -3244,6 +3247,8 @@ function TransferCard({
   const [signing, setSigning] = useState(false);
   const [progress, setProgress] = useState(0);
   const net = PHAROS_NETWORKS[build.network];
+  const displayLegs = build.legs ?? build.txs;
+  const batched = !!build.legs && build.txs.length === 1;
 
   async function sign() {
     setSigning(true);
@@ -3272,19 +3277,24 @@ function TransferCard({
     <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold text-white/90">
-          {lang === "pt" ? "💸 Pagamento" : "💸 Payment"} {build.txs.length > 1 ? `(${build.txs.length} tx)` : ""}
+          {lang === "pt" ? "💸 Pagamento" : "💸 Payment"}
+          {batched
+            ? (lang === "pt" ? ` (1 assinatura · ${displayLegs.length} envios)` : ` (1 signature · ${displayLegs.length} transfers)`)
+            : build.txs.length > 1 ? ` (${build.txs.length} tx)` : ""}
         </div>
         <span className={`px-2 py-0.5 rounded-md text-[11px] border ${build.network === "testnet" ? "border-amber-400/30 text-amber-300 bg-amber-500/10" : "border-cyan-400/30 text-cyan-300 bg-cyan-500/10"}`}>
           {net.label}
         </span>
       </div>
       <div className="space-y-1.5 mb-3">
-        {build.txs.map((tx, i) => (
+        {displayLegs.map((tx, i) => (
           <div key={i} className="flex items-center gap-2 text-xs text-white/70">
             <span className="text-white/30">{i + 1}.</span>
             <span>{tx.description}</span>
-            {signing && progress === i + 1 && <span className="text-cyan-300 animate-pulse">✍️</span>}
-            {signing && progress > i + 1 && <span className="text-emerald-400">✓</span>}
+            {signing && !batched && progress === i + 1 && <span className="text-cyan-300 animate-pulse">✍️</span>}
+            {signing && !batched && progress > i + 1 && <span className="text-emerald-400">✓</span>}
+            {signing && batched && progress < build.txs.length && i === 0 && <span className="text-cyan-300 animate-pulse">✍️</span>}
+            {signing && batched && progress >= build.txs.length && <span className="text-emerald-400">✓</span>}
           </div>
         ))}
       </div>
@@ -3306,7 +3316,9 @@ function TransferCard({
           : lang === "pt" ? `Assinar${build.txs.length > 1 ? ` ${build.txs.length} transações` : " e enviar"}` : `Sign${build.txs.length > 1 ? ` ${build.txs.length} transactions` : " & send"}`}
       </button>
       <p className="text-[11px] text-white/30 mt-2 text-center">
-        {lang === "pt" ? "Você confirma cada transação na sua carteira." : "You confirm each transaction in your wallet."}
+        {build.txs.length > 1
+          ? (lang === "pt" ? "Você confirma cada transação na sua carteira." : "You confirm each transaction in your wallet.")
+          : (lang === "pt" ? "Você confirma uma vez na sua carteira." : "You confirm once in your wallet.")}
       </p>
     </div>
   );
@@ -4356,13 +4368,23 @@ export default function ChatPage() {
       const items = recipients.map((to) => ({ to, amount, token }));
       const build = buildTransferTxs(items, network);
       const n = recipients.length;
+      const txCount = build.txs.length;
       const total = amount * n;
+      const totalStr = total.toFixed(4);
       updateMessage(msgId, {
         transferWizard: undefined,
         isLoading: false,
-        text: lang === "pt"
-          ? `Pronto! **${n}** transferência${n > 1 ? "s" : ""} de **${amount} ${token}** cada (total **${total.toFixed(4)} ${token}**). Confirme cada uma na sua carteira.`
-          : `Ready! **${n}** transfer${n > 1 ? "s" : ""} of **${amount} ${token}** each (total **${total.toFixed(4)} ${token}**). Confirm each one in your wallet.`,
+        text: txCount === 1 && n > 1
+          ? (lang === "pt"
+            ? `Pronto! **${n}** envio${n > 1 ? "s" : ""} em **1 assinatura** (total **${totalStr} ${token}**). Confirme na carteira.`
+            : `Ready! **${n}** transfer${n > 1 ? "s" : ""} in **1 signature** (total **${totalStr} ${token}**). Confirm in your wallet.`)
+          : txCount < n
+          ? (lang === "pt"
+            ? `Pronto! **${n}** envios para carteiras diferentes com **${token}** — **${txCount} assinatura${txCount > 1 ? "s" : ""}** (1 por destino em tokens ERC-20). Total **${totalStr} ${token}**.`
+            : `Ready! **${n}** sends to different wallets with **${token}** — **${txCount} signature${txCount > 1 ? "s" : ""}** (1 per ERC-20 recipient). Total **${totalStr} ${token}**.`)
+          : (lang === "pt"
+            ? `Pronto! **${txCount}** transferência${txCount > 1 ? "s" : ""} de **${amount} ${token}** cada (total **${totalStr} ${token}**). Confirme cada uma na sua carteira.`
+            : `Ready! **${txCount}** transfer${txCount > 1 ? "s" : ""} of **${amount} ${token}** each (total **${totalStr} ${token}**). Confirm each one in your wallet.`),
         transferPending: build,
       });
     } catch (err) {
