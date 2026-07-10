@@ -30,6 +30,14 @@ import {
   silentReconnect,
   wasConnected,
   disconnectWallet,
+  getRememberedProviderId,
+  subscribeAllWalletProviders,
+  providerIdFor,
+  rememberConnection,
+  setActiveProvider,
+  getAuthorizedAccount,
+  restoreRememberedProvider,
+  type EIP1193Provider,
   getCurrentChainId,
   discoverWallets,
   getActiveProvider,
@@ -3441,6 +3449,10 @@ export default function ChatPage() {
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
   const [chainId, setChainId] = useState<string | null>(null);
   const [walletPickerOptions, setWalletPickerOptions] = useState<WalletOption[] | null>(null);
+  const [connectedProviderId, setConnectedProviderId] = useState<string | null>(null);
+  const walletAddressRef = useRef("");
+  const userConnectLockRef = useRef(false);
+  const refreshOpenFlowsForRef = useRef<(addr: string) => Promise<void>>(async () => {});
   const [selectedNetwork, setSelectedNetworkState] = useState<PharosNetworkId>("mainnet");
   const [siteLang] = useSiteLang();
   const [chatId, setChatId] = useState<string>(() => newChatId());
@@ -3556,6 +3568,10 @@ export default function ChatPage() {
   }, [isSending]);
 
   useEffect(() => {
+    walletAddressRef.current = walletAddress;
+  }, [walletAddress]);
+
+  useEffect(() => {
     if (!walletAddress) return;
     // Refetches on connect, on selected-network change, and every 5s — so the
     // balance follows the active chain quickly after a mainnet/testnet switch.
@@ -3571,49 +3587,17 @@ export default function ChatPage() {
     let cancelled = false;
     (async () => {
       const addr = await silentReconnect();
-      if (cancelled || !addr) return;
+      // User may have connected manually while silentReconnect was in flight —
+      // never overwrite a fresher connection with a stale default provider.
+      if (cancelled || !addr || walletAddressRef.current || userConnectLockRef.current) return;
+      walletAddressRef.current = addr;
       setWalletAddress(addr);
+      setConnectedProviderId(getRememberedProviderId());
       getBalance(addr).then(setBalance);
       setChainId(await getCurrentChainId());
     })();
     return () => { cancelled = true; };
   }, []);
-
-  // React to wallet account/chain changes so the UI stays in sync and the user
-  // stays connected until they explicitly disconnect. Re-attaches when the
-  // active provider changes (after picking a wallet), via the walletAddress dep.
-  useEffect(() => {
-    const eth = getActiveProvider();
-    if (!eth || !eth.on || !eth.removeListener) return;
-    const onAccounts = (...args: unknown[]) => {
-      const accounts = args[0] as string[];
-      if (!accounts || accounts.length === 0) {
-        disconnectWallet();
-        setWalletAddress("");
-        setBalance("0");
-        setChainId(null);
-      } else if (accounts[0].toLowerCase() !== walletAddress.toLowerCase()) {
-        // Account switched: update address + navbar balance AND refresh any
-        // open wizard cards, whose token holdings were snapshotted from the
-        // PREVIOUS account (otherwise "you have no WPROS" style stale data).
-        setWalletAddress(accounts[0]);
-        getBalance(accounts[0]).then(setBalance);
-        void refreshOpenFlowsFor(accounts[0]);
-      }
-    };
-    const onChain = (...args: unknown[]) => {
-      setChainId(args[0] as string);
-      // Refresh the navbar balance immediately — the old 15s poll made the
-      // testnet/mainnet balance look "stuck" right after a network switch.
-      if (walletAddress) getBalance(walletAddress).then(setBalance);
-    };
-    eth.on("accountsChanged", onAccounts);
-    eth.on("chainChanged", onChain);
-    return () => {
-      eth.removeListener!("accountsChanged", onAccounts);
-      eth.removeListener!("chainChanged", onChain);
-    };
-  }, [walletAddress]);
 
   function addMessage(msg: Omit<Message, "id">): string {
     const id = Date.now().toString() + Math.random().toString(36).slice(2);
@@ -3657,8 +3641,11 @@ export default function ChatPage() {
 
   async function connectTo(option: WalletOption) {
     setIsConnecting(true);
+    userConnectLockRef.current = true;
     try {
-      const address = await connectWallet(option.provider);
+      const address = await connectWallet(option.provider, option.id);
+      walletAddressRef.current = address;
+      setConnectedProviderId(option.id);
       setWalletAddress(address);
       const bal = await getBalance(address);
       setBalance(bal);
@@ -3669,12 +3656,15 @@ export default function ChatPage() {
     } catch (err: unknown) {
       addMessage({ role: "agent", text: err instanceof Error ? err.message : "Failed to connect wallet.", isError: true });
     } finally {
+      userConnectLockRef.current = false;
       setIsConnecting(false);
     }
   }
 
   function handleDisconnect() {
     disconnectWallet();
+    setConnectedProviderId(null);
+    walletAddressRef.current = "";
     setWalletAddress("");
     setBalance("0");
     setChainId(null);
@@ -3987,6 +3977,68 @@ export default function ChatPage() {
       // Balance refresh is best-effort; the wizards re-read on next open anyway.
     }
   }
+  refreshOpenFlowsForRef.current = refreshOpenFlowsFor;
+
+  // React to account/chain changes on EVERY installed wallet (not just the
+  // active one) so switching account in Rabby/MetaMask updates the navbar.
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const syncAccount = (accounts: string[], provider: EIP1193Provider) => {
+      if (!walletAddressRef.current && !wasConnected()) return;
+
+      if (!accounts?.length) {
+        const active = getActiveProvider();
+        if (provider !== active) return;
+        disconnectWallet();
+        setConnectedProviderId(null);
+        walletAddressRef.current = "";
+        setWalletAddress("");
+        setBalance("0");
+        setChainId(null);
+        return;
+      }
+
+      const next = accounts[0];
+      if (next.toLowerCase() === walletAddressRef.current.toLowerCase()) return;
+
+      setActiveProvider(provider);
+      const pid = providerIdFor(provider);
+      rememberConnection(pid);
+      setConnectedProviderId(pid);
+      walletAddressRef.current = next;
+      setWalletAddress(next);
+      getBalance(next).then(setBalance);
+      void refreshOpenFlowsForRef.current(next);
+    };
+
+    void subscribeAllWalletProviders({
+      onAccountsChanged: syncAccount,
+      onChainChanged: (chainId, provider) => {
+        if (provider !== getActiveProvider()) return;
+        setChainId(chainId);
+        if (walletAddressRef.current) getBalance(walletAddressRef.current).then(setBalance);
+      },
+    }).then((fn) => { cleanup = fn; });
+
+    const onVisible = async () => {
+      if (document.visibilityState !== "visible" || !walletAddressRef.current) return;
+      await restoreRememberedProvider();
+      const addr = await getAuthorizedAccount();
+      if (addr && addr.toLowerCase() !== walletAddressRef.current.toLowerCase()) {
+        walletAddressRef.current = addr;
+        setWalletAddress(addr);
+        getBalance(addr).then(setBalance);
+        void refreshOpenFlowsForRef.current(addr);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cleanup?.();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Reset the conversation to a clean slate (keeps wallet connection).
   function handleResetChat() {
@@ -5462,7 +5514,18 @@ export default function ChatPage() {
           updateMessage(thinkingId, { text: safeReply + "\n\nReading Pharos balances…" });
           try {
             const analysis = await getWalletAnalysis(target, selectedNetwork);
-            updateMessage(thinkingId, { isLoading: false, text: safeReply + "\n\n" + formatWalletAnalysis(analysis, lang, selectedNetwork) });
+            let body = safeReply + "\n\n" + formatWalletAnalysis(analysis, lang, selectedNetwork);
+            if (
+              typedAddress &&
+              walletAddress &&
+              typedAddress.toLowerCase() !== walletAddress.toLowerCase()
+            ) {
+              const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+              body += lang === "pt"
+                ? `\n\n_Nota: você colou \`${short(typedAddress)}\` — isso é só leitura. A carteira **conectada** no topo (para assinar txs) continua sendo \`${short(walletAddress)}\`. Para trocar, use **Conectar** e escolha a carteira certa._`
+                : `\n\n_Note: you pasted \`${short(typedAddress)}\` — that's read-only. The **connected** wallet in the header (for signing txs) is still \`${short(walletAddress)}\`. To switch, use **Connect** and pick the right wallet._`;
+            }
+            updateMessage(thinkingId, { isLoading: false, text: body });
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             updateMessage(thinkingId, { isLoading: false, isError: true, text: `Failed to read wallet balances: ${msg}` });

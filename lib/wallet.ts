@@ -104,6 +104,61 @@ export async function discoverWallets(): Promise<WalletOption[]> {
   return list;
 }
 
+export function providerIdFor(p: EIP1193Provider): string {
+  for (const opt of discovered.values()) {
+    if (opt.provider === p) return opt.id;
+  }
+  return "injected";
+}
+
+export type WalletProviderHandlers = {
+  onAccountsChanged?: (accounts: string[], provider: EIP1193Provider) => void;
+  onChainChanged?: (chainId: string, provider: EIP1193Provider) => void;
+};
+
+// Listen on every installed wallet — switching account/extension in Rabby vs MetaMask
+// only emits on that provider, so a single active-provider listener misses updates.
+export async function subscribeAllWalletProviders(
+  handlers: WalletProviderHandlers,
+): Promise<() => void> {
+  const wallets = await discoverWallets();
+  const seen = new Set<EIP1193Provider>();
+  const cleanups: Array<() => void> = [];
+
+  const attach = (provider: EIP1193Provider) => {
+    if (seen.has(provider) || !provider.on || !provider.removeListener) return;
+    seen.add(provider);
+    const onAccounts = (...args: unknown[]) => {
+      handlers.onAccountsChanged?.(args[0] as string[], provider);
+    };
+    const onChain = (...args: unknown[]) => {
+      handlers.onChainChanged?.(args[0] as string, provider);
+    };
+    provider.on("accountsChanged", onAccounts);
+    provider.on("chainChanged", onChain);
+    cleanups.push(() => {
+      provider.removeListener!("accountsChanged", onAccounts);
+      provider.removeListener!("chainChanged", onChain);
+    });
+  };
+
+  for (const w of wallets) attach(w.provider);
+  if (typeof window !== "undefined" && window.ethereum) attach(window.ethereum);
+
+  return () => { for (const c of cleanups) c(); };
+}
+
+export async function getAuthorizedAccount(provider?: EIP1193Provider): Promise<string | null> {
+  const p = provider ?? getProvider();
+  if (!p) return null;
+  try {
+    const accounts = (await p.request({ method: "eth_accounts" })) as string[];
+    return accounts?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── chain switching ─────────────────────────────────────────────────────────
 
 // Provider errors are plain objects (EIP-1193), not Error instances — extract
@@ -187,13 +242,39 @@ export async function ensurePharosNetwork(): Promise<void> {
 // silently re-attach on reload only if the wallet still has us authorized.
 
 const CONNECTED_KEY = "pharos-wallet-connected";
+const PROVIDER_KEY = "pharos-wallet-provider";
 
-export function rememberConnection(): void {
-  try { localStorage.setItem(CONNECTED_KEY, "1"); } catch { /* ignore */ }
+export function rememberConnection(providerId?: string): void {
+  try {
+    localStorage.setItem(CONNECTED_KEY, "1");
+    if (providerId) localStorage.setItem(PROVIDER_KEY, providerId);
+  } catch { /* ignore */ }
 }
 
 export function forgetConnection(): void {
-  try { localStorage.removeItem(CONNECTED_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(CONNECTED_KEY);
+    localStorage.removeItem(PROVIDER_KEY);
+  } catch { /* ignore */ }
+}
+
+export function getRememberedProviderId(): string | null {
+  try { return localStorage.getItem(PROVIDER_KEY); } catch { return null; }
+}
+
+// Re-attach the wallet extension the user picked last time (EIP-6963 rdns).
+export async function restoreRememberedProvider(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const id = getRememberedProviderId();
+  if (!id) return;
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+  await new Promise((r) => setTimeout(r, 250));
+  const opt = discovered.get(id);
+  if (opt) {
+    setActiveProvider(opt.provider);
+    return;
+  }
+  if (id === "injected" && window.ethereum) setActiveProvider(window.ethereum);
 }
 
 export function wasConnected(): boolean {
@@ -202,6 +283,8 @@ export function wasConnected(): boolean {
 
 // Reconnect without prompting: returns the authorized address, or null.
 export async function silentReconnect(): Promise<string | null> {
+  if (!wasConnected()) return null;
+  await restoreRememberedProvider();
   if (!isWalletAvailable()) return null;
   try {
     const accounts = (await requireProvider().request({ method: "eth_accounts" })) as string[];
@@ -213,7 +296,7 @@ export async function silentReconnect(): Promise<string | null> {
 
 // ── connect / disconnect ──────────────────────────────────────────────────────
 
-export async function connectWallet(chosen?: EIP1193Provider): Promise<string> {
+export async function connectWallet(chosen?: EIP1193Provider, providerId?: string): Promise<string> {
   if (chosen) setActiveProvider(chosen);
   const provider = requireProvider();
   console.log(`[pharos:wallet] connectWallet — detected: ${getWalletName()}`);
@@ -228,7 +311,7 @@ export async function connectWallet(chosen?: EIP1193Provider): Promise<string> {
 
   console.log(`[pharos:wallet] connected: ${accounts[0]}`);
   await switchToChain("Pharos");
-  rememberConnection();
+  rememberConnection(providerId);
   return accounts[0];
 }
 
