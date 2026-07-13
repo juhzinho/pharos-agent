@@ -48,7 +48,7 @@ export function getAgentCard() {
     version: "2.1.0",
     documentationUrl: `${BASE}/api/info`,
     capabilities: {
-      streaming: false,
+      streaming: true,
       pushNotifications: false,
       stateTransitionHistory: false,
     },
@@ -229,6 +229,114 @@ interface JsonRpcRequest {
   params?: unknown;
 }
 
+const SSE_HEADERS: Record<string, string> = {
+  "Content-Type": "text/event-stream; charset=utf-8",
+  "Cache-Control": "no-cache, no-transform",
+  Connection: "keep-alive",
+  "X-Accel-Buffering": "no",
+};
+
+function sseData(payload: object): string {
+  return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+function agentStatusMessage(task: A2ATask, text: string) {
+  return {
+    role: "agent" as const,
+    parts: [{ kind: "text" as const, text }],
+    messageId: randomUUID(),
+    taskId: task.id,
+    contextId: task.contextId,
+  };
+}
+
+function buildStreamResponse(
+  id: string | number | null,
+  task: A2ATask,
+  answer: string
+): Response {
+  const encoder = new TextEncoder();
+  const now = () => new Date().toISOString();
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const push = (result: object) => {
+        controller.enqueue(
+          encoder.encode(sseData({ jsonrpc: "2.0", id, result }))
+        );
+      };
+
+      push({
+        ...task,
+        kind: "task",
+        status: { state: "working", timestamp: now() },
+      });
+
+      push({
+        ...task,
+        kind: "task",
+        status: {
+          state: "completed",
+          timestamp: now(),
+          message: agentStatusMessage(task, answer),
+        },
+      });
+
+      push({
+        kind: "status-update",
+        taskId: task.id,
+        contextId: task.contextId,
+        final: true,
+        status: {
+          state: "completed",
+          timestamp: now(),
+          message: agentStatusMessage(task, answer),
+        },
+      });
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, { headers: SSE_HEADERS });
+}
+
+async function processTaskRequest(
+  body: JsonRpcRequest
+): Promise<{ task: A2ATask; answer: string } | Response> {
+  const id = body.id ?? null;
+  const userText = extractUserText(body.params);
+  if (!userText) {
+    return Response.json({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32602, message: "Invalid params: missing user text in message" },
+    });
+  }
+
+  try {
+    const answer = await answerA2AMessage(userText);
+    const userMessageId =
+      body.params && typeof body.params === "object"
+        ? ((body.params as Record<string, unknown>).message as Record<string, unknown> | undefined)
+            ?.messageId
+        : undefined;
+    const task = buildCompletedTask(
+      userText,
+      answer,
+      typeof userMessageId === "string" ? userMessageId : undefined
+    );
+    return { task, answer };
+  } catch (err) {
+    console.error("[a2a]", err);
+    return Response.json({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32603, message: "Internal error processing message" },
+    });
+  }
+}
+
 export async function handleA2AJsonRpc(body: JsonRpcRequest): Promise<Response> {
   const id = body.id ?? null;
   const method = (body.method ?? "").toLowerCase();
@@ -257,12 +365,22 @@ export async function handleA2AJsonRpc(body: JsonRpcRequest): Promise<Response> 
     return Response.json({ jsonrpc: "2.0", id, result: task });
   }
 
-  if (method === "message/stream" || method === "tasks/resubscribe") {
-    return Response.json({
-      jsonrpc: "2.0",
-      id,
-      error: { code: -32004, message: "Streaming not supported" },
-    });
+  if (method === "message/stream" || method === "tasks/resubscribe" || method === "tasks/sendsubscribe") {
+    if (method === "tasks/resubscribe" || method === "tasks/sendsubscribe") {
+      const taskId = extractTaskId(body.params);
+      const cached = taskId ? getCachedTask(taskId) : null;
+      if (cached) {
+        const answer =
+          cached.artifacts[0]?.parts[0]?.text ??
+          cached.history.find((h) => h.role === "agent")?.parts[0]?.text ??
+          "";
+        return buildStreamResponse(id, cached, answer);
+      }
+    }
+
+    const processed = await processTaskRequest(body);
+    if (processed instanceof Response) return processed;
+    return buildStreamResponse(id, processed.task, processed.answer);
   }
 
   const taskMethods = new Set([
@@ -281,34 +399,7 @@ export async function handleA2AJsonRpc(body: JsonRpcRequest): Promise<Response> 
     });
   }
 
-  const userText = extractUserText(body.params);
-  if (!userText) {
-    return Response.json({
-      jsonrpc: "2.0",
-      id,
-      error: { code: -32602, message: "Invalid params: missing user text in message" },
-    });
-  }
-
-  try {
-    const answer = await answerA2AMessage(userText);
-    const userMessageId =
-      body.params && typeof body.params === "object"
-        ? ((body.params as Record<string, unknown>).message as Record<string, unknown> | undefined)?.messageId
-        : undefined;
-    const task = buildCompletedTask(
-      userText,
-      answer,
-      typeof userMessageId === "string" ? userMessageId : undefined
-    );
-
-    return Response.json({ jsonrpc: "2.0", id, result: task });
-  } catch (err) {
-    console.error("[a2a]", err);
-    return Response.json({
-      jsonrpc: "2.0",
-      id,
-      error: { code: -32603, message: "Internal error processing message" },
-    });
-  }
+  const processed = await processTaskRequest(body);
+  if (processed instanceof Response) return processed;
+  return Response.json({ jsonrpc: "2.0", id, result: processed.task });
 }
