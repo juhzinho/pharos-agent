@@ -1,4 +1,7 @@
-# Pacote Skill — Pharos Agent (Anvita Flow)
+# Pacote Skill — ProsPilot (Anvita Flow)
+
+Upload **`prospilot.zip`** (pasta `prospilot/` na raiz do zip).
+
 
 Guia oficial: https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af
 
@@ -8,8 +11,8 @@ Guia oficial: https://docs.pharos.xyz/tooling-and-infrastructure/overview/publis
 2. **ZIP da pasta**, não dos arquivos soltos:
 
 ```
-pharos-agent.zip
-└── pharos-agent/
+prospilot.zip
+└── prospilot/
     ├── SKILL.md            ← obrigatório, MAIÚSCULAS
     ├── scripts/
     ├── references/
@@ -20,7 +23,7 @@ pharos-agent.zip
 
 ```yaml
 ---
-name: pharos-agent
+name: prospilot
 description: ...
 ---
 ```

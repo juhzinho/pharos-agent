@@ -22,9 +22,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const SITE_URL = "https://pharos-agent-pi.vercel.app";
-const TITLE = "Pharos Agent — AI DeFi Copilot";
+const TITLE = "ProsPilot — Community DeFi Copilot for Pharos";
 const DESCRIPTION =
-  "Swap, bridge, add liquidity and track RealFi positions on Pharos Network via natural language. Non-custodial AI copilot.";
+  "Independent community-built DeFi copilot for the Pharos ecosystem. Swap, bridge, liquidity, staking, and ecosystem Q&A. Not an official Pharos Network product.";
 
 export const metadata: Metadata = {
   // metadataBase makes the og:image URL absolute — required for Discord/Twitter/WhatsApp link previews
@@ -38,15 +38,15 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Pharos Agent",
+    title: "ProsPilot",
   },
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
     url: SITE_URL,
-    siteName: "Pharos Agent",
+    siteName: "ProsPilot",
     type: "website",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Pharos Agent — AI DeFi Copilot on Pharos Network" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "ProsPilot — community DeFi copilot for Pharos ecosystem" }],
   },
   twitter: {
     card: "summary_large_image",

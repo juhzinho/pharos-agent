@@ -1,7 +1,7 @@
 {
-  "name": "Pharos Agent API",
-  "version": "1.0",
-  "description": "AI DeFi copilot for Pharos Network (chain ID 1672). RAG-grounded ecosystem knowledge plus read-only swap/bridge quotes via LI.FI. Non-custodial: never signs or broadcasts transactions.",
+  "name": "ProsPilot API",
+  "version": "2.1",
+  "description": "ProsPilot — independent community-built DeFi copilot for the Pharos ecosystem (chain 1672). Not an official Pharos Network product. RAG knowledge, read-only quotes, wallet intel. Non-custodial.",
   "capabilities": ["knowledge", "swap-quote", "bridge-quote", "token-price"],
   "discovery": "/api/info",
   "endpoints": [

@@ -2618,7 +2618,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
         {/* Header */}
         <div className="flex items-center gap-2 mb-2.5">
-          <span className="text-[11px] font-semibold" style={{ color: "rgba(0,212,255,0.55)" }}>Pharos Agent</span>
+          <span className="text-[11px] font-semibold" style={{ color: "rgba(0,212,255,0.55)" }}>ProsPilot</span>
           <span className="w-1 h-1 rounded-full" style={{ background: "rgba(0,212,255,0.2)" }} />
           <span className="text-[10px]" style={{ color: "rgba(100,116,139,0.4)" }}>AI DeFi Copilot</span>
         </div>
@@ -3525,7 +3525,7 @@ export default function ChatPage() {
     {
       id: "welcome",
       role: "agent",
-      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
+      text: "Hi! I'm **ProsPilot** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
     },
   ]);
   const [input, setInput] = useState("");
@@ -4164,7 +4164,7 @@ export default function ChatPage() {
     setMessages([{
       id: "welcome",
       role: "agent",
-      text: "Hi! I'm **Pharos Agent** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
+      text: "Hi! I'm **ProsPilot** — your AI DeFi copilot on Pharos Network (Chain ID 1672).\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
     }]);
   }
 

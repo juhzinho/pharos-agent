@@ -90,7 +90,7 @@ export default function Navbar({
           <div>
             <span className="font-display text-[15px] font-bold text-white leading-none tracking-[-0.025em]"
               style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", textShadow: "0 0 20px rgba(0,212,255,0.3)" }}>
-              Pharos Agent
+              ProsPilot
             </span>
             <p className="text-[10px] mt-0.5 font-medium" style={{ color: "rgba(0,212,255,0.45)" }}>
               AI DeFi Copilot

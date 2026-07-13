@@ -1,4 +1,6 @@
-# Pharos Agent
+# ProsPilot
+
+Independent **community-built** DeFi copilot for the Pharos ecosystem (chain 1672). Not an official Pharos Network product.
 
 AI DeFi copilot built for the [Pharos Network](https://pharos.xyz). Natural-language swaps, bidirectional bridging (Jumper/LI.FI + Chainlink CCIP), FaroSwap V3 concentrated liquidity, LP position tracking, deep Pharos ecosystem knowledge, live X/web search via Grok, multilingual (EN/PT and more).
 

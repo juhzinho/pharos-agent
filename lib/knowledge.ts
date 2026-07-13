@@ -343,7 +343,7 @@ A2A: agents discover/call each other; Agent Store has pre-built modules (data, f
 
 PHAROS HACKATHON (Agent Carnival): Skill = reusable module; Agent = full assistant on Anvita Flow; Phase 2 agents use Phase 1 Skills; pharos.xyz/agent-carnival | port.pharos.xyz/agent-carnival.
 
-PHAROS AGENT AS SERVICE AGENT: Web app https://pharos-agent-pi.vercel.app/chat for signing; API https://pharos-agent-pi.vercel.app for read-only (wallet-profile, wallet-score, explain-tx, price, campaigns, news, tweets, rwa, quote). Strategy must embed LIVE SNAPSHOT when sandbox blocks HTTP.
+PROSPILOT AS SERVICE AGENT: Web app https://pharos-agent-pi.vercel.app/chat for signing; API https://pharos-agent-pi.vercel.app for read-only (wallet-profile, wallet-score, explain-tx, price, campaigns, news, tweets, rwa, quote). Strategy must embed LIVE SNAPSHOT when sandbox blocks HTTP.
 `,
 
   anvita_debugger_sandbox: `
@@ -364,7 +364,7 @@ DOES NOT WORK IN DEBUGGER:
 • Holding or using private keys
 
 WHERE ON-CHAIN RUNS:
-1. Pharos Agent web app — user connects Rabby/MetaMask, signs txs (non-custodial)
+1. ProsPilot web app — user connects Rabby/MetaMask, signs txs (non-custodial)
 2. Pharos Skill Engine local — developer runs cast/forge with $PRIVATE_KEY in terminal (github.com/PharosNetwork/pharos-skill-engine)
 3. Anvita agent wallet — x402 earnings to publisher only, NOT user DeFi signing
 
@@ -687,7 +687,7 @@ PHAROS SKILL ENGINE — 11 CAPABILITIES:
   11. Contract Script Generator — auto-generate ethers.js/web3.js scripts
 SKILL STORAGE PATHS: OpenClaw ~/.openclaw/skills/ | Claude Code ~/.claude/skills/ | Codex ~/.codex/skills/ (verify with "openclaw skills list" or /skills)
 FLOW: user writes natural prompt → agent auto-detects which skill to invoke → skill executes specialized logic and returns results.
-The vision: composable AI agents that read state and propose/execute on-chain actions on Pharos. This Pharos Agent follows the same direction (RAG knowledge + swap/bridge/liquidity skills, non-custodial).
+The vision: composable AI agents that read state and propose/execute on-chain actions on Pharos. This ProsPilot follows the same direction (RAG knowledge + swap/bridge/liquidity skills, non-custodial).
 `,
   research: `
 Pharos Research (pharos.xyz/research): the official research hub publishing deep dives on RealFi, RWA tokenization, the Pharos architecture (parallel execution, AsyncBFT, SPNs), and ecosystem analysis. Pair it with docs.pharosnetwork.xyz for technical specs and pharos.xyz/resources for blog/news.
@@ -1172,7 +1172,7 @@ RED FLAGS: yield paid in the same token being farmed, >90% insider allocation, n
 
   defi_agents_ai: `
 AI AGENTS × DEFI (the agent economy):
-WHAT: autonomous software that reads on-chain data, reasons with LLMs, and executes (or proposes) transactions. Levels: (1) copilots that PROPOSE txs for human signature — like this Pharos Agent, non-custodial; (2) constrained agents with session keys/spending caps; (3) fully autonomous agents with own wallets.
+WHAT: autonomous software that reads on-chain data, reasons with LLMs, and executes (or proposes) transactions. Levels: (1) copilots that PROPOSE txs for human signature — like this ProsPilot, non-custodial; (2) constrained agents with session keys/spending caps; (3) fully autonomous agents with own wallets.
 KEY INFRASTRUCTURE:
 • x402 protocol: HTTP 402 "Payment Required" revived — agents pay per API call in stablecoins, enabling machine-to-machine commerce. Native on Pharos.
 • Agent marketplaces: Anvita Flow on Pharos — Service Agents publish Skills, Steward Agents discover and invoke them, payments via x402.

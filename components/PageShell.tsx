@@ -1,7 +1,7 @@
 "use client";
 
 // Shared layout shell for section pages (/ecosystem, /trade, /campaigns, …).
-// Keeps the Pharos Agent identity consistent: dark ocean background, subtle
+// Keeps the ProsPilot identity consistent: dark ocean background, subtle
 // grid, navbar on top, centered content column and a standard page header.
 
 import Navbar from "@/components/Navbar";
@@ -63,7 +63,7 @@ export default function PageShell({ eyebrow, title, subtitle, accent = "#00d4ff"
         <footer className="py-8 px-5 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
           <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs" style={{ color: "rgba(71,85,105,0.55)" }}>
-              Pharos Agent · Mainnet Chain ID 1672 · Non-custodial
+              ProsPilot · Mainnet Chain ID 1672 · Non-custodial
             </p>
             <div className="flex items-center gap-4">
               {[

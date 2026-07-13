@@ -24,10 +24,10 @@ const SECTIONS: Section[] = [
   {
     id: "intro",
     icon: "🤖",
-    title: { pt: "O que é o Pharos Agent", en: "What is Pharos Agent" },
+    title: { pt: "O que é o ProsPilot", en: "What is ProsPilot" },
     intro: {
-      pt: "O Pharos Agent é um copiloto DeFi com IA para a Pharos Network (Chain ID 1672). Você conversa em linguagem natural — em qualquer um de 30 idiomas — e ele executa ações on-chain (swap, bridge, liquidez, envios), analisa carteiras, explica transações e responde qualquer pergunta sobre a Pharos e o mundo cripto. Ele é 100% não-custodial: nunca toca nas suas chaves — toda transação é assinada por VOCÊ, na SUA carteira.",
-      en: "Pharos Agent is an AI DeFi copilot for the Pharos Network (Chain ID 1672). You chat in natural language — in any of 30 languages — and it executes on-chain actions (swap, bridge, liquidity, transfers), analyzes wallets, explains transactions and answers any question about Pharos and the crypto world. It is 100% non-custodial: it never touches your keys — every transaction is signed by YOU, in YOUR wallet.",
+      pt: "O ProsPilot é um copiloto DeFi com IA, **feito pela comunidade** para o ecossistema Pharos (Chain ID 1672). **Não é um produto oficial da Pharos Network.** Você conversa em linguagem natural — em qualquer um de 30 idiomas — e ele executa ações on-chain (swap, bridge, liquidez, envios), analisa carteiras, explica transações e responde qualquer pergunta sobre a Pharos e o mundo cripto. Ele é 100% não-custodial: nunca toca nas suas chaves — toda transação é assinada por VOCÊ, na SUA carteira.",
+      en: "ProsPilot is an independent, **community-built** AI DeFi copilot for the Pharos ecosystem (Chain ID 1672). **It is not an official Pharos Network product.** You chat in natural language — in any of 30 languages — and it executes on-chain actions (swap, bridge, liquidity, transfers), analyzes wallets, explains transactions and answers any question about Pharos and the crypto world. It is 100% non-custodial: it never touches your keys — every transaction is signed by YOU, in YOUR wallet.",
     },
     bullets: {
       pt: [
@@ -47,7 +47,7 @@ const SECTIONS: Section[] = [
         "Live data: $PROS price, news, tweets, campaigns and network metrics",
       ],
     },
-    image: { src: "/guide/chat-welcome.png", alt: "Pharos Agent chat" },
+    image: { src: "/guide/chat-welcome.png", alt: "ProsPilot chat" },
   },
   {
     id: "connect",
@@ -348,7 +348,7 @@ const SECTIONS: Section[] = [
 const UI = {
   pt: {
     eyebrow: "Guia do Usuário",
-    title: "Como usar o Pharos Agent",
+    title: "Como usar o ProsPilot",
     subtitle: "Tudo o que o agente faz, como pedir, como conectar sua carteira e os avisos de segurança — passo a passo, com imagens reais.",
     toc: "Índice",
     examplesLabel: "Experimente digitar:",
@@ -357,7 +357,7 @@ const UI = {
   },
   en: {
     eyebrow: "User Guide",
-    title: "How to use Pharos Agent",
+    title: "How to use ProsPilot",
     subtitle: "Everything the agent does, how to ask, how to connect your wallet and the security warnings — step by step, with real screenshots.",
     toc: "Contents",
     examplesLabel: "Try typing:",

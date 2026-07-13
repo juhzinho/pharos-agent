@@ -1,13 +1,15 @@
 ---
-name: pharos-agent
+name: prospilot
 description: >-
-  Complete AI DeFi copilot for Pharos Network (chain 1672): swap, bridge, FaroSwap V3
-  liquidity, Faroo staking, wallet intelligence, RealFi positions, RWA market data,
-  ecosystem knowledge (RAG + web search), tx history, price alerts, payments, and
-  developer script generation. Non-custodial — users sign in their own wallet.
+  ProsPilot — independent community-built DeFi copilot for the Pharos ecosystem (chain 1672).
+  NOT an official Pharos Network product. Swap, bridge, FaroSwap V3 liquidity, Faroo staking,
+  wallet intelligence, RealFi, RWA data, ecosystem knowledge, tx history, and developer scripts.
+  Non-custodial — users sign in their own wallet.
 ---
 
-# Pharos Agent — Complete Skill Package
+# ProsPilot — Skill Package
+
+> **Disclaimer:** ProsPilot is a community-built tool for the Pharos ecosystem. It is not affiliated with or endorsed by Pharos Network official team.
 
 **Web app:** https://pharos-agent-pi.vercel.app/chat  
 **API base:** https://pharos-agent-pi.vercel.app  

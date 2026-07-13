@@ -1,6 +1,7 @@
 // Public Skill API — discovery endpoint.
 // GET → skill metadata so external agents can discover this agent's capabilities.
 
+import { AGENT_DESCRIPTION, AGENT_NAME } from "@/lib/branding";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
@@ -9,12 +10,8 @@ export async function GET(req: Request) {
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 
   return Response.json({
-    name: "Pharos Agent API",
-    description:
-      "AI DeFi copilot for Pharos Network. RAG-grounded knowledge about the Pharos ecosystem " +
-      "(dapps, RWA, DeFi concepts), read-only swap/bridge quotes via LI.FI, on-chain wallet " +
-      "intelligence, and a plain-language transaction explainer. Non-custodial — this API never " +
-      "signs or broadcasts transactions.",
+    name: `${AGENT_NAME} API`,
+    description: AGENT_DESCRIPTION,
     version: "2.1",
     capabilities: [
       "knowledge", "swap-quote", "bridge-quote", "token-price",

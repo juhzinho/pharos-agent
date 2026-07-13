@@ -57,7 +57,7 @@ function TerminalPreview() {
           <span className="w-3 h-3 rounded-full" style={{ background: "#28c840" }} />
         </div>
         <span className="ml-2 text-xs font-medium" style={{ color: "rgba(0,212,255,0.5)" }}>
-          Pharos Agent · Mainnet
+          ProsPilot · Mainnet
         </span>
         <span className="ml-auto flex items-center gap-1.5 text-[10px]" style={{ color: "rgba(52,211,153,0.7)" }}>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -748,7 +748,7 @@ export default function LandingPage() {
                   }}>
                   <span className="absolute inset-0 pointer-events-none"
                     style={{ background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%)", animation: "shimmer 3s ease-in-out infinite" }} />
-                  <span className="relative">Start with Pharos Agent →</span>
+                  <span className="relative">Start with ProsPilot →</span>
                 </Link>
               </div>
             </div>
@@ -766,7 +766,7 @@ export default function LandingPage() {
                 </svg>
               </div>
               <p className="text-xs" style={{ color: "rgba(71,85,105,0.55)" }}>
-                Pharos Agent · Mainnet Chain ID 1672 · Non-custodial
+                ProsPilot · Mainnet Chain ID 1672 · Non-custodial
               </p>
             </div>
             <div className="flex items-center gap-4">

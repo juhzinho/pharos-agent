@@ -1,4 +1,4 @@
-// Pharos Agent service worker — makes the PWA installable and keeps the shell
+// ProsPilot service worker — makes the PWA installable and keeps the shell
 // available offline. Strategy: network-first for pages (fresh content, cached
 // fallback when offline), cache-first for static assets (fonts, images, icons).
 const CACHE = "pharos-agent-v1";

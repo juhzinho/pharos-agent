@@ -1,6 +1,7 @@
 // Minimal A2A v0.3 helpers for Anvita Flow / external agent gateways.
 
 import { randomUUID } from "node:crypto";
+import { AGENT_DESCRIPTION, AGENT_NAME, AGENT_TAGLINE } from "@/lib/branding";
 import { parseWithGroq } from "@/lib/groq";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 
@@ -33,17 +34,15 @@ export interface A2ATask {
 export function getAgentCard() {
   return {
     protocolVersion: "0.3.0",
-    name: "Pharos Agent",
-    description:
-      "AI DeFi copilot for Pharos Network (chain 1672): ecosystem Q&A, prices, wallet analysis, " +
-      "swap/bridge quotes, FaroSwap V3, Faroo staking. Non-custodial — on-chain actions at /chat.",
+    name: AGENT_NAME,
+    description: AGENT_DESCRIPTION,
     url: `${BASE}/api/a2a`,
     preferredTransport: "JSONRPC",
     additionalInterfaces: [
       { url: `${BASE}/api/a2a`, transport: "JSONRPC" },
     ],
     provider: {
-      organization: "Pharos Agent",
+      organization: `${AGENT_NAME} (${AGENT_TAGLINE})`,
       url: BASE,
     },
     version: "2.1.0",

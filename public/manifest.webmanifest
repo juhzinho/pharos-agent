@@ -1,7 +1,7 @@
 {
-  "name": "Pharos Agent — AI DeFi Copilot",
-  "short_name": "Pharos Agent",
-  "description": "Swap, bridge, add liquidity and track RealFi positions on Pharos Network via natural language.",
+  "name": "ProsPilot — Community DeFi Copilot",
+  "short_name": "ProsPilot",
+  "description": "Independent community-built DeFi copilot for the Pharos ecosystem. Not an official Pharos Network product.",
   "start_url": "/chat",
   "scope": "/",
   "display": "standalone",

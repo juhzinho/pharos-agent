@@ -1,4 +1,4 @@
-# Anvita Flow — complete reference (Pharos Agent)
+# Anvita Flow — complete reference (ProsPilot)
 
 Use this file when users ask about Anvita Flow, Anvita On, publishing Service Agents,
 the debugger, x402, Steward vs Service agents, or the Agent Carnival hackathon.
@@ -47,8 +47,8 @@ convert **Pharos Skills** into hosted **Service Agents** that other agents (and 
 | Dashboard / agent wallet | https://flow.anvita.xyz/dashboard |
 | Anvita Cyber Cup | https://flow.anvita.xyz/activities/cyber-cup |
 | Publish guide (Pharos docs) | https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af |
-| Pharos Agent web app | https://pharos-agent-pi.vercel.app/chat |
-| Pharos Agent API | https://pharos-agent-pi.vercel.app |
+| ProsPilot web app | https://pharos-agent-pi.vercel.app/chat |
+| ProsPilot API | https://pharos-agent-pi.vercel.app |
 
 ---
 
@@ -126,7 +126,7 @@ runtime is a **text/LLM sandbox** — not a full browser with MetaMask/Rabby.
 
 | Method | When to use |
 |--------|-------------|
-| **Pharos Agent web app** | End users connect Rabby/MetaMask and sign at `/chat` |
+| **ProsPilot web app** | End users connect Rabby/MetaMask and sign at `/chat` |
 | **Skill Engine local** | Developer runs `cast`/`forge` with `$PRIVATE_KEY` in terminal |
 | **Anvita agent wallet** | x402 revenue to Service Agent publisher — NOT user transaction signing |
 
@@ -146,7 +146,7 @@ runtime is a **text/LLM sandbox** — not a full browser with MetaMask/Rabby.
 
 ---
 
-## Pharos Agent on Anvita Flow (this service)
+## ProsPilot on Anvita Flow (this service)
 
 **Service type:** DeFi copilot — knowledge + read-only APIs + guided on-chain via web app.
 
@@ -208,5 +208,5 @@ A: Yes — one Anvita Flow account covers Steward (user) and Service Agent (deve
 **Q: "Add Agent" on chat page?**  
 A: Creates a **personal Steward Agent** — NOT the same as publishing a Service Agent. Use Developer Console instead.
 
-**Q: How do other agents call Pharos Agent?**  
-A: After publish, Steward searches Marketplace or user says "find pharos-agent to …"
+**Q: How do other agents call ProsPilot?**  
+A: After publish, Steward searches Marketplace or user says "find prospilot to …"

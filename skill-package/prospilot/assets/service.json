@@ -1,5 +1,5 @@
 {
-  "name": "pharos-agent",
+  "name": "prospilot",
   "version": "2.1",
   "baseUrl": "https://pharos-agent-pi.vercel.app",
   "webApp": "https://pharos-agent-pi.vercel.app/chat",

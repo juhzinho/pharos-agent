@@ -1,6 +1,7 @@
 // Public health check for A2A gateways (Anvita Flow, external agents).
 // No same-origin gate — read-only, no AI cost.
 
+import { AGENT_DESCRIPTION, AGENT_NAME, AGENT_SKILL_ID, AGENT_DISCLAIMER } from "@/lib/branding";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
@@ -9,7 +10,9 @@ export async function GET(req: Request) {
 
   return Response.json({
     status: "online",
-    agent: "pharos-agent",
+    agent: AGENT_SKILL_ID,
+    name: AGENT_NAME,
+    disclaimer: AGENT_DISCLAIMER,
     version: "2.1",
     network: { chainId: 1672, name: "Pharos" },
     webApp: "https://pharos-agent-pi.vercel.app/chat",

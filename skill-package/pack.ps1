@@ -1,7 +1,9 @@
 # Regenera os ZIPs do pacote Skill (paths com / para compatibilidade com upload)
-$src = Join-Path $PSScriptRoot "pharos-agent"
-$nested = Join-Path $PSScriptRoot "pharos-agent.zip"
-$flat = Join-Path $PSScriptRoot "pharos-agent-flat.zip"
+$src = Join-Path $PSScriptRoot "prospilot"
+$nested = Join-Path $PSScriptRoot "prospilot.zip"
+$flat = Join-Path $PSScriptRoot "prospilot-flat.zip"
+# Legacy filenames (optional fallback)
+$legacyNested = Join-Path $PSScriptRoot "pharos-agent.zip"
 
 function New-ProperZip($zipPath, $prefix) {
   if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
@@ -16,7 +18,9 @@ function New-ProperZip($zipPath, $prefix) {
   $zip.Dispose()
 }
 
-New-ProperZip $nested "pharos-agent"
+New-ProperZip $nested "prospilot"
 New-ProperZip $flat ""
+New-ProperZip $legacyNested "pharos-agent"
 Write-Host "OK: $nested"
 Write-Host "OK: $flat (SKILL.md at zip root - fallback only)"
+Write-Host "OK: $legacyNested (legacy alias)"

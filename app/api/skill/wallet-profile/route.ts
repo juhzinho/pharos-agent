@@ -1,7 +1,7 @@
 // Public Skill API — on-chain wallet intelligence profile.
 // POST { address } → balances, tx count, AI-style profile (tags/risk/insight).
 // Strictly read-only: public RPC data, no signature, zero gas. Open to external
-// agents (rate-limited) so any Pharos Agent can call this as a Skill.
+// agents (rate-limited) so any ProsPilot caller can use this as a Skill.
 
 import { getWalletAnalysis } from "@/lib/walletAnalysis";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
