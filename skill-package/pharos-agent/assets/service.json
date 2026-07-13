@@ -4,6 +4,7 @@
   "baseUrl": "https://pharos-agent-pi.vercel.app",
   "webApp": "https://pharos-agent-pi.vercel.app/chat",
   "discovery": "/api/info",
+  "health": "/api/health",
   "skillCount": 40,
   "categories": [
     "knowledge", "market-data", "wallet-intelligence", "swap", "bridge",

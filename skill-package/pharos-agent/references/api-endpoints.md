@@ -2,6 +2,7 @@
 
 Base URL: `https://pharos-agent-pi.vercel.app`
 
+Health (A2A): `GET /api/health` — returns `{ status: "online", agent, webApp }`  
 Discovery: `GET /api/info`
 
 | Skill | Method | Path | Body / query |
