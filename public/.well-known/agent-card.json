@@ -1,0 +1,50 @@
+{
+  "name": "Pharos Agent",
+  "description": "AI DeFi copilot for Pharos Network (chain 1672): ecosystem Q&A, prices, wallet analysis, swap/bridge quotes, FaroSwap V3, Faroo staking. Non-custodial — on-chain actions at /chat.",
+  "url": "https://pharos-agent-pi.vercel.app/api/a2a",
+  "provider": {
+    "organization": "Pharos Agent",
+    "url": "https://pharos-agent-pi.vercel.app"
+  },
+  "version": "0.3.0",
+  "documentationUrl": "https://pharos-agent-pi.vercel.app/api/info",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "authentication": {
+    "schemes": []
+  },
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "skills": [
+    {
+      "id": "pharos-knowledge",
+      "name": "Pharos ecosystem Q&A",
+      "description": "Answer questions about Pharos protocols, RWA, Faroo, FaroSwap, Anvita Flow",
+      "tags": ["pharos", "defi", "knowledge", "rwa"],
+      "examples": ["What is Faroo?", "Explain RealFi on Pharos"]
+    },
+    {
+      "id": "market-data",
+      "name": "Market data",
+      "description": "Token prices and RWA market aggregates",
+      "tags": ["price", "market"],
+      "examples": ["Price of PROS", "RWA market data"]
+    },
+    {
+      "id": "wallet-intel",
+      "name": "Wallet intelligence",
+      "description": "Read-only wallet profile, score, tx history when user provides 0x address",
+      "tags": ["wallet", "analysis"],
+      "examples": ["Analyze wallet 0x...", "Wallet score for 0x..."]
+    },
+    {
+      "id": "defi-guided",
+      "name": "DeFi guided flows",
+      "description": "Swap, bridge, LP, stake instructions; execution requires web app wallet",
+      "tags": ["swap", "bridge", "liquidity", "stake"],
+      "examples": ["Swap 10 PROS to USDC", "Bridge USDC to Base"]
+    }
+  ]
+}
