@@ -5,6 +5,8 @@
   "webApp": "https://pharos-agent-pi.vercel.app/chat",
   "discovery": "/api/info",
   "health": "/api/health",
+  "a2aEndpoint": "/api/a2a",
+  "agentCard": "/.well-known/agent-card.json",
   "skillCount": 40,
   "categories": [
     "knowledge", "market-data", "wallet-intelligence", "swap", "bridge",

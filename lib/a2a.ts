@@ -1,26 +1,57 @@
 // Minimal A2A v0.3 helpers for Anvita Flow / external agent gateways.
 
+import { randomUUID } from "node:crypto";
 import { parseWithGroq } from "@/lib/groq";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 
 const BASE = "https://pharos-agent-pi.vercel.app";
 
+// Short-lived task cache for tasks/get polling (best-effort on serverless).
+const TASK_TTL_MS = 15 * 60_000;
+const taskCache = new Map<string, { task: A2ATask; expires: number }>();
+
+export interface A2ATask {
+  kind: "task";
+  id: string;
+  contextId: string;
+  status: { state: "completed" | "working" | "failed"; timestamp?: string };
+  artifacts: Array<{
+    artifactId: string;
+    name: string;
+    parts: Array<{ kind: "text"; text: string }>;
+  }>;
+  history: Array<{
+    role: "user" | "agent";
+    parts: Array<{ kind: "text"; text: string }>;
+    messageId: string;
+    taskId: string;
+    contextId: string;
+  }>;
+  metadata: Record<string, never>;
+}
+
 export function getAgentCard() {
   return {
+    protocolVersion: "0.3.0",
     name: "Pharos Agent",
     description:
       "AI DeFi copilot for Pharos Network (chain 1672): ecosystem Q&A, prices, wallet analysis, " +
       "swap/bridge quotes, FaroSwap V3, Faroo staking. Non-custodial — on-chain actions at /chat.",
     url: `${BASE}/api/a2a`,
+    preferredTransport: "JSONRPC",
+    additionalInterfaces: [
+      { url: `${BASE}/api/a2a`, transport: "JSONRPC" },
+    ],
     provider: {
       organization: "Pharos Agent",
       url: BASE,
     },
-    version: "0.3.0",
+    version: "2.1.0",
     documentationUrl: `${BASE}/api/info`,
     capabilities: {
       streaming: false,
       pushNotifications: false,
+      stateTransitionHistory: false,
     },
     authentication: {
       schemes: [] as string[],
@@ -60,6 +91,23 @@ export function getAgentCard() {
   };
 }
 
+function pruneTaskCache() {
+  const now = Date.now();
+  for (const [id, entry] of taskCache) {
+    if (entry.expires <= now) taskCache.delete(id);
+  }
+}
+
+function cacheTask(task: A2ATask) {
+  pruneTaskCache();
+  taskCache.set(task.id, { task, expires: Date.now() + TASK_TTL_MS });
+}
+
+export function getCachedTask(id: string): A2ATask | null {
+  pruneTaskCache();
+  return taskCache.get(id)?.task ?? null;
+}
+
 function extractUserText(params: unknown): string {
   if (!params || typeof params !== "object") return "";
   const p = params as Record<string, unknown>;
@@ -94,6 +142,14 @@ function extractUserText(params: unknown): string {
   );
 }
 
+function extractTaskId(params: unknown): string | null {
+  if (!params || typeof params !== "object") return null;
+  const p = params as Record<string, unknown>;
+  if (typeof p.id === "string") return p.id;
+  if (typeof p.taskId === "string") return p.taskId;
+  return null;
+}
+
 export async function answerA2AMessage(userText: string): Promise<string> {
   const text = userText.trim();
   if (!text) {
@@ -125,6 +181,48 @@ export async function answerA2AMessage(userText: string): Promise<string> {
   return reply;
 }
 
+function buildCompletedTask(userText: string, answer: string, userMessageId?: string): A2ATask {
+  const taskId = randomUUID();
+  const contextId = randomUUID();
+  const userMsgId = userMessageId ?? randomUUID();
+  const agentMsgId = randomUUID();
+  const now = new Date().toISOString();
+
+  const task: A2ATask = {
+    kind: "task",
+    id: taskId,
+    contextId,
+    status: { state: "completed", timestamp: now },
+    artifacts: [
+      {
+        artifactId: randomUUID(),
+        name: "response",
+        parts: [{ kind: "text", text: answer }],
+      },
+    ],
+    history: [
+      {
+        role: "user",
+        parts: [{ kind: "text", text: userText }],
+        messageId: userMsgId,
+        taskId,
+        contextId,
+      },
+      {
+        role: "agent",
+        parts: [{ kind: "text", text: answer }],
+        messageId: agentMsgId,
+        taskId,
+        contextId,
+      },
+    ],
+    metadata: {},
+  };
+
+  cacheTask(task);
+  return task;
+}
+
 interface JsonRpcRequest {
   jsonrpc?: string;
   id?: string | number | null;
@@ -134,10 +232,38 @@ interface JsonRpcRequest {
 
 export async function handleA2AJsonRpc(body: JsonRpcRequest): Promise<Response> {
   const id = body.id ?? null;
-  const method = body.method ?? "";
+  const method = (body.method ?? "").toLowerCase();
 
-  if (method === "agent/getCard" || method === "agent/getAuthenticatedExtendedCard") {
+  if (method === "agent/getcard" || method === "agent/getauthenticatedextendedcard") {
     return Response.json({ jsonrpc: "2.0", id, result: getAgentCard() });
+  }
+
+  if (method === "tasks/get") {
+    const taskId = extractTaskId(body.params);
+    if (!taskId) {
+      return Response.json({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32602, message: "Invalid params: missing task id" },
+      });
+    }
+    const task = getCachedTask(taskId);
+    if (!task) {
+      return Response.json({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32001, message: "Task not found" },
+      });
+    }
+    return Response.json({ jsonrpc: "2.0", id, result: task });
+  }
+
+  if (method === "message/stream" || method === "tasks/resubscribe") {
+    return Response.json({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32004, message: "Streaming not supported" },
+    });
   }
 
   const taskMethods = new Set([
@@ -145,13 +271,14 @@ export async function handleA2AJsonRpc(body: JsonRpcRequest): Promise<Response> 
     "tasks/send",
     "tasks/create",
     "a2a.message.send",
+    "sendmessage",
   ]);
 
   if (!taskMethods.has(method)) {
     return Response.json({
       jsonrpc: "2.0",
       id,
-      error: { code: -32601, message: `Method not found: ${method}` },
+      error: { code: -32601, message: `Method not found: ${body.method}` },
     });
   }
 
@@ -166,22 +293,17 @@ export async function handleA2AJsonRpc(body: JsonRpcRequest): Promise<Response> 
 
   try {
     const answer = await answerA2AMessage(userText);
-    const messageId = `msg_${Date.now()}`;
-    const taskId = `task_${Date.now()}`;
+    const userMessageId =
+      body.params && typeof body.params === "object"
+        ? ((body.params as Record<string, unknown>).message as Record<string, unknown> | undefined)?.messageId
+        : undefined;
+    const task = buildCompletedTask(
+      userText,
+      answer,
+      typeof userMessageId === "string" ? userMessageId : undefined
+    );
 
-    return Response.json({
-      jsonrpc: "2.0",
-      id,
-      result: {
-        kind: "message",
-        messageId,
-        taskId,
-        contextId: taskId,
-        role: "agent",
-        parts: [{ kind: "text", text: answer }],
-        status: { state: "completed" },
-      },
-    });
+    return Response.json({ jsonrpc: "2.0", id, result: task });
   } catch (err) {
     console.error("[a2a]", err);
     return Response.json({
