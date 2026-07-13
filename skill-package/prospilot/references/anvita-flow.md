@@ -146,30 +146,32 @@ runtime is a **text/LLM sandbox** — not a full browser with MetaMask/Rabby.
 
 ---
 
-## ProsPilot on Anvita Flow (this service)
+## ProsPilot on Anvita Flow (managed — skills only)
 
-**Service type:** DeFi copilot — knowledge + read-only APIs + guided on-chain via web app.
+**Service type:** Text copilot in Anvita sandbox — Skill + Customer Service Strategy.
 
-### Callable without wallet (HTTP / Strategy)
+### Runs in Anvita sandbox (no HTTP)
 
-- `GET /api/info` — discovery
-- `POST /api/skill/wallet-profile` — `{ "address": "0x…" }`
-- `POST /api/skill/wallet-score` — `{ "address": "0x…" }`
-- `POST /api/skill/explain-tx` — tx hash
-- `GET /api/price`, `/api/campaigns`, `/api/news`, `/api/tweets`, `/api/rwa`, `/api/charts`
-- `POST /api/quote` — swap/bridge quotes
+- Ecosystem Q&A from Skill docs
+- Campaigns / tweets / news from **LIVE SNAPSHOT** in Strategy
+- Swap/bridge/LP/stake **instructions** (text)
+- Anvita / x402 / publish FAQ
+- `cast`/`forge` script generation (never executes)
 
-### Requires web app + user wallet
+### User opens separately (browser link — not a server call)
 
-- Swap, bridge, liquidity, transfer, stake/unstake execution
-- Always redirect: https://pharos-agent-pi.vercel.app/chat
+- Full wallet connect + on-chain sign at https://pharos-agent-pi.vercel.app/chat
 
 ### Strategy must include
 
-1. **LIVE SNAPSHOT** fallback when HTTP blocked
-2. **On-chain redirect** — never claim tx executed in sandbox
-3. **Transfer rules** — PROS batch via Multicall3; ERC-20 one sig per destination
+1. **NO EXTERNAL HTTP** — see `references/anvita-managed-only.md`
+2. **LIVE SNAPSHOT** for campaigns/tweets/news
+3. **On-chain redirect** — link to `/chat`, never claim tx executed in sandbox
 4. **Unstake** — 7-day Faroo period + claim at app.faroo.xyz/unstake
+
+### Do NOT register remote A2A URL to Vercel
+
+This agent is **managed-only**. Marketplace calls should use Anvita's hosted runtime, not `pharos-agent-pi.vercel.app/api/a2a`.
 
 ---
 

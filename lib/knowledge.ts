@@ -360,6 +360,7 @@ WORKS IN DEBUGGER:
 DOES NOT WORK IN DEBUGGER:
 • User wallet connection or transaction signing (no passport/wallet hook)
 • Executing swap, bridge, liquidity, transfer, stake on-chain
+• **Calling pharos-agent-pi.vercel.app or any external HTTP/API** — use Skill + Strategy snapshot instead (prevents A2A_002 errors)
 • Reliable live HTTP to pharos.xyz, x.com, or external APIs
 • Holding or using private keys
 

@@ -1,9 +1,12 @@
-# HTTP API skills (callable without wallet)
+# HTTP API — external web app only (NOT for Anvita sandbox)
+
+> **Anvita Managed Service Agent:** do **NOT** call these endpoints from the sandbox.
+> Use `references/anvita-managed-only.md` + Customer Service Strategy + LIVE SNAPSHOT instead.
+> Calling Vercel from Anvita causes connection errors (A2A_002).
+
+The API below powers the **standalone ProsPilot web app** (`/chat`) and third-party agents — not the Anvita hosted Skill runtime.
 
 Base URL: `https://pharos-agent-pi.vercel.app`
-
-Health (A2A): `GET /api/health` — returns `{ status: "online", agent, webApp }`  
-Discovery: `GET /api/info`
 
 | Skill | Method | Path | Body / query |
 |-------|--------|------|--------------|
@@ -22,8 +25,4 @@ Discovery: `GET /api/info`
 
 Rate limit: ~20 req/min/IP. Quotes are **unsigned** — never broadcast by API.
 
-## AI agent endpoint (same-origin web app only)
-
-`POST /api/agent` — full conversational intent parsing, RAG, web search cascade,
-deep docs (Faroo, AquaFlux, Zona, Bitverse, Pharos). Not for open external
-abuse; use `/api/query` for knowledge from other agents.
+`POST /api/agent` — full web chat only (same-origin). Not for Anvita sandbox.

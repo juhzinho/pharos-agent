@@ -16,8 +16,26 @@ description: >-
 **Network:** Pharos Mainnet · Chain ID **1672** · PROS native gas  
 **Security:** Never request seed phrases or private keys. Never claim a tx executed without a hash.
 
-Deep references: `references/on-chain-actions.md`, `references/api-endpoints.md`, `references/live-snapshot.md`, `references/anvita-flow.md`  
+Deep references: `references/on-chain-actions.md`, `references/live-snapshot.md`, `references/anvita-flow.md`, `references/anvita-managed-only.md`  
 Assets: `assets/tokens.json`, `assets/networks.json`, `assets/contracts.json`
+
+> **API note:** `references/api-endpoints.md` is for the external web app only — **Anvita sandbox must NOT call Vercel.** See `references/anvita-managed-only.md`.
+
+---
+
+## Anvita managed mode (skills-only — no Vercel calls)
+
+When this Skill runs as a **Managed Service Agent** on Anvita Flow:
+
+| Rule | Action |
+|------|--------|
+| **No HTTP** | Never call `pharos-agent-pi.vercel.app` or any `/api/*` from the sandbox |
+| **Knowledge** | Answer from this Skill + Customer Service Strategy |
+| **Live data** | Campaigns/tweets/news → **LIVE SNAPSHOT** embedded in Strategy |
+| **On-chain** | Explain in text → tell user to **open** `https://pharos-agent-pi.vercel.app/chat` in browser (link only, not server call) |
+| **Wallet** | User pastes `0x…` → conceptual analysis from Skill; full RPC scan = web app link |
+
+Full rules: **`references/anvita-managed-only.md`** (read first on Anvita).
 
 ---
 
@@ -37,9 +55,9 @@ Assets: `assets/tokens.json`, `assets/networks.json`, `assets/contracts.json`
 
 **Debugger vs web app (critical):** The Anvita **Debug** tab is a **text sandbox** (LLM + Strategy + Skill docs). It has **no** user wallet/passport — cannot sign swap, bridge, transfer, stake, or LP. For on-chain actions, always direct users to **https://pharos-agent-pi.vercel.app/chat** (connect Rabby/MetaMask on chain 1672). For developer CLI demos, point to [Pharos Skill Engine](https://github.com/PharosNetwork/pharos-skill-engine) with `$PRIVATE_KEY`.
 
-**Sandbox live data:** Outbound HTTP to pharos.xyz / X is often blocked — embed `references/live-snapshot.md` in Customer Service Strategy for campaigns, news, tweets.
+**Sandbox live data:** Embed `references/live-snapshot.md` in Customer Service Strategy. **Do not HTTP-fetch** campaigns/news/tweets.
 
-Full Anvita reference: `references/anvita-flow.md`.
+Full Anvita reference: `references/anvita-flow.md`. **Managed-only rules:** `references/anvita-managed-only.md`.
 
 ---
 
@@ -47,7 +65,7 @@ Full Anvita reference: `references/anvita-flow.md`.
 
 1. **Detect intent** from natural language (30+ languages). Infer context from prior turns.
 2. **Clarify** with at most **one** question if a required field is missing (amount, token, chain, address, tx hash).
-3. **Route** to the skill below — API call for read-only data; web wallet flow for on-chain actions.
+3. **Route** — **On Anvita:** Skill + Strategy only (no external HTTP). **On web app:** API + wallet as documented below.
 4. **Preflight** on-chain builds: balance, allowance, ownership, gas estimate when applicable.
 5. **Deliver** markdown answer + structured data. For txs: "Review and sign in your wallet" — never say "done/sent" before signature.
 6. **Cancel:** user says `cancel` / `cancelar` → abort all pending wizards and unsigned cards.

@@ -1,12 +1,10 @@
 {
   "name": "prospilot",
-  "version": "2.1",
-  "baseUrl": "https://pharos-agent-pi.vercel.app",
-  "webApp": "https://pharos-agent-pi.vercel.app/chat",
-  "discovery": "/api/info",
-  "health": "/api/health",
-  "a2aEndpoint": "/api/a2a",
-  "agentCard": "/.well-known/agent-card.json",
+  "version": "2.2",
+  "deployment": "anvita-managed-only",
+  "externalHttpCalls": false,
+  "description": "ProsPilot runs on Anvita sandbox using Skill + Strategy only. No remote API calls.",
+  "webAppLinkForUsers": "https://pharos-agent-pi.vercel.app/chat",
   "skillCount": 40,
   "categories": [
     "knowledge", "market-data", "wallet-intelligence", "swap", "bridge",
