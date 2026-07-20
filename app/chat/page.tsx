@@ -3953,6 +3953,8 @@ export default function ChatPage() {
   // Guided staking flow: when set, the next amount pick builds a Faroo card —
   // "stake" expects a PROS amount, "unstake" expects a stPROS amount.
   const pendingStakeRef = useRef<false | "stake" | "unstake">(false);
+  // WPROS rescue: ask before building unwrap tx (leftover from incomplete unstake).
+  const pendingWprosRescueRef = useRef<number | false>(false);
 
   // Live mirror of `messages` for event handlers registered with stale closures
   // (e.g. the wallet accountsChanged listener).
@@ -3963,6 +3965,7 @@ export default function ChatPage() {
     opSeqRef.current++;
     pendingTransferRef.current = null;
     pendingStakeRef.current = false;
+    pendingWprosRescueRef.current = false;
     const lang = guessUserLang(messages);
     setMessages((prev) => prev.map((m) => {
       // Covers EVERY interactive on-chain card: wizards, provider/token/chain
@@ -3989,8 +3992,18 @@ export default function ChatPage() {
     }));
   }
 
-  // Short "cancel"-style messages abort active flows instantly, no LLM round-trip.
-  const CANCEL_RE = /^\s*(cancela(r)?|cancel|stop|para|parar|aborta(r)?|esquece|deixa)\s*[.!]?\s*$/i;
+  function hasCancellableFlows(msgs: Message[]): boolean {
+    if (pendingStakeRef.current || pendingWprosRescueRef.current) return true;
+    return msgs.some((m) =>
+      m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
+      m.liquidityWizard || m.transferWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+      m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
+      m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice,
+    );
+  }
+
+  // Abort active flows — also matches "cancelar stake" (cancel the operation, NOT unstake).
+  const CANCEL_RE = /^\s*(cancela(r)?|cancel|stop|para|parar|aborta(r)?|esquece|deixa)(\s+(isso|a\s+opera[çc][ãa]o|o\s+stake|stake|unstake|a\s+transa[çc][ãa]o|tx|tudo|por\s+favor|essa))?[\s.!]*$/i;
 
   // When the user switches accounts in the wallet, any open wizard card still
   // shows the PREVIOUS account's balances. Re-read the new account's holdings
@@ -4720,15 +4733,13 @@ export default function ChatPage() {
       if (bal <= 0) {
         const wpros = Number(wprosRaw) / 1e18;
         if (wpros > 0.000001) {
-          // Stranded WPROS from an unstake whose final unwrap failed — offer to
-          // finish the job (buildUnstakeTxs returns the 1-tx unwrap rescue).
+          pendingWprosRescueRef.current = wpros;
           updateMessage(msgId, {
             isLoading: false,
             text: lang === "pt"
-              ? `Você não tem stPROS em stake, mas encontrei **${wpros.toFixed(6)} WPROS** na sua carteira — provavelmente de um unstake que parou no meio. Vou montar a transação para converter em PROS nativo. 👇`
-              : `You have no stPROS staked, but I found **${wpros.toFixed(6)} WPROS** in your wallet — likely from an unstake that stopped halfway. Building the transaction to convert it to native PROS. 👇`,
+              ? `Você não tem **stPROS** livre em stake. Há **${wpros.toFixed(6)} WPROS** na carteira — provavelmente restos de um unstake incompleto.\n\nQuer converter em PROS nativo? Digite **sim** para montar a transação ou **não** / **cancelar** para ignorar.`
+              : `You have no free **stPROS** staked. There is **${wpros.toFixed(6)} WPROS** in your wallet — likely leftover from an incomplete unstake.\n\nConvert to native PROS? Type **yes** to build the transaction or **no** / **cancel** to skip.`,
           });
-          void buildStakeCardFor(wpros, "unstake");
           return;
         }
         const faroo = await getFarooPosition(walletAddress);
@@ -4927,11 +4938,14 @@ export default function ChatPage() {
     // Cancel: abort active flows immediately, no LLM round-trip.
     if (CANCEL_RE.test(text)) {
       addMessage({ role: "user", text });
+      const hadActive = hasCancellableFlows(messagesRef.current);
       cancelActiveFlows();
       const lang = guessUserLang([...messages, { id: "x", role: "user", text }]);
       addMessage({
         role: "agent",
-        text: lang === "pt" ? "Cancelado ✅ O que você quer fazer agora?" : "Cancelled ✅ What would you like to do next?",
+        text: hadActive
+          ? (lang === "pt" ? "Cancelado ✅ O card e a operação foram fechados. O que você quer fazer agora?" : "Cancelled ✅ The card and pending operation were cleared. What would you like to do next?")
+          : (lang === "pt" ? "Nada pendente para cancelar. Se quiser **resgatar stPROS**, diga \"unstake\" ou clique em **Unstake stPROS**." : "Nothing pending to cancel. To **redeem stPROS**, say \"unstake\" or click **Unstake stPROS**."),
       });
       inputRef.current?.focus();
       return;
@@ -4944,6 +4958,30 @@ export default function ChatPage() {
     history.push({ role: "user", content: text });
 
     const thinkingId = addMessage({ role: "agent", text: "Thinking…", isLoading: true });
+
+    // WPROS rescue confirmation (after unstake flow detected stranded WPROS).
+    if (pendingWprosRescueRef.current) {
+      const wpros = pendingWprosRescueRef.current;
+      const lang: "pt" | "en" = /[ãõáéíóúâêôç]/i.test(text) ? "pt" : guessUserLang(messages);
+      if (/^\s*(sim|yes|ok|confirmo?|manda|vai|claro)\s*[.!]?\s*$/i.test(text)) {
+        pendingWprosRescueRef.current = false;
+        updateMessage(thinkingId, { isLoading: false, text: lang === "pt" ? "Perfeito! Montando a conversão WPROS → PROS… 👇" : "Got it! Building the WPROS → PROS conversion… 👇" });
+        void buildStakeCardFor(wpros, "unstake");
+        setIsSending(false);
+        inputRef.current?.focus();
+        return;
+      }
+      if (/^\s*(n[aã]o|no|nao)\s*[.!]?\s*$/i.test(text)) {
+        pendingWprosRescueRef.current = false;
+        updateMessage(thinkingId, {
+          isLoading: false,
+          text: lang === "pt" ? "Ok, ignorei o WPROS por enquanto. Se mudar de ideia, diga **unstake**." : "Ok, leaving the WPROS for now. Say **unstake** if you change your mind.",
+        });
+        setIsSending(false);
+        inputRef.current?.focus();
+        return;
+      }
+    }
 
     // Guided stake/unstake flow: a typed amount (e.g. "0.25" or "0.25 pros")
     // builds the Faroo card directly, mirroring the percentage buttons.

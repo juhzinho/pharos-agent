@@ -1,6 +1,7 @@
 import { CORE_KNOWLEDGE, getDetailedSection } from "./knowledge";
 import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
+import { tryFastPathAnswer } from "./fast-path";
 
 export interface GroqResult {
   action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | "stake" | "unstake" | null;
@@ -366,6 +367,7 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  action='stake', amount=10 (PROS). The app wraps PROS → WPROS, approves, and deposits into the Faroo stPROS vault (ERC-4626) — the user receives stPROS that accrues staking rewards.\n" +
     "When the user wants to UNSTAKE ('unstake 5 stPROS', 'tirar do stake', 'resgatar stPROS', 'converter stPROS em PROS'):\n" +
     "  action='unstake', amount=5 (stPROS). The app sends the redeem tx, which REGISTERS a withdrawal request — Faroo has a 7-DAY unstake period (0% fee); the user claims the PROS at app.faroo.xyz/unstake after it matures. NEVER say the PROS arrives immediately.\n" +
+    "  NEVER map 'cancelar stake', 'cancel stake', 'cancelar operação' to unstake — those mean ABORT/dismiss the current UI flow (handled locally). Unstake verbs: unstake, resgatar, tirar do stake, retirar stake.\n" +
     "  If NO amount given: amount=null, needsAmount=true, ask how much in reply. Mainnet only.\n" +
     "── PAYMENT AGENT (action='transfer') ──\n" +
     "When the user wants to SEND/PAY tokens ('send', 'enviar', 'manda', 'transfer'):\n" +
@@ -691,6 +693,13 @@ export async function parseWithGroq(
 ): Promise<GroqResult> {
   try {
   const lastUserMsg = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
+
+  const skipFast = Boolean(searchContext?.trim() || docsContext?.trim());
+  const fast = tryFastPathAnswer(lastUserMsg, { skipIfGrounding: skipFast });
+  if (fast) {
+    console.log("[pharos:fast-path] hit:", lastUserMsg.slice(0, 80));
+    return fast;
+  }
 
   // RAG: inject only the top-K semantically relevant knowledge chunks instead of
   // the full knowledge base. Degrades gracefully: empty/failed retrieval falls
