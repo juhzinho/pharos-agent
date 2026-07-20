@@ -66,6 +66,7 @@ import { t, chipT, useSiteLang } from "@/lib/i18n";
 import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
 import Link from "next/link";
 import ChatHeader from "@/components/ChatHeader";
+import { SiteNavSidebar } from "@/components/SiteNavLinks";
 import ChatBackground from "@/components/ChatBackground";
 import AgentOrb from "@/components/AgentOrb";
 
@@ -6056,6 +6057,12 @@ export default function ChatPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Site pages — campaigns, news, ecosystem… */}
+          <div>
+            <p className="sidebar-section-label">{siteLang === "pt" ? "Explorar Pharos" : "Explore Pharos"}</p>
+            <SiteNavSidebar />
           </div>
 
           {chatList.length > 0 && (

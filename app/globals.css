@@ -261,5 +261,25 @@ body {
 .chat-suggestion-chip:hover { background: rgba(0,80,255,0.12); border-color: rgba(0,100,255,0.45); color: var(--accent-neon); }
 .chat-welcome-card { background: var(--navy-850); border: 1px solid rgba(0,80,255,0.12); transition: all 0.2s; }
 .chat-welcome-card:hover { background: var(--navy-800); border-color: rgba(0,100,255,0.4); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,64,255,0.15); }
+.chat-nav-pill {
+  padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600;
+  letter-spacing: 0.02em; white-space: nowrap; transition: all 0.15s;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.35);
+}
+.chat-nav-pill:hover {
+  color: #fff;
+  background: rgba(0, 64, 255, 0.12);
+  border-color: rgba(0, 100, 255, 0.35);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.45), 0 0 14px rgba(0,100,255,0.25);
+}
+.chat-nav-pill-active {
+  color: #fff;
+  background: rgba(0, 80, 255, 0.2);
+  border-color: rgba(0, 120, 255, 0.45);
+  box-shadow: 0 0 16px rgba(0, 80, 255, 0.2);
+}
 .agent-orb-3d-wrap { perspective: 600px; transform-style: preserve-3d; }
 .chat-welcome-orb-scene { perspective: 800px; }

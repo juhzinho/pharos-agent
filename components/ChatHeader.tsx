@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { WalletOption } from "@/lib/wallet";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { t, useSiteLang } from "@/lib/i18n";
+import { SiteNavPills } from "@/components/SiteNavLinks";
 
 interface WalletPicker {
   options: WalletOption[];
@@ -30,20 +31,23 @@ export default function ChatHeader({
   const [lang] = useSiteLang();
 
   return (
-    <header className="relative z-20 shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-white/[0.06] chat-topbar">
-      <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center chat-orb-mini">
-          <img src="/pharos-logo.svg" alt="" className="w-5 h-5 opacity-90" />
-        </div>
-        <div className="hidden sm:block">
-          <p className="text-sm font-bold text-white leading-none tracking-[-0.02em] font-display">ProsPilot</p>
-          <p className="text-[10px] mt-0.5 text-[var(--text-dim)]">Pharos DeFi · Chain 1672</p>
-        </div>
-      </Link>
+    <header className="relative z-20 shrink-0 border-b border-white/[0.06] chat-topbar">
+      <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center chat-orb-mini">
+            <img src="/pharos-logo.svg" alt="" className="w-5 h-5 opacity-90" />
+          </div>
+          <div className="hidden sm:block">
+            <p className="text-sm font-bold text-white leading-none tracking-[-0.02em] font-display">ProsPilot</p>
+            <p className="text-[10px] mt-0.5 text-[var(--text-dim)]">Pharos DeFi · Chain 1672</p>
+          </div>
+        </Link>
 
-      <div className="flex-1" />
+        <div className="flex-1 hidden md:block lg:hidden min-w-0 px-2">
+          <SiteNavPills />
+        </div>
 
-      {walletAddress ? (
+        {walletAddress ? (
         <div className="flex items-center gap-2">
           {isWrongNetwork && onSwitchNetwork && (
             <button onClick={onSwitchNetwork} className="btn-navy-warn text-xs px-3 py-1.5 rounded-lg font-semibold">
@@ -93,6 +97,9 @@ export default function ChatHeader({
           )}
         </div>
       )}
+      </div>
+
+      <SiteNavPills className="md:hidden px-4 pb-2.5 pt-0" />
     </header>
   );
 }
