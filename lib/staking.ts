@@ -21,6 +21,24 @@ export const FAROO = {
   WPROS:  "0x52c48d4213107b20bc583832b0d951fb9ca8f0b0",
 } as const;
 
+/** Faroo vault tokens — stPROS deposited here no longer shows as wallet stPROS balance. */
+export const FAROO_VAULTS = {
+  FRHV001: {
+    address: "0x36f3d19dda7ed1428e3014ae6f2a75d70393b7e6",
+    decimals: 24,
+    symbol: "FRHV001",
+    label: "RWA Hybrid Vault (Pre-mint)",
+    url: "https://app.faroo.xyz",
+  },
+  FYV001: {
+    address: "0xc775dfaa7565f2aca5ddf5dd6837ceb846de591b",
+    decimals: 24,
+    symbol: "FYV001",
+    label: "Yield Vault 001",
+    url: "https://app.faroo.xyz",
+  },
+} as const;
+
 // The vault itself has NO on-chain minimum (previewDeposit accepts 1 wei —
 // verified via RPC). This is the agent's practical minimum: below it, gas
 // costs would eat any staking yield.
@@ -269,8 +287,140 @@ export async function buildUnstakeTxs(amount: number, signer: string): Promise<S
   };
 }
 
-/** stPROS balance of an address (human units). */
+/** stPROS balance of an address (human units) — wallet only, excludes vault deposits. */
 export async function getStakedBalance(addr: string): Promise<number> {
   const hex = await ethCall(FAROO.STPROS, SEL.BALANCE_OF + pad(addr)).catch(() => "0x");
   return Number(hexToBig(hex)) / 1e18;
+}
+
+export interface FarooVaultPosition {
+  symbol: string;
+  label: string;
+  shares: number;
+  underlyingStPros: number;
+  url: string;
+}
+
+export interface FarooPosition {
+  stProsWallet: number;
+  wprosWallet: number;
+  nav: number;
+  vaults: FarooVaultPosition[];
+  /** stPROS in wallet + underlying stPROS locked in Faroo vaults. */
+  totalStPros: number;
+  totalProsValue: number;
+  hasAny: boolean;
+}
+
+async function readVaultShares(vault: typeof FAROO_VAULTS[keyof typeof FAROO_VAULTS], owner: string): Promise<{ shares: number; underlyingStPros: number }> {
+  const rawShares = hexToBig(await ethCall(vault.address, SEL.BALANCE_OF + pad(owner)).catch(() => "0x"));
+  const shares = Number(rawShares) / 10 ** vault.decimals;
+  if (shares <= 0) return { shares: 0, underlyingStPros: 0 };
+
+  const [assetsHex, supplyHex] = await Promise.all([
+    ethCall(vault.address, SEL.TOTAL_ASSETS).catch(() => "0x"),
+    ethCall(vault.address, SEL.TOTAL_SUPPLY).catch(() => "0x"),
+  ]);
+  const assets = Number(hexToBig(assetsHex)) / 1e18; // underlying = stPROS (18 dec)
+  const supply = Number(hexToBig(supplyHex)) / 10 ** vault.decimals;
+  const nav = supply > 0 ? assets / supply : 1;
+  return { shares, underlyingStPros: shares * nav };
+}
+
+/** Full Faroo exposure: wallet stPROS + FRHV001 / FYV001 vault deposits. */
+export async function getFarooPosition(addr: string): Promise<FarooPosition> {
+  const owner = pad(addr);
+  const [stProsWallet, wprosRaw, nav, frhv, fyv] = await Promise.all([
+    getStakedBalance(addr),
+    ethCall(FAROO.WPROS, SEL.BALANCE_OF + owner).then(hexToBig).catch(() => 0n),
+    getStakeNav().catch(() => 1),
+    readVaultShares(FAROO_VAULTS.FRHV001, addr),
+    readVaultShares(FAROO_VAULTS.FYV001, addr),
+  ]);
+
+  const vaults: FarooVaultPosition[] = [];
+  for (const [key, data] of [["FRHV001", frhv], ["FYV001", fyv]] as const) {
+    if (data.shares > 0) {
+      const meta = FAROO_VAULTS[key];
+      vaults.push({
+        symbol: meta.symbol,
+        label: meta.label,
+        shares: data.shares,
+        underlyingStPros: data.underlyingStPros,
+        url: meta.url,
+      });
+    }
+  }
+
+  const vaultStPros = vaults.reduce((s, v) => s + v.underlyingStPros, 0);
+  const totalStPros = stProsWallet + vaultStPros;
+  return {
+    stProsWallet,
+    wprosWallet: Number(wprosRaw) / 1e18,
+    nav,
+    vaults,
+    totalStPros,
+    totalProsValue: totalStPros * nav,
+    hasAny: totalStPros > 0.000001 || Number(wprosRaw) > 0n,
+  };
+}
+
+export function formatFarooPosition(pos: FarooPosition, lang: "pt" | "en"): string {
+  if (!pos.hasAny) {
+    return lang === "pt"
+      ? "Você ainda não tem posição na **Faroo** nesta carteira. Quer começar? Clique em **Stake PROS** ou diga \"stake\". 🥩"
+      : "You don't have a **Faroo** position in this wallet yet. Want to start? Click **Stake PROS** or say \"stake\". 🥩";
+  }
+
+  const lines: string[] = [];
+  if (lang === "pt") {
+    lines.push("🥩 **Sua posição na Faroo**", "");
+    lines.push("| | |", "|---|---|");
+    if (pos.stProsWallet > 0.000001) {
+      lines.push(`| **stPROS na carteira** | ${pos.stProsWallet.toFixed(4)} |`);
+    }
+    for (const v of pos.vaults) {
+      lines.push(`| **[${v.symbol}](${v.url})** (${v.label}) | ${v.underlyingStPros.toFixed(4)} stPROS |`);
+      lines.push(`| ↳ shares do vault | ${v.shares.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${v.symbol} |`);
+    }
+    if (pos.wprosWallet > 0.000001) {
+      lines.push(`| **WPROS na carteira** | ${pos.wprosWallet.toFixed(6)} _(unstake pendente)_ |`);
+    }
+    lines.push(`| **Total stPROS** | **${pos.totalStPros.toFixed(4)}** |`);
+    lines.push(`| **NAV stPROS** | ${pos.nav.toFixed(6)} PROS/stPROS |`);
+    lines.push(`| **Valor estimado** | ~${pos.totalProsValue.toFixed(4)} PROS |`);
+    lines.push("");
+    if (pos.vaults.length > 0 && pos.stProsWallet < 0.000001) {
+      lines.push("ℹ️ Seu stPROS está **depositado no vault Faroo** (ex.: pilot Pre-mint) — por isso o saldo livre de stPROS aparece zero. Gerencie em [app.faroo.xyz](https://app.faroo.xyz).");
+    } else if (pos.vaults.length > 0) {
+      lines.push("ℹ️ Parte do seu stPROS está em **vaults Faroo** (RWA Hybrid / Yield). Veja detalhes em [app.faroo.xyz](https://app.faroo.xyz).");
+    }
+    lines.push("");
+    lines.push("Quer **stake** de mais PROS ou **unstake** do stPROS livre na carteira?");
+  } else {
+    lines.push("🥩 **Your Faroo position**", "");
+    lines.push("| | |", "|---|---|");
+    if (pos.stProsWallet > 0.000001) {
+      lines.push(`| **stPROS in wallet** | ${pos.stProsWallet.toFixed(4)} |`);
+    }
+    for (const v of pos.vaults) {
+      lines.push(`| **[${v.symbol}](${v.url})** (${v.label}) | ${v.underlyingStPros.toFixed(4)} stPROS |`);
+      lines.push(`| ↳ vault shares | ${v.shares.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${v.symbol} |`);
+    }
+    if (pos.wprosWallet > 0.000001) {
+      lines.push(`| **WPROS in wallet** | ${pos.wprosWallet.toFixed(6)} _(pending unstake)_ |`);
+    }
+    lines.push(`| **Total stPROS** | **${pos.totalStPros.toFixed(4)}** |`);
+    lines.push(`| **stPROS NAV** | ${pos.nav.toFixed(6)} PROS/stPROS |`);
+    lines.push(`| **Estimated value** | ~${pos.totalProsValue.toFixed(4)} PROS |`);
+    lines.push("");
+    if (pos.vaults.length > 0 && pos.stProsWallet < 0.000001) {
+      lines.push("ℹ️ Your stPROS is **deposited in a Faroo vault** (e.g. Pre-mint pilot) — that's why free wallet stPROS shows zero. Manage it at [app.faroo.xyz](https://app.faroo.xyz).");
+    } else if (pos.vaults.length > 0) {
+      lines.push("ℹ️ Part of your stPROS is in **Faroo vaults** (RWA Hybrid / Yield). See details at [app.faroo.xyz](https://app.faroo.xyz).");
+    }
+    lines.push("");
+    lines.push("Want to **stake** more PROS or **unstake** free wallet stPROS?");
+  }
+  return lines.join("\n");
 }

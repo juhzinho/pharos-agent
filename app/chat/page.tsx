@@ -55,7 +55,7 @@ import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } fro
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
-import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getStakeNav, getWprosBalanceRaw, buildUnwrapData, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
+import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getFarooPosition, formatFarooPosition, getStakeNav, getWprosBalanceRaw, buildUnwrapData, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
 import { estimateGasCost, formatGasCost } from "@/lib/gas";
 import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
 import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
@@ -4731,6 +4731,17 @@ export default function ChatPage() {
           void buildStakeCardFor(wpros, "unstake");
           return;
         }
+        const faroo = await getFarooPosition(walletAddress);
+        if (opSeqRef.current !== seq) return;
+        if (faroo.vaults.length > 0) {
+          updateMessage(msgId, {
+            isLoading: false,
+            text: lang === "pt"
+              ? `Seu **stPROS** está depositado no vault **${faroo.vaults[0].symbol}** (${faroo.vaults[0].label}) — **~${faroo.vaults[0].underlyingStPros.toFixed(4)} stPROS** — por isso não aparece como saldo livre.\n\nEnquanto o vault estiver **Locked**, o unstake pelo agente não está disponível. Acompanhe em [app.faroo.xyz](https://app.faroo.xyz).\n\nUse **My Staking** para ver o breakdown completo.`
+              : `Your **stPROS** is deposited in vault **${faroo.vaults[0].symbol}** (${faroo.vaults[0].label}) — **~${faroo.vaults[0].underlyingStPros.toFixed(4)} stPROS** — so it doesn't show as free wallet balance.\n\nWhile the vault is **Locked**, unstake via the agent isn't available. Track status at [app.faroo.xyz](https://app.faroo.xyz).\n\nUse **My Staking** for the full breakdown.`,
+          });
+          return;
+        }
         updateMessage(msgId, {
           isLoading: false,
           text: lang === "pt"
@@ -4759,24 +4770,9 @@ export default function ChatPage() {
     const seq = opSeqRef.current;
     const lang = guessUserLang(messages);
     try {
-      const [bal, nav] = await Promise.all([getStakedBalance(walletAddress), getStakeNav().catch(() => 1)]);
+      const pos = await getFarooPosition(walletAddress);
       if (opSeqRef.current !== seq) return;
-      if (bal <= 0) {
-        updateMessage(msgId, {
-          isLoading: false,
-          text: lang === "pt"
-            ? "Você ainda não tem posição de staking na **Faroo** nesta carteira. Quer começar? Clique em **Stake PROS** ou diga \"stake\". 🥩"
-            : "You don't have a **Faroo** staking position in this wallet yet. Want to start? Click **Stake PROS** or say \"stake\". 🥩",
-        });
-        return;
-      }
-      const valuePros = bal * nav;
-      updateMessage(msgId, {
-        isLoading: false,
-        text: lang === "pt"
-          ? `🥩 **Sua posição de staking na Faroo**\n\n| | |\n|---|---|\n| **stPROS em carteira** | ${bal.toFixed(6)} |\n| **NAV atual** | ${nav.toFixed(6)} PROS/stPROS |\n| **Valor estimado** | ~${valuePros.toFixed(6)} PROS |\n\nO NAV cresce com as recompensas de staking da rede — seu stPROS vale cada vez mais PROS com o tempo. Quer fazer **stake** de mais ou **unstake**?`
-          : `🥩 **Your Faroo staking position**\n\n| | |\n|---|---|\n| **stPROS held** | ${bal.toFixed(6)} |\n| **Current NAV** | ${nav.toFixed(6)} PROS/stPROS |\n| **Estimated value** | ~${valuePros.toFixed(6)} PROS |\n\nThe NAV grows with the network's staking rewards — your stPROS is worth more PROS over time. Want to **stake** more or **unstake**?`,
-      });
+      updateMessage(msgId, { isLoading: false, text: formatFarooPosition(pos, lang) });
     } catch (err) {
       if (opSeqRef.current !== seq) return;
       const msg = err instanceof Error ? err.message : String(err);
@@ -5019,7 +5015,7 @@ export default function ChatPage() {
     }
 
     // Faroo staking position fast path: read-only, no LLM round-trip.
-    if (walletAddress && /\b(meu\s+stake\b|minha\s+posi[çc][ãa]o\s+de\s+stak|meu\s+staking|my\s+stak(?:e|ing)\b(?:\s+position)?|quanto\s+(?:eu\s+)?tenho\s+(?:de\s+|em\s+)?stak|staked\s+balance|saldo\s+de\s+stpros|meu\s+stpros)\b/i.test(text)) {
+    if (walletAddress && /\b(meu\s+stake\b|minha\s+posi[çc][ãa]o\s+de\s+stak|meu\s+staking|my\s+stak(?:e|ing)\b(?:\s+position)?|quanto\s+(?:eu\s+)?tenho\s+(?:de\s+|em\s+)?stak|staked\s+balance|saldo\s+de\s+stpros|meu\s+stpros|faroo\s+vault|frhv001|fyv001|pre-?mint)\b/i.test(text)) {
       updateMessage(thinkingId, {
         isLoading: true,
         text: fastLang === "pt" ? "Lendo sua posição de staking na Faroo…" : "Reading your Faroo staking position…",
@@ -5980,8 +5976,8 @@ export default function ChatPage() {
                 { label: "Add Liquidity", icon: "+", action: "liquidity" as const },
               ]).map((item) => (
                 <button key={item.label} onClick={() => handleQuickAction(item.action)} className="sidebar-item">
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center text-xs bg-white/[0.04]">{item.icon}</span>
-                  {chipT(item.label, siteLang)}
+                  <span className="sidebar-item-icon w-7 h-7 rounded-lg flex items-center justify-center text-xs">{item.icon}</span>
+                  <span className="sidebar-item-text">{chipT(item.label, siteLang)}</span>
                 </button>
               ))}
             </div>
@@ -5998,8 +5994,8 @@ export default function ChatPage() {
                 { label: "My LP Positions", icon: "◈", action: "positions" as const },
               ]).map((item) => (
                 <button key={item.label} onClick={() => handleQuickAction(item.action)} className="sidebar-item">
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center text-xs bg-white/[0.04]">{item.icon}</span>
-                  {chipT(item.label, siteLang)}
+                  <span className="sidebar-item-icon w-7 h-7 rounded-lg flex items-center justify-center text-xs">{item.icon}</span>
+                  <span className="sidebar-item-text">{chipT(item.label, siteLang)}</span>
                 </button>
               ))}
             </div>
@@ -6017,8 +6013,8 @@ export default function ChatPage() {
                 { label: "RWA Market (live)", icon: "◐", action: "rwamarket" as const },
               ]).map((item) => (
                 <button key={item.label} onClick={() => handleQuickAction(item.action)} className="sidebar-item">
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center text-xs bg-white/[0.04]">{item.icon}</span>
-                  {chipT(item.label, siteLang)}
+                  <span className="sidebar-item-icon w-7 h-7 rounded-lg flex items-center justify-center text-xs">{item.icon}</span>
+                  <span className="sidebar-item-text">{chipT(item.label, siteLang)}</span>
                 </button>
               ))}
             </div>
@@ -6031,7 +6027,7 @@ export default function ChatPage() {
                 {chatList.map((c) => (
                   <div key={c.id} className={`group sidebar-item cursor-pointer ${c.id === chatId ? "sidebar-item-active" : ""}`}
                     onClick={() => handleOpenChat(c.id)}>
-                    <span className="flex-1 min-w-0 truncate">{c.title}</span>
+                    <span className="sidebar-item-text flex-1 min-w-0 truncate">{c.title}</span>
                     <button onClick={(e) => { e.stopPropagation(); handleDeleteChat(c.id); }}
                       className="opacity-0 group-hover:opacity-100 shrink-0 text-gray-500 hover:text-red-400 transition-opacity">
                       <svg viewBox="0 0 14 14" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 8a1 1 0 001 1h4a1 1 0 001-1l.5-8"/></svg>
@@ -6084,8 +6080,8 @@ export default function ChatPage() {
 
         {/* Mobile nav strip */}
         <div className="lg:hidden flex items-center gap-2 px-4 py-2 relative z-20 shrink-0">
-          <Link href="/" className="sidebar-item text-xs px-3 py-1.5">⌂ {t("chat.home", siteLang)}</Link>
-          <button onClick={handleResetChat} className="sidebar-item text-xs px-3 py-1.5">+ {t("chat.newChat", siteLang)}</button>
+          <Link href="/" className="sidebar-item text-xs px-3 py-1.5"><span className="sidebar-item-text">⌂ {t("chat.home", siteLang)}</span></Link>
+          <button onClick={handleResetChat} className="sidebar-item text-xs px-3 py-1.5"><span className="sidebar-item-text">+ {t("chat.newChat", siteLang)}</span></button>
         </div>
 
         <main className="flex-1 overflow-y-auto scroll-smooth relative z-10">
