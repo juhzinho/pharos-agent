@@ -74,26 +74,19 @@ export default function Navbar({
   ];
 
   return (
-    <header className="relative z-30 sticky top-0"
-      style={{
-        background: "rgba(5,10,26,0.88)",
-        backdropFilter: "blur(28px)",
-        WebkitBackdropFilter: "blur(28px)",
-        borderBottom: "1px solid rgba(0,212,255,0.14)",
-        boxShadow: "0 1px 0 rgba(0,212,255,0.1), 0 4px 32px rgba(0,0,0,0.45)",
-      }}>
+    <header className="relative z-30 sticky top-0 glass-nav">
       <div className="flex items-center justify-between px-5 py-3 max-w-6xl mx-auto gap-4">
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 shrink-0 group">
           <OrbLogo />
           <div>
-            <span className="font-display text-[15px] font-bold text-white leading-none tracking-[-0.025em]"
-              style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif", textShadow: "0 0 20px rgba(0,212,255,0.3)" }}>
+            <span className="font-display text-[15px] font-bold text-white leading-none tracking-[-0.025em] group-hover:text-cyan-50 transition-colors"
+              style={{ fontFamily: "var(--font-display), var(--font-inter), sans-serif" }}>
               ProsPilot
             </span>
-            <p className="text-[10px] mt-0.5 font-medium" style={{ color: "rgba(0,212,255,0.45)" }}>
-              AI DeFi Copilot
+            <p className="text-[10px] mt-0.5 font-medium tracking-wide" style={{ color: "rgba(0,212,255,0.5)" }}>
+              AI DeFi Copilot · Pharos
             </p>
           </div>
         </Link>

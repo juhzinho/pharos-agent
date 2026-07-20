@@ -57,7 +57,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#050a1a",
+  themeColor: "#0a1628",
 };
 
 export default function RootLayout({
@@ -67,13 +67,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#050a1a]">
+      <body className="min-h-full flex flex-col bg-[var(--navy-950)]">
         {children}
         <Analytics />
         <script
           dangerouslySetInnerHTML={{
             __html:
-              `if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}`,
+              `(function(){if(!("serviceWorker"in navigator))return;var h=location.hostname;if(h==="localhost"||h==="127.0.0.1"||h==="[::1]"){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister()})});return}window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})})();`,
           }}
         />
       </body>

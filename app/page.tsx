@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import WaveBackground from "@/components/WaveBackground";
+import SiteBackground from "@/components/SiteBackground";
 
 // ── Protocol ecosystem badges ─────────────────────────────────────────────────
 
@@ -42,13 +42,8 @@ function TerminalPreview() {
   }, [visibleCount]);
 
   return (
-    <div className="relative rounded-2xl overflow-hidden w-full max-w-md mx-auto"
-      style={{
-        background: "rgba(4,9,22,0.95)",
-        border: "1px solid rgba(0,212,255,0.2)",
-        boxShadow: "0 0 60px rgba(0,212,255,0.12), 0 30px 80px rgba(0,0,0,0.5)",
-        backdropFilter: "blur(20px)",
-      }}>
+    <div className="relative rounded-[1.35rem] overflow-hidden w-full max-w-md mx-auto glass-panel"
+      style={{ boxShadow: "var(--glow-cyan), var(--panel-shadow)" }}>
       {/* Terminal bar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "rgba(0,212,255,0.1)", background: "rgba(0,212,255,0.03)" }}>
         <div className="flex gap-1.5">
@@ -326,16 +321,8 @@ const CHAIN_STATS = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen relative overflow-x-hidden"
-      style={{
-        background: "radial-gradient(ellipse at 50% -10%, rgba(0,60,140,0.55) 0%, rgba(0,20,60,0.2) 45%, transparent 65%), linear-gradient(170deg, #060c1e 0%, #040914 55%, #020710 100%)",
-      }}>
-
-      <WaveBackground intensity="full" />
-
-      {/* Subtle grid overlay */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.025]"
-        style={{ backgroundImage: "linear-gradient(rgba(0,212,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.5) 1px, transparent 1px)", backgroundSize: "80px 80px" }} />
+    <div className="relative min-h-screen overflow-x-hidden">
+      <SiteBackground variant="full" />
 
       <div className="relative z-10">
         <Navbar />
@@ -353,47 +340,20 @@ export default function LandingPage() {
               Pharos Mainnet · Pacific Ocean · Chain ID 1672
             </div>
 
-            <h1 className="font-extrabold tracking-[-0.04em] leading-[1.02] mb-5"
-              style={{
-                fontFamily: "var(--font-display), var(--font-inter), sans-serif",
-                fontSize: "clamp(2.8rem, 6vw, 5rem)",
-                background: "linear-gradient(140deg, #ffffff 0%, #e2f4ff 25%, #a5f3fc 60%, #00d4ff 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                filter: "drop-shadow(0 0 40px rgba(0,212,255,0.25))",
-              }}>
+            <h1 className="font-display font-extrabold tracking-[-0.04em] leading-[1.02] mb-5 text-gradient-hero"
+              style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)" }}>
               Your DeFi Agent<br />
-              <span style={{
-                background: "linear-gradient(135deg, #00d4ff, #38bdf8, #818cf8)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}>on Pharos</span>
+              <span className="text-gradient-accent">on Pharos</span>
             </h1>
 
             <p className="text-base leading-relaxed mb-8 max-w-lg lg:max-w-none mx-auto lg:mx-0"
-              style={{ color: "rgba(148,163,184,0.7)", fontSize: "clamp(0.95rem, 1.6vw, 1.1rem)" }}>
+              style={{ color: "var(--text-muted)", fontSize: "clamp(0.95rem, 1.6vw, 1.1rem)" }}>
               Swap, bridge, manage liquidity, and explore every Pharos protocol
               through natural conversation. Non-custodial, multilingual, always onchain.
             </p>
 
             <div className="flex items-center gap-3 flex-wrap justify-center lg:justify-start mb-10">
-              <Link href="/chat"
-                className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-2xl font-bold text-sm text-black transition-all duration-200 relative overflow-hidden pulse-glow"
-                style={{
-                  background: "linear-gradient(135deg, #00d4ff 0%, #38bdf8 60%, #0ea5e9 100%)",
-                  boxShadow: "0 6px 28px rgba(0,212,255,0.45), inset 0 1px 0 rgba(255,255,255,0.3)",
-                  fontFamily: "var(--font-display), var(--font-inter), sans-serif",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px) scale(1.03)";
-                  (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 14px 44px rgba(0,212,255,0.65), inset 0 1px 0 rgba(255,255,255,0.35)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.transform = "";
-                  (e.currentTarget as HTMLAnchorElement).style.boxShadow = "0 6px 28px rgba(0,212,255,0.45), inset 0 1px 0 rgba(255,255,255,0.3)";
-                }}>
+              <Link href="/chat" className="btn-primary pulse-glow">
                 <span className="absolute inset-0 pointer-events-none"
                   style={{ background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%)", animation: "shimmer 3s ease-in-out infinite" }} />
                 <svg viewBox="0 0 20 20" className="w-4.5 h-4.5 shrink-0 relative" fill="currentColor">
@@ -402,19 +362,7 @@ export default function LandingPage() {
                 <span className="relative">Launch Agent</span>
               </Link>
 
-              <a href="https://docs.pharos.xyz" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-3.5 rounded-2xl font-semibold text-sm transition-all duration-200"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(226,232,240,0.6)" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.08)";
-                  (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.9)";
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.16)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.04)";
-                  (e.currentTarget as HTMLAnchorElement).style.color = "rgba(226,232,240,0.6)";
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(255,255,255,0.09)";
-                }}>
+              <a href="https://docs.pharos.xyz" target="_blank" rel="noopener noreferrer" className="btn-ghost">
                 Pharos Docs ↗
               </a>
             </div>
@@ -496,20 +444,14 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {EXPLORE_SECTIONS.map((s, i) => (
                 <Link key={s.title} href={s.href}
-                  className="group relative p-5 rounded-2xl transition-all duration-200 overflow-hidden"
-                  style={{
-                    background: "rgba(6,12,28,0.7)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both`,
-                  }}
+                  className="group relative p-5 rounded-2xl glass-panel glass-card-hover overflow-hidden"
+                  style={{ animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.06}s both` }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = `${s.color}35`;
-                    e.currentTarget.style.transform = "translateY(-3px)";
                     e.currentTarget.style.boxShadow = `0 10px 40px ${s.color}14`;
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
-                    e.currentTarget.style.transform = "";
+                    e.currentTarget.style.borderColor = "";
                     e.currentTarget.style.boxShadow = "";
                   }}>
                   {/* Top glow */}
@@ -559,24 +501,15 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {FEATURES.map((f, i) => (
                 <div key={f.title}
-                  className="p-5 rounded-2xl transition-all duration-200 group cursor-default"
-                  style={{
-                    background: "rgba(6,12,28,0.7)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    backdropFilter: "blur(14px)",
-                    animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.07}s both`,
-                  }}
+                  className="p-5 rounded-2xl glass-panel glass-card-hover group cursor-default"
+                  style={{ animation: `cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) ${i * 0.07}s both` }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLDivElement).style.border = `1px solid ${f.color}28`;
-                    (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 36px ${f.color}12, inset 0 0 0 1px ${f.color}10`;
-                    (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)";
-                    (e.currentTarget as HTMLDivElement).style.background = "rgba(8,16,38,0.85)";
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 36px ${f.color}12`;
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.border = "1px solid rgba(255,255,255,0.07)";
+                    (e.currentTarget as HTMLDivElement).style.border = "";
                     (e.currentTarget as HTMLDivElement).style.boxShadow = "";
-                    (e.currentTarget as HTMLDivElement).style.transform = "";
-                    (e.currentTarget as HTMLDivElement).style.background = "rgba(6,12,28,0.7)";
                   }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
                     style={{ background: `${f.color}12`, border: `1px solid ${f.color}22`, color: f.color }}>

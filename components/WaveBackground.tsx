@@ -63,7 +63,7 @@ export default function WaveBackground({ intensity = "full" }: WaveBackgroundPro
         const baseY    = h * (0.22 + 0.72 * progress);
         const alpha    = (0.025 + 0.055 * progress) * opacityMul;
         const lineW    = 0.4 + progress * 0.5;
-        ctx.strokeStyle = `rgba(0,212,255,${alpha})`;
+        ctx.strokeStyle = `rgba(74, 130, 210, ${alpha})`;
         ctx.lineWidth   = lineW;
         ctx.beginPath();
         for (let c = 0; c <= COLS; c++) {
