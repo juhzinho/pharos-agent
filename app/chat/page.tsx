@@ -63,6 +63,7 @@ import { formatRwaMarket, type RwaMarketData } from "@/lib/rwa-live";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { t, chipT, useSiteLang } from "@/lib/i18n";
+import { PROSPILOT_SKILLS, skillDesc, skillLabel, type ProsPilotSkill } from "@/lib/agent-skills";
 import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
 import Link from "next/link";
 import ChatHeader from "@/components/ChatHeader";
@@ -4920,6 +4921,18 @@ export default function ChatPage() {
     }
   }
 
+  function handleProsPilotSkill(skill: ProsPilotSkill) {
+    const lang: "pt" | "en" = siteLang === "pt" ? "pt" : "en";
+    if (skill.webAction) {
+      handleQuickAction(skill.webAction as QuickActionKind);
+      return;
+    }
+    if (skill.starterPrompt) {
+      setInput(skill.starterPrompt[lang]);
+      inputRef.current?.focus();
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || isSending) return;
@@ -6149,14 +6162,28 @@ export default function ChatPage() {
                   : "Your DeFi copilot on Pharos — swap, bridge, liquidity, and more."}
               </p>
 
-              <div className="w-full max-w-xl mb-8 text-left rounded-xl chat-welcome-card p-4 sm:p-5"
-                style={{ animation: "cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) 0.1s both" }}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-2.5 text-[var(--accent-soft)]">
+              <div className="w-full max-w-xl mb-8">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-3 text-center text-[var(--accent-soft)]">
                   {t("chat.interactionGuide.title", siteLang)}
                 </p>
-                <p className="text-[13px] leading-relaxed text-white/90">
-                  {t("chat.interactionGuide.body", siteLang)}
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {PROSPILOT_SKILLS.map((skill, i) => (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      onClick={() => handleProsPilotSkill(skill)}
+                      className="text-left p-3 rounded-xl chat-welcome-card"
+                      style={{ animation: `cardAppear 0.35s cubic-bezier(0.22,1,0.36,1) ${0.05 + i * 0.025}s both` }}
+                    >
+                      <p className="font-semibold text-[12px] text-white mb-1 tracking-[-0.01em]">
+                        {skillLabel(skill, siteLang === "pt" ? "pt" : "en")}
+                      </p>
+                      <p className="text-[10px] leading-relaxed" style={{ color: "rgba(148,163,184,0.55)" }}>
+                        {skillDesc(skill, siteLang === "pt" ? "pt" : "en")}
+                      </p>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl">

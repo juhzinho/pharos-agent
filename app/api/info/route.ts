@@ -1,7 +1,8 @@
 // Public Skill API — discovery endpoint.
 // GET → skill metadata so external agents can discover this agent's capabilities.
 
-import { AGENT_DESCRIPTION, AGENT_INTERACTION_GUIDE, AGENT_NAME } from "@/lib/branding";
+import { formatInteractionGuide, toAgentCardSkills } from "@/lib/agent-skills";
+import { AGENT_DESCRIPTION, AGENT_NAME } from "@/lib/branding";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
@@ -12,7 +13,8 @@ export async function GET(req: Request) {
   return Response.json({
     name: `${AGENT_NAME} API`,
     description: AGENT_DESCRIPTION,
-    interactionGuide: AGENT_INTERACTION_GUIDE,
+    interactionGuide: formatInteractionGuide("en"),
+    skills: toAgentCardSkills(),
     version: "2.1",
     capabilities: [
       "knowledge", "swap-quote", "bridge-quote", "token-price",

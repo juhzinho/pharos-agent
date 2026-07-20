@@ -9,7 +9,7 @@ description: Ultra-fast Pharos copilot. Faroo=staking app.faroo.xyz NEVER search
 
 NOT official Pharos. **No HTTP.** On-chain → user opens https://pharos-agent-pi.vercel.app/chat (chain 1672).
 
-**Interaction Guide:** ProsPilot performs DeFi copilot assistance for AI agents and users on Pharos Pacific Mainnet. It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, transfers, swaps, bridges, vault deposits, and staking actions.
+**Interaction Guide (12 skills):** wallets · tokens · contracts/calldata · recipients · approvals · allowances · calldata · transfers · swaps · bridges · vault deposits (FRHV001) · staking. Sem x402 nem forensics de hash de tx. On-chain → `/chat`.
 
 **Faroo:** liquid staking https://app.faroo.xyz · PROS→stPROS min 0.1 · unstake 7d 0% fee · stPROS `0x6b0a44c64190279f7034b77c13a566e914fe5ec4` · NOT search engine.
 

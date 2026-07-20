@@ -1,7 +1,8 @@
 // Minimal A2A v0.3 helpers for Anvita Flow / external agent gateways.
 
 import { randomUUID } from "node:crypto";
-import { AGENT_DESCRIPTION, AGENT_INTERACTION_GUIDE, AGENT_NAME, AGENT_TAGLINE } from "@/lib/branding";
+import { formatInteractionGuide, toAgentCardSkills } from "@/lib/agent-skills";
+import { AGENT_DESCRIPTION, AGENT_NAME, AGENT_TAGLINE } from "@/lib/branding";
 import { parseWithGroq } from "@/lib/groq";
 import { tryFastPathAnswer } from "@/lib/fast-path";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
@@ -37,7 +38,7 @@ export function getAgentCard() {
     protocolVersion: "0.3.0",
     name: AGENT_NAME,
     description: AGENT_DESCRIPTION,
-    interactionGuide: AGENT_INTERACTION_GUIDE,
+    interactionGuide: formatInteractionGuide("en"),
     url: `${BASE}/api/a2a`,
     preferredTransport: "JSONRPC",
     additionalInterfaces: [
@@ -59,36 +60,7 @@ export function getAgentCard() {
     },
     defaultInputModes: ["text/plain"],
     defaultOutputModes: ["text/plain"],
-    skills: [
-      {
-        id: "pharos-knowledge",
-        name: "Pharos ecosystem Q&A",
-        description: "Answer questions about Pharos protocols, RWA, Faroo, FaroSwap, Anvita Flow",
-        tags: ["pharos", "defi", "knowledge", "rwa"],
-        examples: ["What is Faroo?", "Explain RealFi on Pharos"],
-      },
-      {
-        id: "market-data",
-        name: "Market data",
-        description: "Token prices and RWA market aggregates",
-        tags: ["price", "market"],
-        examples: ["Price of PROS", "RWA market data"],
-      },
-      {
-        id: "wallet-intel",
-        name: "Wallet intelligence",
-        description: "Read-only wallet profile, score, tx history when user provides 0x address",
-        tags: ["wallet", "analysis"],
-        examples: ["Analyze wallet 0x...", "Wallet score for 0x..."],
-      },
-      {
-        id: "defi-guided",
-        name: "DeFi guided flows",
-        description: "Swap, bridge, LP, stake instructions; execution requires web app wallet",
-        tags: ["swap", "bridge", "liquidity", "stake"],
-        examples: ["Swap 10 PROS to USDC", "Bridge USDC to Base"],
-      },
-    ],
+    skills: toAgentCardSkills(),
   };
 }
 

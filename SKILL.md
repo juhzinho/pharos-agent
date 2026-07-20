@@ -94,9 +94,9 @@ Full Anvita reference: `references/anvita-flow.md`. **Managed-only rules:** `ref
 
 ## Client interaction flow (all skills)
 
-**Interaction Guide** (Anvita marketplace / agent card):
+**Interaction Guide** (Anvita marketplace / agent card — 12 active skills, no x402 / tx-hash forensics):
 
-> ProsPilot performs DeFi copilot assistance for AI agents and users on Pharos Pacific Mainnet. It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, transfers, swaps, bridges, vault deposits, and staking actions.
+See `lib/agent-skills.ts` and `skill-package/interaction-guide.txt` for the full paste block. Skills: wallet inspection, tokens, contracts/calldata, recipients, approvals, allowances, calldata builder, transfers, swaps, bridges, vault deposits (FRHV001), staking.
 
 1. **Detect intent** from natural language (30+ languages). Infer context from prior turns.
 2. **Clarify** with at most **one** question if a required field is missing (amount, token, chain, address, tx hash).
