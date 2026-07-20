@@ -46,7 +46,7 @@ export default function ChatBackground() {
         const progress = r / rows;
         const y = horizon + (h - horizon) * progress * progress;
         const alpha = 0.04 + progress * 0.1;
-        ctx!.strokeStyle = `rgba(74, 130, 210, ${alpha})`;
+        ctx!.strokeStyle = `rgba(0, 100, 255, ${alpha})`;
         ctx!.lineWidth = 0.6 + progress * 0.4;
         ctx!.beginPath();
         for (let c = 0; c <= cols; c++) {
@@ -83,7 +83,7 @@ export default function ChatBackground() {
       ctx.clearRect(0, 0, w, h);
 
       const grad = ctx.createRadialGradient(w * 0.5, h * 0.2, 0, w * 0.5, h * 0.5, w * 0.7);
-      grad.addColorStop(0, "rgba(30, 70, 130, 0.25)");
+      grad.addColorStop(0, "rgba(0, 60, 200, 0.3)");
       grad.addColorStop(0.5, "rgba(10, 25, 50, 0.08)");
       grad.addColorStop(1, "rgba(5, 12, 28, 0)");
       ctx.fillStyle = grad;
@@ -105,7 +105,7 @@ export default function ChatBackground() {
 
         ctx.beginPath();
         ctx.arc(px, py, radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(120, 180, 255, ${alpha})`;
+        ctx.fillStyle = `rgba(0, 120, 255, ${alpha})`;
         ctx.fill();
       }
 

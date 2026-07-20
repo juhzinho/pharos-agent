@@ -15,7 +15,7 @@ interface PageShellProps {
   wide?: boolean;
 }
 
-export default function PageShell({ eyebrow, title, subtitle, accent = "#00d4ff", children, wide }: PageShellProps) {
+export default function PageShell({ eyebrow, title, subtitle, accent = "#0066ff", children, wide }: PageShellProps) {
   return (
     <div className="min-h-screen relative overflow-x-hidden">
       <SiteBackground variant="subtle" />

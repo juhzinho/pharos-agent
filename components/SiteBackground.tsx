@@ -25,7 +25,7 @@ export default function SiteBackground({ variant = "full", showWaves = true }: S
       {isFull && (
         <div
           className="aurora-blob aurora-blob-slow absolute bottom-[10%] left-[30%] w-[50vw] h-[50vw] rounded-full opacity-20"
-          style={{ background: "radial-gradient(circle, rgba(74,158,255,0.12) 0%, transparent 70%)" }}
+            style={{ background: "radial-gradient(circle, rgba(0,64,255,0.12) 0%, transparent 70%)" }}
         />
       )}
 
