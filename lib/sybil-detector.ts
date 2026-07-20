@@ -390,9 +390,6 @@ function buildRecommendations(
       r.push("Automatização detectada: valide se é MEV bot legítimo ou farm script.");
     }
     if (has("campaign-farm-window")) r.push("Atividade coincide com campanhas Pharos ativas — correlacionar com outras carteiras do cluster.");
-    if (!reputation.passportAvailable && !reputation.trustaAvailable) {
-      r.push("Configure TRUSTA_API_KEY e PASSPORT_API_KEY para camada de reputação externa (Fase 3).");
-    }
     if (reputation.passportPassing) r.push("Gitcoin Passport aprovado — sinal humano forte para elegibilidade.");
     return r;
   }
@@ -412,9 +409,6 @@ function buildRecommendations(
     r.push("Automation detected: validate whether it's a legitimate MEV bot or farm script.");
   }
   if (has("campaign-farm-window")) r.push("Activity overlaps active Pharos campaigns — correlate with other cluster wallets.");
-  if (!reputation.passportAvailable && !reputation.trustaAvailable) {
-    r.push("Set TRUSTA_API_KEY and PASSPORT_API_KEY for external reputation layer (Phase 3).");
-  }
   if (reputation.passportPassing) r.push("Gitcoin Passport passing — strong human signal for eligibility.");
   return r;
 }
@@ -612,6 +606,13 @@ export async function runSybilClusterAnalysis(addresses: string[]): Promise<Sybi
     sharedRootFunders: graph.sharedRootFunders,
     graphDensity: graph.graphDensity,
   };
+}
+
+export function formatSybilIntro(report: SybilReport, lang: "pt" | "en"): string {
+  const short = `${report.address.slice(0, 6)}…${report.address.slice(-4)}`;
+  return lang === "pt"
+    ? `🛡️ **Análise Sybil/Bot (Fases 1–4)** — \`${short}\``
+    : `🛡️ **Sybil/Bot Analysis (Phases 1–4)** — \`${short}\``;
 }
 
 export function formatSybilReport(report: SybilReport, lang: "pt" | "en"): string {

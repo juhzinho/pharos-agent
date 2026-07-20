@@ -66,11 +66,11 @@ import { t, chipT, useSiteLang } from "@/lib/i18n";
 import { scanWalletAllowances, formatAllowanceReport } from "@/lib/allowance-skill";
 import { WEB3_RADAR_TOPICS, detectWeb3RadarTopic, type Web3RadarTopic } from "@/lib/web3-radar";
 import {
-  detectSybilQuery, formatSybilReport, type SybilReport, type SybilClusterReport,
+  detectSybilQuery, formatSybilIntro, formatSybilReport, type SybilReport, type SybilClusterReport,
 } from "@/lib/sybil-detector";
 import {
   detectLinkCompareQuery, detectLinkScanQuery, extractUrls, formatLinkCompareReport,
-  formatLinkScanBatch, formatLinkScanReport,
+  formatLinkScanBatch, formatLinkScanIntro, formatLinkScanReport,
   type LinkCompareReport, type LinkScanBatchReport, type LinkScanReport,
 } from "@/lib/link-scanner";
 import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
@@ -257,6 +257,7 @@ interface Message {
   radarPicker?: boolean;                  // Web3 briefing topic picker
   sybilReport?: SybilReport;
   sybilCluster?: SybilClusterReport;
+  linkScanPrompt?: boolean;
   linkScanReport?: LinkScanReport;
   linkScanBatch?: LinkScanBatchReport;
   linkCompare?: LinkCompareReport;
@@ -556,13 +557,39 @@ async function searchWithFallback(
   return { text: originalReply };
 }
 
-// Lightweight PT/EN guess from the most recent user message, used to localize
+function detectLanguagePreference(text: string): "pt" | "en" | null {
+  const t = text.trim();
+  if (/\b(portugu[eê]s|portuguese|fale\s+em\s+(?:pt|portugu[eê]s)|fala\s+em\s+(?:pt|portugu[eê]s)|em\s+portugu[eê]s|speak\s+portuguese|in\s+portuguese|responda?\s+em\s+portugu[eê]s)\b/i.test(t)) {
+    return "pt";
+  }
+  if (/\b(ingl[eê]s|english|fale\s+em\s+(?:en|ingl[eê]s)|speak\s+english|in\s+english|responda?\s+em\s+ingl[eê]s)\b/i.test(t)) {
+    return "en";
+  }
+  return null;
+}
+
+// Lightweight PT/EN guess from recent user messages, used to localize
 // non-AI UI follow-ups (e.g. the post-transaction confirmation).
 function guessUserLang(msgs: Message[]): "pt" | "en" {
+  for (const m of [...msgs].reverse()) {
+    if (m.role !== "user") continue;
+    const pref = detectLanguagePreference(m.text);
+    if (pref) return pref;
+  }
   const lastUser = [...msgs].reverse().find((m) => m.role === "user")?.text ?? "";
-  return /[ãõáéíóúâêôçà]|\b(quero|fazer|fa[çc]a|troca|troc(ar|a)|ponte|liquidez|obrigad[oa]|valeu|rede|carteira|para|pra|voc[êe]|conectar|dúvida|opera[çc][ãa]o|mais)\b/i.test(lastUser)
+  return /[ãõáéíóúâêôçà]|\b(quero|fazer|fa[çc]a|fale|fala|troca|troc(ar|a)|ponte|liquidez|obrigad[oa]|valeu|rede|carteira|para|pra|voc[êe]|conectar|dúvida|opera[çc][ãa]o|mais|portugu[eê]s|em\s+pt|como|esse|essa|análise|analise|sybil|scam|link|suspeit)\b/i.test(lastUser)
     ? "pt"
     : "en";
+}
+
+function resolveChatLang(msgs: Message[], siteLang: string): "pt" | "en" {
+  for (const m of [...msgs].reverse()) {
+    if (m.role !== "user") continue;
+    const pref = detectLanguagePreference(m.text);
+    if (pref) return pref;
+  }
+  if (guessUserLang(msgs) === "pt") return "pt";
+  return siteLang === "pt" ? "pt" : "en";
 }
 
 function buildChatHistory(
@@ -2835,7 +2862,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare }: {
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare, onLinkScanSubmit, onLinkCompareSubmit }: {
   msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -2854,6 +2881,8 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
   onApproveWizardSubmit: (msgId: string, token: string, spender: string, amount: number | "unlimited") => void;
   onRadarTopicPick: (msgId: string, topic: Web3RadarTopic) => void;
   onLinkCompare: (msgId: string, suspiciousUrl: string, officialUrl: string) => void;
+  onLinkScanSubmit: (msgId: string, url: string) => void;
+  onLinkCompareSubmit: (msgId: string, suspiciousUrl: string, officialUrl: string) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -2896,6 +2925,12 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
     revealLen !== null && revealTextRef.current === msg.text
       ? msg.text.slice(0, revealLen)
       : msg.text;
+
+  const agentText = msg.sybilReport
+    ? formatSybilIntro(msg.sybilReport, lang)
+    : msg.linkScanReport && !msg.linkCompare
+      ? formatLinkScanIntro(msg.linkScanReport, lang)
+      : displayText;
 
   /* ── User message ────────────────────────────────────────────────────── */
   if (isUser) {
@@ -2989,7 +3024,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
                   td: ({ children }) => <td className="px-3 py-2.5 text-sm" style={{ color: "rgba(215,228,245,0.78)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>{children}</td>,
                 }}
               >
-                {safeText(displayText ?? "")}
+                {safeText(agentText ?? "")}
               </ReactMarkdown>
             )}
           </div>
@@ -3224,6 +3259,13 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         {msg.walletIntel && <WalletScoreCard intel={msg.walletIntel} lang={lang} />}
 
         {msg.sybilReport && <SybilReportCard report={msg.sybilReport} lang={lang} />}
+        {msg.linkScanPrompt && !msg.linkScanReport && !msg.isLoading && (
+          <LinkScanPromptCard
+            lang={lang}
+            onScan={(url) => onLinkScanSubmit(msg.id, url)}
+            onCompare={(suspicious, official) => onLinkCompareSubmit(msg.id, suspicious, official)}
+          />
+        )}
         {msg.linkCompare ? (
           <LinkCompareCard compare={msg.linkCompare} lang={lang} />
         ) : msg.linkScanReport ? (
@@ -3477,6 +3519,9 @@ function SybilReportCard({ report, lang }: { report: SybilReport; lang: "pt" | "
     likely_bot: lang === "pt" ? "Provável bot" : "Likely bot",
     likely_sybil: lang === "pt" ? "Provável Sybil" : "Likely Sybil",
   }[report.verdict];
+  const confLabel = lang === "pt"
+    ? { low: "baixa", medium: "média", high: "alta" }[report.confidence]
+    : report.confidence;
   const riskSignals = report.signals.filter((s) => s.weight > 0);
   const humanSignals = report.signals.filter((s) => s.weight < 0);
 
@@ -3499,7 +3544,7 @@ function SybilReportCard({ report, lang }: { report: SybilReport; lang: "pt" | "
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base font-bold" style={{ color }}>{verdictLabel}</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${color}18`, border: `1px solid ${color}44`, color }}>
-              {lang === "pt" ? "confiança" : "confidence"}: {report.confidence}
+              {lang === "pt" ? "confiança" : "confidence"}: {confLabel}
             </span>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]" style={{ color: "rgba(200,215,235,0.75)" }}>
@@ -3572,6 +3617,85 @@ function SybilReportCard({ report, lang }: { report: SybilReport; lang: "pt" | "
           {lang === "pt" ? "Ver no explorer ↗" : "View on explorer ↗"}
         </a>
       </div>
+    </div>
+  );
+}
+
+// ─── Link scanner prompt (sidebar entry) ───────────────────────────────────
+
+function LinkScanPromptCard({
+  lang,
+  onScan,
+  onCompare,
+}: {
+  lang: "pt" | "en";
+  onScan: (url: string) => void;
+  onCompare: (suspicious: string, official: string) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [official, setOfficial] = useState("");
+  const [showCompare, setShowCompare] = useState(false);
+
+  const canScan = /^https?:\/\/.+/i.test(url.trim());
+  const canCompare = canScan && /^https?:\/\/.+/i.test(official.trim());
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4 space-y-3">
+      <p className="text-[11px] leading-relaxed" style={{ color: "rgba(200,215,235,0.75)" }}>
+        {lang === "pt"
+          ? "Cole o link suspeito (DM do Twitter, Discord, Telegram, e-mail…) e eu verifico typosquat, redirects e domínios oficiais Web3."
+          : "Paste a suspicious link (Twitter/Discord/Telegram DM, email…) and I'll check typosquat, redirects, and official Web3 domains."}
+      </p>
+      <div className="flex gap-2 flex-wrap">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && canScan) onScan(url.trim()); }}
+          placeholder={lang === "pt" ? "https://link-suspeito.xyz" : "https://suspicious-link.xyz"}
+          className="flex-1 min-w-[200px] rounded-xl px-3 py-2.5 text-[11px] font-mono bg-black/30 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-cyan-500/40"
+          autoFocus
+        />
+        <button
+          type="button"
+          disabled={!canScan}
+          onClick={() => onScan(url.trim())}
+          className="shrink-0 px-4 py-2.5 rounded-xl text-[11px] font-semibold disabled:opacity-40"
+          style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}
+        >
+          {lang === "pt" ? "Escanear" : "Scan"}
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowCompare((v) => !v)}
+        className="text-[10px] font-semibold hover:underline"
+        style={{ color: "rgba(148,163,184,0.65)" }}
+      >
+        {showCompare
+          ? (lang === "pt" ? "Ocultar comparação" : "Hide compare")
+          : (lang === "pt" ? "+ Comparar com link oficial (Twitter/Discord)" : "+ Compare with official link (Twitter/Discord)")}
+      </button>
+      {showCompare && (
+        <div className="space-y-2 pt-1 border-t border-white/10">
+          <input
+            type="url"
+            value={official}
+            onChange={(e) => setOfficial(e.target.value)}
+            placeholder={lang === "pt" ? "https://site-oficial-do-projeto.xyz" : "https://official-project-site.xyz"}
+            className="w-full rounded-xl px-3 py-2 text-[11px] font-mono bg-black/30 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-cyan-500/40"
+          />
+          <button
+            type="button"
+            disabled={!canCompare}
+            onClick={() => onCompare(url.trim(), official.trim())}
+            className="px-4 py-2 rounded-xl text-[11px] font-semibold disabled:opacity-40"
+            style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.25)", color: "#fbbf24" }}
+          >
+            {lang === "pt" ? "Comparar os dois links" : "Compare both links"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -4629,14 +4753,14 @@ export default function ChatPage() {
       // choices, amount queries, and all built tx cards (swap/bridge, add and
       // remove liquidity, position pickers, transfers, approvals).
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.linkScanPrompt || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
         m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
         m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
         isLoading: false, isSearching: false,
-        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined,
+        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, linkScanPrompt: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined,
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
         liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
         positions: undefined, removeMode: undefined,
@@ -5615,7 +5739,7 @@ export default function ChatPage() {
 
   async function runSybilCheck(msgId: string, target: string) {
     const seq = opSeqRef.current;
-    const lang = guessUserLang(messages);
+    const lang = resolveChatLang(messages, siteLang);
     updateMessage(msgId, {
       isLoading: true,
       text: lang === "pt" ? "Executando heurísticas anti-Sybil/bot on-chain…" : "Running on-chain Sybil/bot heuristics…",
@@ -5632,7 +5756,7 @@ export default function ChatPage() {
       if (opSeqRef.current !== seq) return;
       updateMessage(msgId, {
         isLoading: false,
-        text: formatSybilReport(report, lang),
+        text: formatSybilIntro(report, lang),
         sybilReport: report,
       });
     } catch (err) {
@@ -5685,7 +5809,7 @@ export default function ChatPage() {
 
   async function runLinkCheck(msgId: string, urls: string[]) {
     const seq = opSeqRef.current;
-    const lang = guessUserLang(messages);
+    const lang = resolveChatLang(messages, siteLang);
     updateMessage(msgId, {
       isLoading: true,
       text: lang === "pt"
@@ -5709,7 +5833,8 @@ export default function ChatPage() {
         const top = batch.reports.sort((a, b) => b.riskScore - a.riskScore)[0];
         updateMessage(msgId, {
           isLoading: false,
-          text: formatLinkScanBatch(batch, lang),
+          linkScanPrompt: undefined,
+          text: formatLinkScanIntro(top, lang),
           linkScanReport: top,
           linkScanBatch: batch,
         });
@@ -5717,7 +5842,8 @@ export default function ChatPage() {
         const report = data as LinkScanReport;
         updateMessage(msgId, {
           isLoading: false,
-          text: formatLinkScanReport(report, lang),
+          linkScanPrompt: undefined,
+          text: formatLinkScanIntro(report, lang),
           linkScanReport: report,
         });
       }
@@ -5821,7 +5947,24 @@ export default function ChatPage() {
   // Quick actions: clicking an on-chain function starts the guided flow
   // instantly — no auto-message, no LLM round-trip.
   function handleQuickAction(kind: QuickActionKind) {
-    const lang = guessUserLang(messages);
+    const lang = resolveChatLang(messages, siteLang);
+
+    // Link scanner works without wallet — read-only URL analysis.
+    if (kind === "linkscan") {
+      const existing = messagesRef.current.find(
+        (m) => m.linkScanPrompt && !m.linkScanReport && !m.isLoading && !m.isError,
+      );
+      if (existing) return;
+      addMessage({
+        role: "agent",
+        linkScanPrompt: true,
+        text: lang === "pt"
+          ? "🔗 **Scanner Web3** — verifica links suspeitos (não usa sua carteira).\n\n_Diferente de **Análise de Carteira** e **Sybil Check**, que rodam sozinhos na carteira conectada — aqui você cola um link que recebeu (DM, Discord, e-mail…)._"
+          : "🔗 **Web3 scanner** — checks suspicious links (does not use your wallet).\n\n_Unlike **Wallet Analysis** and **Sybil Check**, which run on your connected wallet automatically — here you paste a link you received (DM, Discord, email…)._",
+      });
+      return;
+    }
+
     if (!walletAddress) {
       addMessage({
         role: "agent",
@@ -5896,15 +6039,17 @@ export default function ChatPage() {
           void runSybilCheck(id, walletAddress);
         }
         break;
-      case "linkscan":
-        updateMessage(id, {
-          isLoading: false,
-          text: lang === "pt"
-            ? "🔗 **Scanner Web3** — cole a URL suspeita no chat.\n\nPara **comparar** com o site oficial do Twitter:\n`comparar suspeito: https://fake.xyz oficial: https://real.xyz`"
-            : "🔗 **Web3 scanner** — paste the suspicious URL in chat.\n\nTo **compare** with the official Twitter site:\n`compare suspicious: https://fake.xyz official: https://real.xyz`",
-        });
-        break;
     }
+  }
+
+  function handleLinkScanFromPrompt(msgId: string, url: string) {
+    updateMessage(msgId, { linkScanPrompt: undefined });
+    void runLinkCheck(msgId, [url]);
+  }
+
+  function handleLinkCompareFromPrompt(msgId: string, suspiciousUrl: string, officialUrl: string) {
+    updateMessage(msgId, { linkScanPrompt: undefined });
+    void runLinkCompare(msgId, suspiciousUrl, officialUrl);
   }
 
   async function handleSend() {
@@ -5944,6 +6089,20 @@ export default function ChatPage() {
     addMessage({ role: "user", text });
     const history = buildChatHistory(messages);
     history.push({ role: "user", content: text });
+
+    const langPref = detectLanguagePreference(text);
+    if (langPref) {
+      const thinkingId = addMessage({ role: "agent", text: "Thinking…", isLoading: true });
+      updateMessage(thinkingId, {
+        isLoading: false,
+        text: langPref === "pt"
+          ? "Perfeito! Daqui pra frente respondo em **português**. Relatórios estruturados (Sybil, links, etc.) também aparecem em português."
+          : "Got it! I'll reply in **English** from now on. Structured reports (Sybil, links, etc.) are localized too.",
+      });
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
 
     const thinkingId = addMessage({ role: "agent", text: "Thinking…", isLoading: true });
 
@@ -7322,7 +7481,7 @@ export default function ChatPage() {
               key={msg.id}
               msg={msg.id === "welcome" ? { ...msg, text: t("chat.welcome", siteLang) } : msg}
               walletAddress={walletAddress}
-              lang={guessUserLang(messages)}
+              lang={resolveChatLang(messages, siteLang)}
               onTxSuccess={handleTxSuccess}
               onTxError={handleTxError}
               onTxReverted={handleTxReverted}
@@ -7384,6 +7543,8 @@ export default function ChatPage() {
               onApproveWizardSubmit={handleApproveWizardSubmit}
               onRadarTopicPick={handleRadarTopicPick}
               onLinkCompare={runLinkCompare}
+              onLinkScanSubmit={handleLinkScanFromPrompt}
+              onLinkCompareSubmit={handleLinkCompareFromPrompt}
             />
           ))}
           <div ref={bottomRef} />

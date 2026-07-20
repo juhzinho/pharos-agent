@@ -563,6 +563,12 @@ export async function scanLinks(urls: string[]): Promise<LinkScanBatchReport> {
   return { reports, worstScore, worstVerdict: worst?.verdict ?? "likely_safe" };
 }
 
+export function formatLinkScanIntro(report: LinkScanReport, lang: "pt" | "en"): string {
+  return lang === "pt"
+    ? `🔗 **Scanner Web3** — \`${report.hostname}\``
+    : `🔗 **Web3 scanner** — \`${report.hostname}\``;
+}
+
 export function formatLinkScanReport(report: LinkScanReport, lang: "pt" | "en"): string {
   const verdictLabel = {
     official: lang === "pt" ? "Oficial ✓" : "Official ✓",
