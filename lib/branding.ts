@@ -20,5 +20,10 @@ export const AGENT_INTERACTION_GUIDE =
   "It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, " +
   "transfers, swaps, bridges, vault deposits, and staking actions.";
 
+export const AGENT_INTERACTION_GUIDE_PT =
+  "O ProsPilot oferece assistência DeFi para agentes de IA e usuários na Pharos Pacific Mainnet. " +
+  "Pode inspecionar carteiras, tokens, contratos, destinatários, aprovações, allowances, calldata, " +
+  "transferências, swaps, bridges, depósitos em vaults e ações de staking.";
+
 export const AGENT_SHORT_DESCRIPTION =
   `${AGENT_TAGLINE} on Pharos Mainnet (1672). ${AGENT_DISCLAIMER}`;

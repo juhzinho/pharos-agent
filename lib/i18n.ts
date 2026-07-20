@@ -3,6 +3,8 @@
 // lib/network.ts. The AI agent itself already answers in ANY language the user
 // writes; this controls the fixed UI strings (navbar, buttons, placeholders).
 
+import { AGENT_INTERACTION_GUIDE, AGENT_INTERACTION_GUIDE_PT } from "./branding";
+
 export type SiteLang = "en" | "pt" | "es" | "ru" | "zh" | "ja" | "ar";
 
 export const SITE_LANGS: Array<{ id: SiteLang; label: string; flag: string }> = [
@@ -107,10 +109,29 @@ export const UI: Dict = {
   "chat.home":    { en: "Home",     pt: "Início",       es: "Inicio",       ru: "Главная",   zh: "首页",   ja: "ホーム",     ar: "الرئيسية" },
   "chat.newChat": { en: "New chat", pt: "Novo chat",    es: "Nuevo chat",   ru: "Новый чат", zh: "新对话", ja: "新しいチャット", ar: "محادثة جديدة" },
 
+  "chat.interactionGuide.title": {
+    en: "Interaction Guide",
+    pt: "Guia de interação",
+    es: "Guía de interacción",
+    ru: "Руководство",
+    zh: "交互指南",
+    ja: "操作ガイド",
+    ar: "دليل التفاعل",
+  },
+  "chat.interactionGuide.body": {
+    en: AGENT_INTERACTION_GUIDE,
+    pt: AGENT_INTERACTION_GUIDE_PT,
+    es: AGENT_INTERACTION_GUIDE,
+    ru: AGENT_INTERACTION_GUIDE,
+    zh: AGENT_INTERACTION_GUIDE,
+    ja: AGENT_INTERACTION_GUIDE,
+    ar: AGENT_INTERACTION_GUIDE,
+  },
+
   // Chat: agent welcome message (shown before the first user message)
   "chat.welcome": {
-    en: "Hi! I'm **ProsPilot** — an independent, community-built DeFi copilot for the Pharos ecosystem (Chain ID 1672).\n\n_Not an official Pharos Network product._\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
-    pt: "Oi! Eu sou o **ProsPilot** — copiloto DeFi com IA, feito pela comunidade para o ecossistema Pharos (Chain ID 1672).\n\n_Não é um produto oficial da Pharos Network._\n\nConecte sua carteira e eu te ajudo a:\n• **Trocar** tokens via FaroSwap, OKX DEX ou LI.FI\n• **Fazer bridge** para Ethereum, Base, Arbitrum, Polygon via CCIP ou Circle CCTP v2\n• **Adicionar / remover liquidez** nos pools concentrados do FaroSwap V3\n• **Stake de PROS** → stPROS via liquid staking da Faroo\n• **Responder qualquer pergunta** sobre o ecossistema Pharos, protocolos, RWA, gas, contratos e mais\n\nVocê pode escrever em qualquer idioma. Vamos lá!",
+    en: "Hi! I'm **ProsPilot** — an independent, community-built DeFi copilot for the Pharos ecosystem (Chain ID 1672).\n\n_Not an official Pharos Network product._\n\n**Interaction Guide** — " + AGENT_INTERACTION_GUIDE + "\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
+    pt: "Oi! Eu sou o **ProsPilot** — copiloto DeFi com IA, feito pela comunidade para o ecossistema Pharos (Chain ID 1672).\n\n_Não é um produto oficial da Pharos Network._\n\n**Guia de interação** — " + AGENT_INTERACTION_GUIDE_PT + "\n\nConecte sua carteira e eu te ajudo a:\n• **Trocar** tokens via FaroSwap, OKX DEX ou LI.FI\n• **Fazer bridge** para Ethereum, Base, Arbitrum, Polygon via CCIP ou Circle CCTP v2\n• **Adicionar / remover liquidez** nos pools concentrados do FaroSwap V3\n• **Stake de PROS** → stPROS via liquid staking da Faroo\n• **Responder qualquer pergunta** sobre o ecossistema Pharos, protocolos, RWA, gas, contratos e mais\n\nVocê pode escrever em qualquer idioma. Vamos lá!",
     es: "¡Hola! Soy **ProsPilot** — tu copiloto DeFi con IA en Pharos Network (Chain ID 1672).\n\nConecta tu cartera y te ayudo a:\n• **Intercambiar** tokens vía FaroSwap, OKX DEX o LI.FI\n• **Hacer bridge** a Ethereum, Base, Arbitrum, Polygon vía CCIP o Circle CCTP v2\n• **Añadir / retirar liquidez** en los pools concentrados de FaroSwap V3\n• **Stake de PROS** → stPROS vía liquid staking de Faroo\n• **Responder cualquier pregunta** sobre el ecosistema Pharos, protocolos, RWA, gas, contratos y más\n\nPuedes escribir en cualquier idioma. ¡Vamos!",
     ru: "Привет! Я **ProsPilot** — ваш ИИ-копилот DeFi в сети Pharos (Chain ID 1672).\n\nПодключите кошелёк, и я помогу вам:\n• **Обменивать** токены через FaroSwap, OKX DEX или LI.FI\n• **Делать бридж** в Ethereum, Base, Arbitrum, Polygon через CCIP или Circle CCTP v2\n• **Добавлять / выводить ликвидность** в концентрированных пулах FaroSwap V3\n• **Стейкать PROS** → stPROS через ликвидный стейкинг Faroo\n• **Отвечать на любые вопросы** об экосистеме Pharos, протоколах, RWA, газе, контрактах и не только\n\nПишите на любом языке. Поехали!",
     zh: "你好！我是 **ProsPilot** — 你在 Pharos 网络（Chain ID 1672）上的 AI DeFi 副驾驶。\n\n连接钱包后，我可以帮你：\n• 通过 FaroSwap、OKX DEX 或 LI.FI **兑换**代币\n• 通过 CCIP 或 Circle CCTP v2 **跨链**到 Ethereum、Base、Arbitrum、Polygon\n• 在 FaroSwap V3 集中流动性池中**添加 / 移除流动性**\n• 通过 Faroo 流动性质押 **质押 PROS** → stPROS\n• **回答任何问题**：Pharos 生态、协议、RWA、gas、合约等\n\n你可以用任何语言交流。开始吧！",

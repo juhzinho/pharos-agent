@@ -6143,11 +6143,21 @@ export default function ChatPage() {
                 style={{ fontSize: "clamp(1.75rem, 4vw, 2.25rem)" }}>
                 {siteLang === "pt" ? "Como posso ajudar?" : "How can I help you today?"}
               </h2>
-              <p className="text-sm mb-8 max-w-md leading-relaxed text-[var(--text-muted)]">
+              <p className="text-sm mb-6 max-w-md leading-relaxed text-[var(--text-muted)]">
                 {siteLang === "pt"
                   ? "Seu copiloto DeFi na Pharos — swap, bridge, liquidez e muito mais."
                   : "Your DeFi copilot on Pharos — swap, bridge, liquidity, and more."}
               </p>
+
+              <div className="w-full max-w-xl mb-8 text-left rounded-xl chat-welcome-card p-4 sm:p-5"
+                style={{ animation: "cardAppear 0.45s cubic-bezier(0.22,1,0.36,1) 0.1s both" }}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-2.5 text-[var(--accent-soft)]">
+                  {t("chat.interactionGuide.title", siteLang)}
+                </p>
+                <p className="text-[13px] leading-relaxed text-white/90">
+                  {t("chat.interactionGuide.body", siteLang)}
+                </p>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl">
                 {WELCOME_CARDS.map((card, i) => (
