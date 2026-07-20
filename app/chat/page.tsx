@@ -12,7 +12,7 @@ import {
   type LiquidityBuildResult, type LiquidityParams, type FeeTier, type RemoveLiquidityBuildResult,
 } from "@/lib/liquidity";
 import { fetchUserPositions, formatPositionSummary, type V3Position } from "@/lib/positions";
-import { buildFaroSwapSwap, faroswapSupportsPair, type FaroSwapBuildResult } from "@/lib/faroswap";
+import { buildFaroSwapSwap, faroswapSupportsPair, FAROSWAP_DIRECT, type FaroSwapBuildResult } from "@/lib/faroswap";
 import { checkCcipSupport, buildCcipTransaction, type CcipTxData } from "@/lib/ccip";
 import { checkCctpSupport, buildCctpTransaction, type CctpTxData } from "@/lib/cctp";
 import {
@@ -55,7 +55,7 @@ import { getPriceHistory, PROS_CEX_LINKS, type ChartRange, type PricePoint } fro
 import { buildTransferTxs, buildApproveTx, type TransferBuild, type BuiltTx } from "@/lib/transfer";
 import { explainTx, extractTxHash, formatTxExplanation } from "@/lib/txexplain";
 import { getRealFiPositions, formatRealFiPositions } from "@/lib/realfi";
-import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getFarooPosition, formatFarooPosition, getStakeNav, getWprosBalanceRaw, buildUnwrapData, MIN_STAKE_PROS, type StakeBuild } from "@/lib/staking";
+import { buildStakeTxs, buildUnstakeTxs, getStakedBalance, getFarooPosition, formatFarooPosition, getStakeNav, getWprosBalanceRaw, buildUnwrapData, MIN_STAKE_PROS, FAROO, type StakeBuild } from "@/lib/staking";
 import { estimateGasCost, formatGasCost } from "@/lib/gas";
 import { newChatId, listChats, loadChat, saveChat, deleteChat, deriveTitle, type ChatListItem, type StoredMessage } from "@/lib/chat-history";
 import { parseAlertCommand, addAlert, listAlerts, clearAlerts, checkAlerts, notifyTriggered, ensureNotifyPermission, formatAlerts } from "@/lib/price-alerts";
@@ -64,6 +64,15 @@ import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { t, chipT, useSiteLang } from "@/lib/i18n";
 import { scanWalletAllowances, formatAllowanceReport } from "@/lib/allowance-skill";
+import { WEB3_RADAR_TOPICS, detectWeb3RadarTopic, type Web3RadarTopic } from "@/lib/web3-radar";
+import {
+  detectSybilQuery, formatSybilReport, type SybilReport, type SybilClusterReport,
+} from "@/lib/sybil-detector";
+import {
+  detectLinkCompareQuery, detectLinkScanQuery, extractUrls, formatLinkCompareReport,
+  formatLinkScanBatch, formatLinkScanReport,
+  type LinkCompareReport, type LinkScanBatchReport, type LinkScanReport,
+} from "@/lib/link-scanner";
 import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
 import Link from "next/link";
 import ChatHeader from "@/components/ChatHeader";
@@ -198,6 +207,32 @@ interface TransferWizardState {
 const TRANSFER_WIZARD_TOKENS = ["PROS", "WPROS", "USDC"] as const;
 const TRANSFER_GAS_BUFFER_PROS = 0.01;
 
+const LIFI_DIAMOND = "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae";
+type Erc20Symbol = Exclude<TokenSymbol, "PROS">;
+const APPROVE_WIZARD_TOKENS = (Object.keys(TOKENS) as TokenSymbol[]).filter((k): k is Erc20Symbol => k !== "PROS");
+
+interface ApproveSpenderOption {
+  id: string;
+  labelEn: string;
+  labelPt: string;
+  address: string;
+  tokens: Erc20Symbol[];
+}
+
+const APPROVE_SPENDERS: ApproveSpenderOption[] = [
+  { id: "lifi", labelEn: "LI.FI (swap/bridge)", labelPt: "LI.FI (swap/bridge)", address: LIFI_DIAMOND, tokens: ["USDC", "WPROS", "WETH", "LINK", "PGOLD", "USDpm"] },
+  { id: "dodo", labelEn: "FaroSwap DODO (swap)", labelPt: "FaroSwap DODO (swap)", address: FAROSWAP_DIRECT.DODO_APPROVE, tokens: ["USDC", "WPROS"] },
+  { id: "npm", labelEn: "FaroSwap NPM (liquidity)", labelPt: "FaroSwap NPM (liquidez)", address: FAROSWAP.NPM, tokens: ["USDC", "WPROS"] },
+  { id: "faroo", labelEn: "Faroo stPROS (stake)", labelPt: "Faroo stPROS (stake)", address: FAROO.STPROS, tokens: ["WPROS"] },
+];
+
+interface ApproveWizardState {
+  balances: Record<string, number>;
+  preToken?: string;
+  preSpender?: string;
+  preAmount?: number | "unlimited";
+}
+
 interface Message {
   id: string;
   role: MessageRole;
@@ -218,6 +253,13 @@ interface Message {
   swapWizard?: SwapWizardState;         // Guided swap flow (from → amount → to)
   liquidityWizard?: LiquidityWizardState; // Guided liquidity flow (pair → fee → range → amount)
   transferWizard?: TransferWizardState;   // Guided transfer flow (token → amount → count → addresses)
+  approveWizard?: ApproveWizardState;     // Guided approve flow (token → spender → amount)
+  radarPicker?: boolean;                  // Web3 briefing topic picker
+  sybilReport?: SybilReport;
+  sybilCluster?: SybilClusterReport;
+  linkScanReport?: LinkScanReport;
+  linkScanBatch?: LinkScanBatchReport;
+  linkCompare?: LinkCompareReport;
   removeMode?: boolean;
   txHash?: string;
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
@@ -1096,6 +1138,281 @@ function TransferWizardCard({ state, lang, onSubmit }: {
         }}>
         {t.submit}
       </button>
+    </div>
+  );
+}
+
+// ─── approve wizard (token → spender → amount) ──────────────────────────────
+
+function ApproveWizardCard({ state, lang, onSubmit }: {
+  state: ApproveWizardState;
+  lang: "pt" | "en";
+  onSubmit: (token: string, spender: string, amount: number | "unlimited") => void;
+}) {
+  const resolvePreSpender = (): { kind: "known"; id: string } | { kind: "custom"; addr: string } | null => {
+    if (!state.preSpender) return null;
+    const known = APPROVE_SPENDERS.find(
+      (s) => s.id === state.preSpender || s.address.toLowerCase() === state.preSpender!.toLowerCase(),
+    );
+    if (known) return { kind: "known", id: known.id };
+    if (/^0x[a-fA-F0-9]{40}$/.test(state.preSpender)) return { kind: "custom", addr: state.preSpender };
+    return null;
+  };
+
+  const preSp = resolvePreSpender();
+  const [token, setToken] = useState<string | null>(
+    state.preToken && APPROVE_WIZARD_TOKENS.includes(state.preToken as Erc20Symbol) ? state.preToken : null,
+  );
+  const [spenderKind, setSpenderKind] = useState<"known" | "custom" | null>(
+    preSp?.kind ?? null,
+  );
+  const [spenderId, setSpenderId] = useState<string | null>(preSp?.kind === "known" ? preSp.id : null);
+  const [customSpender, setCustomSpender] = useState(preSp?.kind === "custom" ? preSp.addr : "");
+  const [amountMode, setAmountMode] = useState<"exact" | "unlimited" | null>(
+    state.preAmount === "unlimited" ? "unlimited" : state.preAmount != null && state.preAmount > 0 ? "exact" : null,
+  );
+  const [amountStr, setAmountStr] = useState(
+    typeof state.preAmount === "number" && state.preAmount > 0 ? String(state.preAmount) : "",
+  );
+
+  const tokenSym = token as Erc20Symbol | null;
+  const bal = token ? (state.balances[token] ?? 0) : 0;
+  const spendersForToken = tokenSym
+    ? APPROVE_SPENDERS.filter((s) => s.tokens.includes(tokenSym))
+    : [];
+  const selectedSpender = spenderKind === "known" && spenderId
+    ? APPROVE_SPENDERS.find((s) => s.id === spenderId)
+    : null;
+  const spenderAddr = spenderKind === "custom"
+    ? customSpender.trim()
+    : selectedSpender?.address ?? "";
+  const validSpender = /^0x[a-fA-F0-9]{40}$/.test(spenderAddr);
+  const amount = parseFloat(amountStr.replace(",", "."));
+  const amountOk = amountMode === "unlimited" || (Number.isFinite(amount) && amount > 0);
+  const ready = !!token && validSpender && amountOk;
+
+  const t = lang === "pt"
+    ? {
+        step1: "1 · Qual token ERC-20?",
+        step2: "2 · Qual contrato (spender)?",
+        step3: "3 · Quanto autorizar?",
+        balance: "saldo",
+        custom: "Outro contrato",
+        customPh: "Endereço 0x… do contrato",
+        invalidAddr: "Endereço inválido (use 0x… 42 caracteres)",
+        exact: "Valor exato",
+        unlimited: "Ilimitado",
+        unlimitedHint: "Mais conveniente para swaps repetidos — revogue depois se não precisar.",
+        exactPh: (sym: string) => `Ex.: 100 ${sym}`,
+        submit: "Montar approve →",
+        noSpender: "Nenhum spender conhecido para este token — use “Outro contrato”.",
+        prosNote: "PROS nativo não precisa de approve — use WPROS se for stake Faroo.",
+      }
+    : {
+        step1: "1 · Which ERC-20 token?",
+        step2: "2 · Which contract (spender)?",
+        step3: "3 · How much to authorize?",
+        balance: "balance",
+        custom: "Other contract",
+        customPh: "Contract address 0x…",
+        invalidAddr: "Invalid address (use 0x… 42 chars)",
+        exact: "Exact amount",
+        unlimited: "Unlimited",
+        unlimitedHint: "Handy for repeated swaps — revoke later if you no longer need it.",
+        exactPh: (sym: string) => `e.g. 100 ${sym}`,
+        submit: "Build approve →",
+        noSpender: "No known spender for this token — use “Other contract”.",
+        prosNote: "Native PROS doesn't need approve — use WPROS for Faroo stake.",
+      };
+
+  const pickToken = (sym: string) => {
+    setToken(sym);
+    setSpenderKind(null);
+    setSpenderId(null);
+    setCustomSpender("");
+    setAmountMode(null);
+    setAmountStr("");
+  };
+
+  const pickSpender = (id: string) => {
+    setSpenderKind("known");
+    setSpenderId(id);
+    setCustomSpender("");
+  };
+
+  return (
+    <div className="mt-3 px-4 py-4 rounded-2xl space-y-4"
+      style={{ background: "rgba(7,14,30,0.9)", border: "1px solid rgba(167,139,250,0.28)", backdropFilter: "blur(16px)" }}>
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(167,139,250,0.65)" }}>{t.step1}</p>
+        <div className="flex gap-2 flex-wrap">
+          {APPROVE_WIZARD_TOKENS.map((sym) => {
+            const active = token === sym;
+            const b = state.balances[sym] ?? 0;
+            return (
+              <button key={sym} onClick={() => pickToken(sym)}
+                className="flex-1 min-w-[96px] flex flex-col gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer"
+                style={{
+                  background: active ? "rgba(167,139,250,0.14)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${active ? "rgba(167,139,250,0.55)" : "rgba(255,255,255,0.08)"}`,
+                }}>
+                <span className="text-sm font-semibold text-white">{sym}</span>
+                <span className="text-[11px] font-data" style={{ color: active ? "rgba(196,181,253,0.9)" : "rgba(148,163,184,0.55)" }}>
+                  {b.toLocaleString("en-US", { maximumFractionDigits: sym === "USDC" ? 4 : 6 })} {t.balance}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {token && (
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(167,139,250,0.65)" }}>{t.step2}</p>
+          {spendersForToken.length === 0 ? (
+            <p className="text-xs mb-2" style={{ color: "rgba(251,191,36,0.85)" }}>{t.noSpender}</p>
+          ) : (
+            <div className="flex gap-2 flex-wrap mb-2">
+              {spendersForToken.map((s) => {
+                const active = spenderKind === "known" && spenderId === s.id;
+                return (
+                  <button key={s.id} onClick={() => pickSpender(s.id)}
+                    className="flex-1 min-w-[140px] flex flex-col gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer"
+                    style={{
+                      background: active ? "rgba(167,139,250,0.14)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${active ? "rgba(167,139,250,0.55)" : "rgba(255,255,255,0.08)"}`,
+                    }}>
+                    <span className="text-sm font-semibold text-white">{lang === "pt" ? s.labelPt : s.labelEn}</span>
+                    <span className="text-[10px] font-data truncate" style={{ color: "rgba(148,163,184,0.55)" }}>{s.address.slice(0, 10)}…</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <button
+            onClick={() => { setSpenderKind("custom"); setSpenderId(null); }}
+            className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all duration-200 cursor-pointer mb-2"
+            style={{
+              background: spenderKind === "custom" ? "rgba(167,139,250,0.12)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${spenderKind === "custom" ? "rgba(167,139,250,0.45)" : "rgba(255,255,255,0.08)"}`,
+              color: "rgba(196,181,253,0.9)",
+            }}>
+            {t.custom}
+          </button>
+          {spenderKind === "custom" && (
+            <>
+              <input
+                type="text" value={customSpender}
+                onChange={(e) => setCustomSpender(e.target.value.trim())}
+                placeholder={t.customPh}
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${customSpender && !validSpender ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              />
+              {customSpender && !validSpender && (
+                <p className="text-[11px] mt-1.5" style={{ color: "rgba(251,113,133,0.85)" }}>{t.invalidAddr}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {token && validSpender && (
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-2.5" style={{ color: "rgba(167,139,250,0.65)" }}>{t.step3}</p>
+          <div className="flex gap-2 mb-3">
+            {(["exact", "unlimited"] as const).map((mode) => {
+              const active = amountMode === mode;
+              return (
+                <button key={mode}
+                  onClick={() => { setAmountMode(mode); if (mode === "unlimited") setAmountStr(""); }}
+                  className="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer"
+                  style={{
+                    background: active ? "rgba(167,139,250,0.14)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${active ? "rgba(167,139,250,0.55)" : "rgba(255,255,255,0.08)"}`,
+                    color: active ? "white" : "rgba(148,163,184,0.75)",
+                  }}>
+                  {mode === "exact" ? t.exact : t.unlimited}
+                </button>
+              );
+            })}
+          </div>
+          {amountMode === "unlimited" && (
+            <p className="text-[11px] leading-snug" style={{ color: "rgba(251,191,36,0.8)" }}>{t.unlimitedHint}</p>
+          )}
+          {amountMode === "exact" && (
+            <>
+              <input
+                type="text" inputMode="decimal" value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.,]/g, ""))}
+                placeholder={t.exactPh(token)}
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm text-white outline-none font-data"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${amountStr && !amountOk ? "rgba(251,113,133,0.5)" : "rgba(255,255,255,0.1)"}`,
+                }}
+              />
+              {bal > 0 && (
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  {[25, 50, 75, 100].map((pct) => (
+                    <button key={pct}
+                      onClick={() => setAmountStr(String(Number((bal * pct / 100).toFixed(token === "USDC" ? 4 : 6))))}
+                      className="flex-1 min-w-[64px] px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer"
+                      style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.22)", color: "rgba(196,181,253,0.9)" }}>
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <button disabled={!ready}
+        onClick={() => ready && onSubmit(token!, spenderAddr, amountMode === "unlimited" ? "unlimited" : amount)}
+        className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${ready ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
+        style={{
+          background: ready ? "linear-gradient(135deg, rgba(167,139,250,0.85), rgba(99,102,241,0.85))" : "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(167,139,250,0.35)",
+          color: "white",
+        }}>
+        {t.submit}
+      </button>
+    </div>
+  );
+}
+
+// ─── Web3 radar topic picker (DeFi / L2 / security / regulation / airdrops) ───
+
+function Web3RadarTopicPicker({ lang, onPick }: { lang: "pt" | "en"; onPick: (topic: Web3RadarTopic) => void }) {
+  const t = lang === "pt"
+    ? { title: "Escolha o tópico do briefing", sub: "Briefings ao vivo — sem NFTs nem DAOs." }
+    : { title: "Pick a briefing topic", sub: "Live briefings — NFTs and DAOs excluded." };
+
+  return (
+    <div className="mt-3 px-4 py-4 rounded-2xl space-y-3"
+      style={{ background: "rgba(7,14,30,0.9)", border: "1px solid rgba(56,189,248,0.22)", backdropFilter: "blur(16px)" }}>
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-1" style={{ color: "rgba(56,189,248,0.6)" }}>{t.title}</p>
+        <p className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>{t.sub}</p>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {WEB3_RADAR_TOPICS.map((topic) => (
+          <button key={topic.id} onClick={() => onPick(topic.id)}
+            className="flex-1 min-w-[130px] flex flex-col gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer"
+            style={{ background: "rgba(56,189,248,0.07)", border: "1px solid rgba(56,189,248,0.22)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(56,189,248,0.14)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(56,189,248,0.07)"; }}>
+            <span className="text-sm font-semibold text-white">{topic.icon} {lang === "pt" ? topic.labelPt : topic.labelEn}</span>
+            <span className="text-[10px] leading-snug" style={{ color: "rgba(148,163,184,0.55)" }}>
+              {lang === "pt" ? topic.descPt : topic.descEn}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2518,7 +2835,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit }: {
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare }: {
   msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -2534,6 +2851,9 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
   onSwapWizardSubmit: (msgId: string, fromToken: string, amount: number, toToken: string) => void;
   onLiquidityWizardSubmit: (msgId: string, params: { feeTier: number; rangeMode: "percent" | "full"; rangePercent?: number; wprosAmount: number }) => void;
   onTransferWizardSubmit: (msgId: string, token: string, amount: number, recipients: string[]) => void;
+  onApproveWizardSubmit: (msgId: string, token: string, spender: string, amount: number | "unlimited") => void;
+  onRadarTopicPick: (msgId: string, topic: Web3RadarTopic) => void;
+  onLinkCompare: (msgId: string, suspiciousUrl: string, officialUrl: string) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -2721,6 +3041,15 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
             onSubmit={(token, amount, recipients) => onTransferWizardSubmit(msg.id, token, amount, recipients)} />
         )}
 
+        {msg.approveWizard && walletAddress && (
+          <ApproveWizardCard state={msg.approveWizard} lang={lang}
+            onSubmit={(token, spender, amount) => onApproveWizardSubmit(msg.id, token, spender, amount)} />
+        )}
+
+        {msg.radarPicker && (
+          <Web3RadarTopicPicker lang={lang} onPick={(topic) => onRadarTopicPick(msg.id, topic)} />
+        )}
+
         {msg.pending && walletAddress && (
           <div className="mt-3 px-4 py-3.5 rounded-2xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.14)", backdropFilter: "blur(8px)" }}>
             <p className="text-[10px] uppercase tracking-[0.1em] font-semibold mb-1.5" style={{ color: "rgba(0,212,255,0.45)" }}>Ready to execute</p>
@@ -2894,6 +3223,17 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
         {msg.walletIntel && <WalletScoreCard intel={msg.walletIntel} lang={lang} />}
 
+        {msg.sybilReport && <SybilReportCard report={msg.sybilReport} lang={lang} />}
+        {msg.linkCompare ? (
+          <LinkCompareCard compare={msg.linkCompare} lang={lang} />
+        ) : msg.linkScanReport ? (
+          <LinkScanCard
+            report={msg.linkScanReport}
+            lang={lang}
+            onCompare={(officialUrl) => onLinkCompare(msg.id, msg.linkScanReport!.inputUrl, officialUrl)}
+          />
+        ) : null}
+
         {msg.transferPending && walletAddress && (
           <TransferCard
             build={msg.transferPending}
@@ -2948,7 +3288,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory" | "approve" | "allowance";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory" | "approve" | "allowance" | "web3radar" | "sybil" | "linkscan";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -3106,6 +3446,321 @@ function WalletScoreCard({ intel, lang }: { intel: WalletIntel; lang: "pt" | "en
           {lang === "pt" ? "Ver no explorer ↗" : "View on explorer ↗"}
         </a>
       </div>
+    </div>
+  );
+}
+
+// ─── Sybil / Bot detection card ─────────────────────────────────────────────
+
+const VERDICT_COLORS: Record<SybilReport["verdict"], string> = {
+  likely_human: "#34d399",
+  mixed: "#fbbf24",
+  likely_bot: "#fb923c",
+  likely_sybil: "#f87171",
+};
+
+const SEVERITY_COLORS: Record<string, string> = {
+  low: "rgba(148,163,184,0.7)",
+  medium: "#fbbf24",
+  high: "#fb923c",
+  critical: "#f87171",
+};
+
+function SybilReportCard({ report, lang }: { report: SybilReport; lang: "pt" | "en" }) {
+  const color = VERDICT_COLORS[report.verdict];
+  const R = 42;
+  const CIRC = 2 * Math.PI * R;
+  const dash = (report.riskScore / 100) * CIRC;
+  const verdictLabel = {
+    likely_human: lang === "pt" ? "Provável humano" : "Likely human",
+    mixed: lang === "pt" ? "Misto" : "Mixed",
+    likely_bot: lang === "pt" ? "Provável bot" : "Likely bot",
+    likely_sybil: lang === "pt" ? "Provável Sybil" : "Likely Sybil",
+  }[report.verdict];
+  const riskSignals = report.signals.filter((s) => s.weight > 0);
+  const humanSignals = report.signals.filter((s) => s.weight < 0);
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center gap-5 flex-wrap">
+        <div className="relative shrink-0" style={{ width: 116, height: 116 }}>
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="8" />
+            <circle cx="50" cy="50" r={R} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={`${dash} ${CIRC - dash}`}
+              style={{ filter: `drop-shadow(0 0 6px ${color}66)`, transition: "stroke-dasharray 0.8s ease" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-white leading-none">{report.riskScore}</span>
+            <span className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(148,163,184,0.6)" }}>{lang === "pt" ? "risco" : "risk"}</span>
+          </div>
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base font-bold" style={{ color }}>{verdictLabel}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${color}18`, border: `1px solid ${color}44`, color }}>
+              {lang === "pt" ? "confiança" : "confidence"}: {report.confidence}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]" style={{ color: "rgba(200,215,235,0.75)" }}>
+            <span>{lang === "pt" ? "On-chain" : "On-chain"}: <b className="text-white">{report.onChainRisk}/100</b></span>
+            <span>{lang === "pt" ? "Composto" : "Composite"}: <b className="text-white">{report.compositeRisk}/100</b></span>
+            <span>{lang === "pt" ? "Contrapartes" : "Counterparties"}: <b className="text-white">{report.metrics.uniqueCounterparties}</b></span>
+            <span>{lang === "pt" ? "Protocolos" : "Protocols"}: <b className="text-white">{report.metrics.protocolCount}</b></span>
+            <span>{lang === "pt" ? "Funding top" : "Top funder"}: <b className="text-white">{(report.metrics.topFunderShare * 100).toFixed(0)}%</b></span>
+            <span>{lang === "pt" ? "Meses ativos" : "Active months"}: <b className="text-white">{report.metrics.activeMonths}</b></span>
+          </div>
+          {(report.reputation.trustaAvailable || report.reputation.passportAvailable || report.rootFunder) && (
+            <div className="mt-2 flex gap-1.5 flex-wrap">
+              {report.reputation.trustaAvailable && report.reputation.trustaSybilScore != null && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.2)", color: "rgba(0,212,255,0.85)" }}>
+                  Trusta {report.reputation.trustaSybilScore}
+                </span>
+              )}
+              {report.reputation.passportAvailable && report.reputation.passportScore != null && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.18)", color: "rgba(110,231,183,0.85)" }}>
+                  Passport {report.reputation.passportScore}{report.reputation.passportPassing ? " ✓" : ""}
+                </span>
+              )}
+              {report.rootFunder && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono" style={{ background: "rgba(148,163,184,0.08)", border: "1px solid rgba(148,163,184,0.2)", color: "rgba(200,215,235,0.7)" }}>
+                  funder {report.rootFunder.slice(0, 8)}…
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {riskSignals.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-[10px] uppercase tracking-widest" style={{ color: "rgba(248,113,113,0.7)" }}>
+            {lang === "pt" ? "Sinais de risco" : "Risk signals"}
+          </p>
+          {riskSignals.map((s) => (
+            <div key={s.id} className="rounded-xl px-3 py-2" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
+              <p className="text-xs font-semibold" style={{ color: SEVERITY_COLORS[s.severity] }}>
+                {lang === "pt" ? s.titlePt : s.titleEn}
+              </p>
+              <p className="text-[11px] mt-0.5 leading-snug" style={{ color: "rgba(200,215,235,0.65)" }}>
+                {lang === "pt" ? s.detailPt : s.detailEn}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {humanSignals.length > 0 && (
+        <div className="mt-3 flex gap-1.5 flex-wrap">
+          {humanSignals.map((s) => (
+            <span key={s.id} className="text-[10px] px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.18)", color: "rgba(110,231,183,0.85)" }}>
+              ✓ {lang === "pt" ? s.titlePt : s.titleEn}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+        <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.45)" }}>
+          {report.truncated
+            ? (lang === "pt" ? "Amostra parcial — risco real pode ser maior" : "Partial sample — true risk may be higher")
+            : (lang === "pt" ? "Heurísticas on-chain — não é prova de identidade" : "On-chain heuristics — not proof of identity")}
+        </span>
+        <a href={report.explorer} target="_blank" rel="noopener noreferrer"
+          className="text-[11px] font-semibold hover:underline" style={{ color: "rgba(0,212,255,0.75)" }}>
+          {lang === "pt" ? "Ver no explorer ↗" : "View on explorer ↗"}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ─── Link / phishing scanner card ───────────────────────────────────────────
+
+const LINK_VERDICT_COLORS: Record<LinkScanReport["verdict"], string> = {
+  official: "#34d399",
+  likely_safe: "#6ee7b7",
+  suspicious: "#fbbf24",
+  likely_scam: "#fb923c",
+  confirmed_scam: "#f87171",
+};
+
+function LinkScanCard({
+  report,
+  lang,
+  onCompare,
+}: {
+  report: LinkScanReport;
+  lang: "pt" | "en";
+  onCompare?: (officialUrl: string) => void;
+}) {
+  const [officialInput, setOfficialInput] = useState("");
+  const color = LINK_VERDICT_COLORS[report.verdict];
+  const R = 42;
+  const CIRC = 2 * Math.PI * R;
+  const dash = (report.riskScore / 100) * CIRC;
+  const verdictLabel = {
+    official: lang === "pt" ? "Oficial ✓" : "Official ✓",
+    likely_safe: lang === "pt" ? "Provavelmente seguro" : "Likely safe",
+    suspicious: lang === "pt" ? "Suspeito" : "Suspicious",
+    likely_scam: lang === "pt" ? "Provável scam" : "Likely scam",
+    confirmed_scam: lang === "pt" ? "Scam confirmado" : "Confirmed scam",
+  }[report.verdict];
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center gap-5 flex-wrap">
+        <div className="relative shrink-0" style={{ width: 116, height: 116 }}>
+          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="8" />
+            <circle cx="50" cy="50" r={R} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={`${dash} ${CIRC - dash}`}
+              style={{ filter: `drop-shadow(0 0 6px ${color}66)`, transition: "stroke-dasharray 0.8s ease" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-white leading-none">{report.riskScore}</span>
+            <span className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(148,163,184,0.6)" }}>{lang === "pt" ? "risco" : "risk"}</span>
+          </div>
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base font-bold" style={{ color }}>{verdictLabel}</span>
+            {report.officialMatch && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.25)", color: "#6ee7b7" }}>
+                ✓ {report.officialMatch}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] font-mono break-all" style={{ color: "rgba(200,215,235,0.75)" }}>{report.hostname}</p>
+          {report.impersonatedBrands.length > 0 && !report.officialMatch && (
+            <p className="mt-1 text-[11px]" style={{ color: "#fb923c" }}>
+              {lang === "pt" ? "Imita" : "Impersonates"}: <b>{report.impersonatedBrands.slice(0, 3).join(", ")}</b>
+            </p>
+          )}
+          {report.finalUrl && report.finalUrl !== report.inputUrl && (
+            <p className="mt-1 text-[10px] break-all" style={{ color: "rgba(248,113,113,0.8)" }}>
+              → {report.finalUrl.slice(0, 60)}{report.finalUrl.length > 60 ? "…" : ""}
+            </p>
+          )}
+          <div className="mt-2 flex gap-1.5 flex-wrap">
+            {report.trustStatus === "unverified" && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.25)", color: "#fbbf24" }}>
+                {lang === "pt" ? "projeto não listado" : "unlisted project"}
+              </span>
+            )}
+            {report.discoveredOfficial && report.trustStatus === "search_mismatch" && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.3)", color: "#f87171" }}>
+                {lang === "pt" ? "oficial" : "official"}: {report.discoveredOfficial}
+              </span>
+            )}
+            {report.discoveredOfficial && report.trustStatus === "search_verified" && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#6ee7b7" }}>
+                ✓ {report.discoveredOfficial}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {report.signals.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-[10px] uppercase tracking-widest" style={{ color: "rgba(248,113,113,0.7)" }}>
+            {lang === "pt" ? "Sinais de risco" : "Risk signals"}
+          </p>
+          {report.signals.slice(0, 6).map((s) => (
+            <div key={s.id} className="rounded-xl px-3 py-2" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
+              <p className="text-xs font-semibold" style={{ color: SEVERITY_COLORS[s.severity] }}>
+                {lang === "pt" ? s.titlePt : s.titleEn}
+              </p>
+              <p className="text-[11px] mt-0.5 leading-snug" style={{ color: "rgba(200,215,235,0.65)" }}>
+                {lang === "pt" ? s.detailPt : s.detailEn}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 text-[10px]" style={{ color: "rgba(148,163,184,0.45)" }}>
+        {lang === "pt"
+          ? "Heurísticas + redirects + allowlist — confirme sempre no canal oficial antes de conectar carteira."
+          : "Heuristics + redirects + allowlist — always confirm via official channel before connecting a wallet."}
+      </div>
+
+      {onCompare && report.trustStatus !== "allowlist_verified" && (
+        <div className="mt-4 pt-3 border-t border-white/10">
+          <p className="text-[11px] font-semibold mb-2" style={{ color: "rgba(200,215,235,0.85)" }}>
+            {lang === "pt" ? "Comparar com link oficial (Twitter/Discord)" : "Compare with official link (Twitter/Discord)"}
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="url"
+              value={officialInput}
+              onChange={(e) => setOfficialInput(e.target.value)}
+              placeholder={lang === "pt" ? "https://site-oficial.xyz" : "https://official-site.xyz"}
+              className="flex-1 min-w-[200px] rounded-xl px-3 py-2 text-[11px] font-mono bg-black/30 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-cyan-500/40"
+            />
+            <button
+              type="button"
+              disabled={!officialInput.trim().startsWith("http")}
+              onClick={() => onCompare(officialInput.trim())}
+              className="shrink-0 px-4 py-2 rounded-xl text-[11px] font-semibold disabled:opacity-40"
+              style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}
+            >
+              {lang === "pt" ? "Comparar" : "Compare"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const COMPARE_VERDICT_COLORS: Record<LinkCompareReport["verdict"], string> = {
+  match_official: "#34d399",
+  likely_phishing: "#f87171",
+  both_unverified: "#fbbf24",
+  suspicious_divergence: "#fb923c",
+};
+
+function LinkCompareCard({ compare, lang }: { compare: LinkCompareReport; lang: "pt" | "en" }) {
+  const color = COMPARE_VERDICT_COLORS[compare.verdict];
+  const verdictLabel = {
+    match_official: lang === "pt" ? "Domínios coincidem ✓" : "Domains match ✓",
+    likely_phishing: lang === "pt" ? "Provável phishing" : "Likely phishing",
+    both_unverified: lang === "pt" ? "Ambos não verificados" : "Both unverified",
+    suspicious_divergence: lang === "pt" ? "Divergência suspeita" : "Suspicious divergence",
+  }[compare.verdict];
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-base font-bold" style={{ color }}>{verdictLabel}</span>
+        {!compare.domainsMatch && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
+            {lang === "pt" ? "domínios diferentes" : "different domains"}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-xl p-3" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.18)" }}>
+          <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "rgba(248,113,113,0.7)" }}>
+            {lang === "pt" ? "Link suspeito (DM)" : "Suspicious (DM)"}
+          </p>
+          <p className="text-[11px] font-mono break-all mb-2" style={{ color: "rgba(200,215,235,0.8)" }}>{compare.suspicious.hostname}</p>
+          <p className="text-2xl font-bold" style={{ color: "#f87171" }}>{compare.suspicious.riskScore}<span className="text-xs font-normal opacity-60">/100</span></p>
+        </div>
+        <div className="rounded-xl p-3" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.18)" }}>
+          <p className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "rgba(52,211,153,0.7)" }}>
+            {lang === "pt" ? "Link oficial (Twitter)" : "Official (Twitter)"}
+          </p>
+          <p className="text-[11px] font-mono break-all mb-2" style={{ color: "rgba(200,215,235,0.8)" }}>{compare.official.hostname}</p>
+          <p className="text-2xl font-bold" style={{ color: "#34d399" }}>{compare.official.riskScore}<span className="text-xs font-normal opacity-60">/100</span></p>
+        </div>
+      </div>
+      <p className="mt-3 text-[10px]" style={{ color: "rgba(148,163,184,0.5)" }}>
+        Δ {lang === "pt" ? "risco" : "risk"}: +{compare.riskDelta} · {compare.suspiciousDomain} vs {compare.officialDomain}
+      </p>
     </div>
   );
 }
@@ -3974,14 +4629,14 @@ export default function ChatPage() {
       // choices, amount queries, and all built tx cards (swap/bridge, add and
       // remove liquidity, position pickers, transfers, approvals).
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-        m.liquidityWizard || m.transferWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
         m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
         m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
         isLoading: false, isSearching: false,
-        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined,
+        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined,
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
         liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
         positions: undefined, removeMode: undefined,
@@ -3998,7 +4653,7 @@ export default function ChatPage() {
     if (pendingStakeRef.current || pendingWprosRescueRef.current) return true;
     return msgs.some((m) =>
       m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-      m.liquidityWizard || m.transferWizard || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+      m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
       m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
       m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice,
     );
@@ -4022,7 +4677,7 @@ export default function ChatPage() {
          m.removePctPending || m.positions || m.bridgeChoice ||
          m.transferPending || m.approvePending || m.stakePending);
     const hasOpenFlow = messagesRef.current.some(
-      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.transferWizard || m.amountQuery || isStaleBuiltCard(m)
+      (m) => m.bridgeWizard || m.swapWizard || m.liquidityWizard || m.transferWizard || m.approveWizard || m.amountQuery || isStaleBuiltCard(m)
     );
     if (!hasOpenFlow) return;
     const hadBuiltCards = messagesRef.current.some(isStaleBuiltCard);
@@ -4058,6 +4713,13 @@ export default function ChatPage() {
             map[sym] = holdings.find((h) => h.symbol.toUpperCase() === sym)?.balance ?? 0;
           }
           return { ...m, transferWizard: { ...m.transferWizard, balances: map } };
+        }
+        if (m.approveWizard) {
+          const map: Record<string, number> = {};
+          for (const sym of APPROVE_WIZARD_TOKENS) {
+            map[sym] = balances.find((b) => b.symbol.toUpperCase() === sym)?.balance ?? balFor(sym);
+          }
+          return { ...m, approveWizard: { ...m.approveWizard, balances: map } };
         }
         if (m.amountQuery) return { ...m, amountQuery: { ...m.amountQuery, balance: balFor(m.amountQuery.token) } };
         return m;
@@ -4877,17 +5539,283 @@ export default function ChatPage() {
     }
   }
 
-  function startApproveFlow(msgId: string) {
+  async function startApproveWizard(
+    msgId: string,
+    pre: { token?: string; spender?: string; amount?: number | "unlimited" } = {},
+  ) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    if (selectedNetwork === "testnet") {
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Approve de tokens ERC-20 no testnet não está disponível — troque para Mainnet."
+          : "ERC-20 token approvals on testnet aren't supported — switch to Mainnet.",
+      });
+      return;
+    }
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Lendo saldos dos tokens ERC-20…" : "Reading ERC-20 token balances…",
+    });
+    try {
+      const balances = await getTokenBalancesFast(walletAddress, "mainnet");
+      if (opSeqRef.current !== seq) return;
+      const map: Record<string, number> = {};
+      for (const sym of APPROVE_WIZARD_TOKENS) {
+        map[sym] = balances.find((b) => b.symbol.toUpperCase() === sym)?.balance ?? 0;
+      }
+      const preToken = pre.token && APPROVE_WIZARD_TOKENS.includes(pre.token.toUpperCase() as Erc20Symbol)
+        ? pre.token.toUpperCase() : undefined;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? "Autorize um contrato a gastar seus tokens ERC-20. Escolha o **token**, o **spender** (protocolo) e o **valor** — eu monto o approve para assinar."
+          : "Authorize a contract to spend your ERC-20 tokens. Pick the **token**, **spender** (protocol), and **amount** — I'll build the approve for you to sign.",
+        approveWizard: {
+          balances: map,
+          preToken,
+          preSpender: pre.spender,
+          preAmount: pre.amount,
+        },
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Failed to read balances: ${msg}` });
+    }
+  }
+
+  function handleApproveWizardSubmit(msgId: string, token: string, spender: string, amount: number | "unlimited") {
+    const lang = guessUserLang(messages);
+    try {
+      const tx = buildApproveTx({ token, spender, amount });
+      const spenderShort = `${spender.slice(0, 6)}…${spender.slice(-4)}`;
+      const amountLabel = amount === "unlimited"
+        ? (lang === "pt" ? "valor ilimitado" : "unlimited amount")
+        : `${amount} ${token}`;
+      const riskNote = amount === "unlimited"
+        ? (lang === "pt"
+          ? "\n\n⚠️ **Approve ilimitado** — o contrato pode gastar todo o seu saldo deste token. Revogue depois em revoke.cash se não precisar mais."
+          : "\n\n⚠️ **Unlimited approve** — the contract can spend your entire balance of this token. Revoke later on revoke.cash if you no longer need it.")
+        : "";
+      updateMessage(msgId, {
+        approveWizard: undefined,
+        isLoading: false,
+        text: (lang === "pt"
+          ? `Pronto! Revise e assine o **approve** de **${amountLabel}** para \`${spenderShort}\`.`
+          : `Ready! Review and sign the **approve** for **${amountLabel}** to \`${spenderShort}\`.`) + riskNote,
+        approvePending: tx,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { approveWizard: undefined, isLoading: false, isError: true, text: msg });
+    }
+  }
+
+  async function runSybilCheck(msgId: string, target: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Executando heurísticas anti-Sybil/bot on-chain…" : "Running on-chain Sybil/bot heuristics…",
+    });
+    try {
+      const res = await fetch("/api/skill/sybil-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: target }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const report = await res.json() as SybilReport & { available?: boolean; error?: string };
+      if (!report.available) throw new Error(report.error ?? "Unavailable");
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, {
+        isLoading: false,
+        text: formatSybilReport(report, lang),
+        sybilReport: report,
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false,
+        isError: true,
+        text: lang === "pt" ? `Falha na análise Sybil: ${msg}` : `Sybil analysis failed: ${msg}`,
+      });
+    }
+  }
+
+  async function runSybilClusterCheck(msgId: string, addresses: string[]) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? `Analisando cluster de ${addresses.length} carteiras…` : `Analyzing cluster of ${addresses.length} wallets…`,
+    });
+    try {
+      const res = await fetch("/api/skill/sybil-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addresses }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as SybilClusterReport & { available?: boolean; error?: string; wallets?: SybilReport[] };
+      if (!data.available || !data.wallets?.length) throw new Error(data.error ?? "Unavailable");
+      if (opSeqRef.current !== seq) return;
+      const top = data.wallets.reduce((best, w) => (w.riskScore > best.riskScore ? w : best), data.wallets[0]);
+      updateMessage(msgId, {
+        isLoading: false,
+        text: lang === "pt"
+          ? `🛡️ **Cluster Sybil** — ${addresses.length} carteiras · risco médio **${data.clusterRisk}/100**. Carteira mais suspeita: \`${top.address.slice(0, 8)}…\` (**${top.riskScore}/100**).`
+          : `🛡️ **Sybil cluster** — ${addresses.length} wallets · average risk **${data.clusterRisk}/100**. Most suspicious: \`${top.address.slice(0, 8)}…\` (**${top.riskScore}/100**).`,
+        sybilReport: top,
+        sybilCluster: data,
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false,
+        isError: true,
+        text: lang === "pt" ? `Falha na análise de cluster: ${msg}` : `Cluster analysis failed: ${msg}`,
+      });
+    }
+  }
+
+  async function runLinkCheck(msgId: string, urls: string[]) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt"
+        ? "Escaneando URL Web3 (allowlist, typosquat, redirects, sniff de página)…"
+        : "Scanning Web3 URL (allowlist, typosquat, redirects, page sniff)…",
+    });
+    try {
+      const body = urls.length === 1 ? { url: urls[0] } : { urls };
+      const res = await fetch("/api/skill/link-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as (LinkScanReport | LinkScanBatchReport) & { available?: boolean; error?: string; mode?: string };
+      if (opSeqRef.current !== seq) return;
+      if (data.error || data.available === false) throw new Error(data.error ?? "Scan failed");
+
+      if ("reports" in data && Array.isArray(data.reports)) {
+        const batch = data as LinkScanBatchReport;
+        const top = batch.reports.sort((a, b) => b.riskScore - a.riskScore)[0];
+        updateMessage(msgId, {
+          isLoading: false,
+          text: formatLinkScanBatch(batch, lang),
+          linkScanReport: top,
+          linkScanBatch: batch,
+        });
+      } else {
+        const report = data as LinkScanReport;
+        updateMessage(msgId, {
+          isLoading: false,
+          text: formatLinkScanReport(report, lang),
+          linkScanReport: report,
+        });
+      }
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false,
+        isError: true,
+        text: lang === "pt" ? `Falha no scanner de links: ${msg}` : `Link scan failed: ${msg}`,
+      });
+    }
+  }
+
+  async function runLinkCompare(msgId: string, suspiciousUrl: string, officialUrl: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt"
+        ? "Comparando link suspeito vs oficial do Twitter…"
+        : "Comparing suspicious link vs official from Twitter…",
+    });
+    try {
+      const res = await fetch("/api/skill/link-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suspiciousUrl, officialUrl }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as LinkCompareReport & { available?: boolean; error?: string };
+      if (opSeqRef.current !== seq) return;
+      if (data.error || data.available === false) throw new Error(data.error ?? "Compare failed");
+      updateMessage(msgId, {
+        isLoading: false,
+        text: formatLinkCompareReport(data, lang),
+        linkCompare: data,
+        linkScanReport: data.suspicious,
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false,
+        isError: true,
+        text: lang === "pt" ? `Falha na comparação: ${msg}` : `Comparison failed: ${msg}`,
+      });
+    }
+  }
+
+  async function runWeb3RadarBriefing(msgId: string, topic: Web3RadarTopic) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    const meta = WEB3_RADAR_TOPICS.find((t) => t.id === topic)!;
+    const label = lang === "pt" ? meta.labelPt : meta.labelEn;
+    updateMessage(msgId, {
+      isLoading: true,
+      radarPicker: undefined,
+      text: lang === "pt"
+        ? `Indexando briefing **${label}** com fontes ao vivo…`
+        : `Fetching live **${label}** briefing…`,
+    });
+    try {
+      const res = await fetch(`/api/web3-radar?topic=${topic}&lang=${lang}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as { text?: string };
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, { isLoading: false, text: data.text ?? "" });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false,
+        isError: true,
+        text: lang === "pt"
+          ? `Não consegui gerar o briefing agora (${msg}). Tente de novo em instantes.`
+          : `Couldn't generate the briefing right now (${msg}). Try again shortly.`,
+      });
+    }
+  }
+
+  function startWeb3RadarPicker(msgId: string) {
     const lang = guessUserLang(messages);
     updateMessage(msgId, {
       isLoading: false,
-      text:
-        lang === "pt"
-          ? "Envie o approve completo — eu monto a transação para assinar:\n\n`aprovar 100 USDC para 0x…`\n`aprovar USDC ilimitado para 0x…`"
-          : "Send a complete approve — I'll build the transaction to sign:\n\n`approve 100 USDC for 0x…`\n`approve unlimited USDC for 0x…`",
+      radarPicker: true,
+      text: lang === "pt"
+        ? "📡 **Web3 Briefings** — escolha um tópico abaixo. Eu busco tendências e alertas ao vivo (DeFi, L2, segurança, regulação, airdrops). **NFTs e DAOs ficam de fora.**"
+        : "📡 **Web3 Briefings** — pick a topic below. I'll fetch live trends and alerts (DeFi, L2, security, regulation, airdrops). **NFTs and DAOs are excluded.**",
     });
-    setInput(lang === "pt" ? "aprovar USDC para 0x" : "approve USDC for 0x");
-    inputRef.current?.focus();
+  }
+
+  function handleRadarTopicPick(msgId: string, topic: Web3RadarTopic) {
+    void runWeb3RadarBriefing(msgId, topic);
+  }
+
+  function startApproveFlow(msgId: string) {
+    void startApproveWizard(msgId, {});
   }
 
   // Quick actions: clicking an on-chain function starts the guided flow
@@ -4951,6 +5879,30 @@ export default function ChatPage() {
         break;
       case "approve":
         startApproveFlow(id);
+        break;
+      case "web3radar":
+        startWeb3RadarPicker(id);
+        break;
+      case "sybil":
+        if (!walletAddress) {
+          updateMessage(id, {
+            isLoading: false,
+            text: lang === "pt"
+              ? "Para analisar Sybil/bot, conecte sua carteira ou cole um endereço 0x… no chat."
+              : "To run Sybil/bot detection, connect your wallet or paste a 0x… address in chat.",
+          });
+        } else {
+          updateMessage(id, { text: lang === "pt" ? "Analisando padrões Sybil/bot…" : "Analyzing Sybil/bot patterns…", isLoading: true });
+          void runSybilCheck(id, walletAddress);
+        }
+        break;
+      case "linkscan":
+        updateMessage(id, {
+          isLoading: false,
+          text: lang === "pt"
+            ? "🔗 **Scanner Web3** — cole a URL suspeita no chat.\n\nPara **comparar** com o site oficial do Twitter:\n`comparar suspeito: https://fake.xyz oficial: https://real.xyz`"
+            : "🔗 **Web3 scanner** — paste the suspicious URL in chat.\n\nTo **compare** with the official Twitter site:\n`compare suspicious: https://fake.xyz official: https://real.xyz`",
+        });
         break;
     }
   }
@@ -5055,6 +6007,7 @@ export default function ChatPage() {
     // straight from the local directory — instant, complete, never dangles.
     const fastLang: "pt" | "en" =
       /[ãõáéíóúâêôçà]|\b(quais?|quem|lista|liste|mostr[ae]|protocolos?|projetos?|parceir|investidor|ecossistema|dispon[ií]ve|not[íi]cia|novidade|campanha|explica|essa|tem)\b/i.test(text) ? "pt" : "en";
+    const typedAddresses = [...new Set((text.match(/0x[a-fA-F0-9]{40}/g) ?? []).map((a) => a.toLowerCase()))];
 
     if (isDappListQuestion(text) || isPartnerQuestion(text)) {
       const reply = isDappListQuestion(text) ? buildDappListReply(fastLang) : buildPartnersReply(fastLang);
@@ -5083,6 +6036,85 @@ export default function ChatPage() {
         text: fastLang === "pt" ? "Buscando suas últimas transações no explorer…" : "Fetching your latest transactions from the explorer…",
       });
       await runTxHistory(thinkingId);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Sybil / bot detection fast path
+    const sybilQuery = detectSybilQuery(text);
+    if (sybilQuery) {
+      if (sybilQuery.mode === "cluster" && sybilQuery.addresses.length >= 2) {
+        updateMessage(thinkingId, {
+          isLoading: true,
+          text: fastLang === "pt" ? "Analisando cluster Sybil…" : "Analyzing Sybil cluster…",
+        });
+        await runSybilClusterCheck(thinkingId, sybilQuery.addresses);
+      } else {
+        const target = sybilQuery.addresses[0] ?? typedAddresses[0] ?? walletAddress;
+        if (!target) {
+          updateMessage(thinkingId, {
+            isLoading: false,
+            text: fastLang === "pt"
+              ? "Para detectar Sybil/bot, conecte sua carteira ou cole um endereço 0x…"
+              : "To detect Sybil/bots, connect your wallet or paste a 0x… address.",
+          });
+        } else {
+          updateMessage(thinkingId, {
+            isLoading: true,
+            text: fastLang === "pt" ? "Executando análise anti-Sybil…" : "Running anti-Sybil analysis…",
+          });
+          await runSybilCheck(thinkingId, target);
+        }
+      }
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Link compare fast path (suspicious vs official from Twitter)
+    const compareQuery = detectLinkCompareQuery(text);
+    if (compareQuery) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Comparando links…" : "Comparing links…",
+      });
+      await runLinkCompare(thinkingId, compareQuery.suspicious, compareQuery.official);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Link / phishing scanner fast path
+    const linkQuery = detectLinkScanQuery(text);
+    if (linkQuery) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Escaneando link(s)…" : "Scanning link(s)…",
+      });
+      await runLinkCheck(thinkingId, linkQuery.urls);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Web3 radar fast path (Alpha Radar–style briefings, no NFT/DAO)
+    const radarTopic = detectWeb3RadarTopic(text);
+    if (radarTopic) {
+      updateMessage(thinkingId, { isLoading: true, text: fastLang === "pt" ? "Gerando briefing Web3…" : "Generating Web3 briefing…" });
+      await runWeb3RadarBriefing(thinkingId, radarTopic);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+    if (/\b(nft|nfts|dao|daos)\b/i.test(text) && /\b(briefing|radar|trend|intel|resumo)\b/i.test(text)) {
+      updateMessage(thinkingId, {
+        isLoading: false,
+        text: fastLang === "pt"
+          ? "Briefings Web3 do ProsPilot cobrem **DeFi, Layer 2, segurança, regulação e airdrops** — não incluo NFTs nem DAOs. Escolha um tópico na sidebar **Web3 Briefing** ou peça, por exemplo: \"briefing DeFi\"."
+          : "ProsPilot Web3 briefings cover **DeFi, Layer 2, security, regulation, and airdrops** — not NFTs or DAOs. Use the **Web3 Briefing** sidebar item or ask e.g. \"DeFi briefing\".",
+        radarPicker: true,
+      });
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -5167,8 +6199,6 @@ export default function ChatPage() {
     }
 
     // Deterministic wallet-intelligence fast paths (no LLM round-trip).
-    const typedAddresses = [...new Set((text.match(/0x[a-fA-F0-9]{40}/g) ?? []).map((a) => a.toLowerCase()))];
-
     // Multi-wallet aggregator: 2+ addresses in one message + a wallet-ish verb.
     if (typedAddresses.length >= 2 && /\b(carteiras?|wallets?|agrega|aggregate|compar|combin|analis|analy[sz]|saldos?|balances?|total)\b/i.test(text)) {
       void runMultiWallet(thinkingId, typedAddresses);
@@ -5471,6 +6501,60 @@ export default function ChatPage() {
           return;
         }
 
+        // ── Web3 intelligence briefings (Alpha Radar style) ─────────────────
+        if (groqResult.action === "web3_radar") {
+          if (groqResult.radarTopic) {
+            await runWeb3RadarBriefing(thinkingId, groqResult.radarTopic);
+          } else {
+            startWeb3RadarPicker(thinkingId);
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // ── Sybil / bot detection ───────────────────────────────────────────
+        if (groqResult.action === "sybil_check") {
+          const lang = guessUserLang(messages);
+          const addrs = [...new Set((text.match(/0x[a-fA-F0-9]{40}/gi) ?? []).map((a) => a.toLowerCase()))];
+          if (addrs.length >= 2) {
+            await runSybilClusterCheck(thinkingId, addrs);
+          } else {
+            const target = addrs[0] ?? walletAddress;
+            if (!target) {
+              updateMessage(thinkingId, {
+                isLoading: false,
+                text: lang === "pt"
+                  ? "Para análise Sybil/bot, conecte sua carteira ou cole um endereço 0x…"
+                  : "For Sybil/bot analysis, connect your wallet or paste a 0x… address.",
+              });
+            } else {
+              await runSybilCheck(thinkingId, target);
+            }
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
+        // ── Link / phishing scanner ─────────────────────────────────────────
+        if (groqResult.action === "link_check") {
+          const urls = extractUrls(text);
+          if (urls.length === 0) {
+            updateMessage(thinkingId, {
+              isLoading: false,
+              text: guessUserLang(messages) === "pt"
+                ? "Cole a URL que quer verificar (ex.: https://port.pharos.xyz ou um link suspeito)."
+                : "Paste the URL to verify (e.g. https://port.pharos.xyz or a suspicious link).",
+            });
+          } else {
+            await runLinkCheck(thinkingId, urls.slice(0, 5));
+          }
+          setIsSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+
         // ── ERC-20 approval via natural language ───────────────────────────
         if (groqResult.action === "approve") {
           const lang = guessUserLang(messages);
@@ -5482,7 +6566,11 @@ export default function ChatPage() {
                 : "To approve tokens, connect your wallet first ('Connect' at the top). 🔗",
             });
           } else if (!groqResult.approveToken || !groqResult.approveSpender || groqResult.approveAmount == null) {
-            updateMessage(thinkingId, { isLoading: false, text: groqResult.reply });
+            void startApproveWizard(thinkingId, {
+              token: groqResult.approveToken ?? undefined,
+              spender: groqResult.approveSpender ?? undefined,
+              amount: groqResult.approveAmount ?? undefined,
+            });
           } else {
             try {
               const tx = buildApproveTx({
@@ -6100,6 +7188,9 @@ export default function ChatPage() {
                 { label: "Tx History", icon: "≡", action: "txhistory" as const },
                 { label: "RealFi Positions", icon: "▣", action: "realfi" as const },
                 { label: "RWA Market (live)", icon: "◐", action: "rwamarket" as const },
+                { label: "Web3 Briefing", icon: "📡", action: "web3radar" as const },
+                { label: "Sybil / Bot Check", icon: "🛡", action: "sybil" as const },
+                { label: "Link / Scam Scanner", icon: "🔗", action: "linkscan" as const },
               ]).map((item) => (
                 <button key={item.label} onClick={() => handleQuickAction(item.action)} className="sidebar-item">
                   <span className="sidebar-item-icon w-7 h-7 rounded-lg flex items-center justify-center text-xs">{item.icon}</span>
@@ -6290,6 +7381,9 @@ export default function ChatPage() {
               onSwapWizardSubmit={handleSwapWizardSubmit}
               onLiquidityWizardSubmit={handleLiquidityWizardSubmit}
               onTransferWizardSubmit={handleTransferWizardSubmit}
+              onApproveWizardSubmit={handleApproveWizardSubmit}
+              onRadarTopicPick={handleRadarTopicPick}
+              onLinkCompare={runLinkCompare}
             />
           ))}
           <div ref={bottomRef} />

@@ -2,9 +2,10 @@ import { CORE_KNOWLEDGE, getDetailedSection } from "./knowledge";
 import { callAI, type ChatMessage } from "./ai-providers";
 import { retrieveKnowledge, formatRagContext } from "./rag";
 import { tryFastPathAnswer } from "./fast-path";
+import { detectWeb3RadarTopic, type Web3RadarTopic } from "./web3-radar";
 
 export interface GroqResult {
-  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | "stake" | "unstake" | null;
+  action: "swap" | "bridge" | "add_liquidity" | "remove_liquidity" | "view_positions" | "view_wallet" | "generate_script" | "transfer" | "approve" | "explain_tx" | "stake" | "unstake" | "web3_radar" | "sybil_check" | "link_check" | null;
   fromToken: string | null;
   toToken: string | null;
   amount: number | null;
@@ -60,6 +61,8 @@ export interface GroqResult {
   approveAmount?: number | "unlimited" | null;
   // Tx explainer (action="explain_tx"): hash pasted by the user
   txHash?: string | null;
+  // Web3 Alpha Radar–style briefing (action="web3_radar")
+  radarTopic?: Web3RadarTopic | null;
   // Which AI provider answered (for debugging)
   _provider?: string;
 }
@@ -383,6 +386,23 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "  action='approve', approveToken='USDC', approveSpender='0x…', approveAmount=100 (number) or 'unlimited'.\n" +
     "  'ilimitado'/'unlimited'/'max'/'infinite' → approveAmount='unlimited'. Missing spender → approveSpender=null, ask in reply.\n" +
     "  WARN in reply about unlimited approvals (risk if spender contract is compromised).\n" +
+    "── WEB3 INTELLIGENCE (action='web3_radar') — Alpha Radar style, NO NFTs/DAOs ──\n" +
+    "When the user wants structured Web3 briefings, trend calls, or risk alerts from live sources:\n" +
+    "  Topics: defi | layer2 | security | regulation | airdrops — NEVER nft or dao.\n" +
+    "  action='web3_radar', radarTopic='defi'|'layer2'|'security'|'regulation'|'airdrops'.\n" +
+    "  Triggers: 'DeFi briefing', 'Layer 2 trends', 'security alerts', 'regulation news', 'airdrop intel', 'Web3 Alpha Radar'.\n" +
+    "  If topic unclear → radarTopic=null, reply asks which topic (offer the 5 buttons in web app).\n" +
+    "  If user asks ONLY about NFTs or DAOs → action=null, politely say ProsPilot briefings cover DeFi/L2/security/regulation/airdrops only.\n" +
+    "── SYBIL / BOT DETECTION (action='sybil_check') ──\n" +
+    "When the user asks to detect Sybil wallets, bots, airdrop farms, or anti-sybil analysis:\n" +
+    "  action='sybil_check'. If one 0x address in message, use it; if none, use connected wallet when implied ('my wallet').\n" +
+    "  If 2+ addresses → cluster analysis. Reply: short intro only — the app runs on-chain heuristics.\n" +
+    "  Triggers: 'sybil', 'is this a bot', 'airdrop farm wallet', 'detect bot', 'anti-sybil', 'carteira bot'.\n" +
+    "── LINK / PHISHING SCANNER (action='link_check') — ALL Web3 ──\n" +
+    "When the user asks if a URL is safe, scam, phishing, fake dApp, or pastes a suspicious link:\n" +
+    "  action='link_check'. Works for MetaMask, Uniswap, OpenSea, bridges, L2, Pharos, Telegram scams, etc.\n" +
+    "  Triggers: 'is this link safe', 'scam link', 'phishing', 'fake dapp', 'verificar link', pasted https URL.\n" +
+    "  Reply: one short line — app runs Web3 scanner (80+ official domains, typosquat, HTML sniff, redirects).\n" +
     "── TX EXPLAINER (action='explain_tx') ──\n" +
     "When the user pastes a 66-char transaction hash (0x + 64 hex) or asks to explain/check a transaction ('o que é essa tx?', 'explica essa transação', 'what happened in 0x…'):\n" +
     "  action='explain_tx', txHash='0x…'. The app fetches the tx from the RPC and explains it — your reply is just a short intro like 'Deixa eu ver essa transação…'.\n" +
@@ -441,7 +461,8 @@ function buildSystemPrompt(prefsContext?: string, txContext?: string, searchCont
     "REMINDER: Your ENTIRE response must be a single JSON object. No text before {. No text after }. No markdown fences. Only JSON.\n" +
     "Return ONLY valid JSON — no markdown, no explanation:\n" +
     "{\n" +
-    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|"transfer"|"approve"|"explain_tx"|"stake"|"unstake"|null,\n' +
+    '  "action": "swap"|"bridge"|"add_liquidity"|"remove_liquidity"|"view_positions"|"view_wallet"|"generate_script"|"transfer"|"approve"|"explain_tx"|"stake"|"unstake"|"web3_radar"|"sybil_check"|"link_check"|null,\n' +
+    '  "radarTopic": "defi"|"layer2"|"security"|"regulation"|"airdrops"|null,\n' +
     '  "transfers": [{"to":"0x...","amount":1,"token":"PROS"}]|null,\n' +
     '  "approveToken": "USDC"|null,\n' +
     '  "approveSpender": "0x..."|null,\n' +
@@ -805,6 +826,9 @@ export async function parseWithGroq(
       : null;
   parsed.txHash =
     typeof parsed.txHash === "string" && /^0x[a-fA-F0-9]{64}$/.test(parsed.txHash) ? parsed.txHash : null;
+  parsed.radarTopic =
+    (["defi", "layer2", "security", "regulation", "airdrops"] as const).find((v) => v === parsed.radarTopic) ?? null;
+  if (parsed.action === "web3_radar" && !parsed.radarTopic) parsed.radarTopic = null;
   parsed.foundInKnowledge = parsed.foundInKnowledge === true;
   parsed.sources = Array.isArray(parsed.sources)
     ? parsed.sources.filter((s): s is string => typeof s === "string" && s.length > 0).slice(0, 4)

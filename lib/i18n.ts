@@ -140,6 +140,8 @@ const CHIP_LABELS: Record<string, Partial<Record<SiteLang, string>>> = {
   "My Staking":         { pt: "Meu Staking", es: "Mi Staking", ru: "Мой стейкинг", zh: "我的质押", ja: "マイステーキング", ar: "رهني" },
   "RWA Market":         { pt: "Mercado RWA", es: "Mercado RWA", ru: "Рынок RWA", zh: "RWA 市场", ja: "RWA 市場", ar: "سوق RWA" },
   "RWA Market (live)":  { pt: "Mercado RWA (ao vivo)", es: "Mercado RWA (en vivo)", ru: "Рынок RWA (live)", zh: "RWA 市场（实时）", ja: "RWA 市場（ライブ）", ar: "سوق RWA (مباشر)" },
+  "Web3 Briefing":      { pt: "Briefing Web3", es: "Briefing Web3", ru: "Web3 брифинг", zh: "Web3 简报", ja: "Web3 ブリーフィング", ar: "إحاطة Web3" },
+  "Sybil / Bot Check":  { pt: "Checagem Sybil/Bot", es: "Chequeo Sybil/Bot", ru: "Проверка Sybil/бот", zh: "Sybil/机器人检测", ja: "Sybil/ボットチェック", ar: "فحص Sybil/بوت" },
   "My Positions":       { pt: "Minhas Posições", es: "Mis Posiciones", ru: "Мои позиции", zh: "我的仓位", ja: "マイポジション", ar: "مراكزي" },
   "My LP Positions":    { pt: "Minhas Posições LP", es: "Mis Posiciones LP", ru: "Мои LP-позиции", zh: "我的 LP 仓位", ja: "マイLPポジション", ar: "مراكز LP الخاصة بي" },
   "Wallet Analysis":    { pt: "Análise da Carteira", es: "Análisis de Cartera", ru: "Анализ кошелька", zh: "钱包分析", ja: "ウォレット分析", ar: "تحليل المحفظة" },

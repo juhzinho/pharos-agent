@@ -1,15 +1,12 @@
 {
   "name": "prospilot",
-  "version": "2.2",
+  "version": "2.7-ultra-fast",
   "deployment": "anvita-managed-only",
   "externalHttpCalls": false,
-  "description": "ProsPilot runs on Anvita sandbox using Skill + Strategy only. No remote API calls.",
+  "description": "Ultra-minimal skill pack for fastest Managed runtime responses.",
   "webAppLinkForUsers": "https://pharos-agent-pi.vercel.app/chat",
-  "skillCount": 40,
-  "categories": [
-    "knowledge", "market-data", "wallet-intelligence", "swap", "bridge",
-    "liquidity", "faroo-staking", "payments", "ux"
-  ],
+  "skillCount": 6,
+  "categories": ["knowledge", "faroo-staking", "swap"],
   "onChainSkillsRequireWallet": true,
   "network": { "chainId": 1672, "symbol": "PROS", "explorer": "https://pharos.socialscan.io" }
 }

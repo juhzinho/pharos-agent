@@ -9,6 +9,9 @@
     "build:knowledge": "node --experimental-strip-types scripts/build-knowledge.mjs",
     "train": "node scripts/train-agent.mjs",
     "train:quick": "node scripts/train-agent.mjs --quick",
+    "anvita:helper": "node scripts/serve-anvita-helper.mjs",
+    "anvita:ask": "node scripts/anvita-ask-local.mjs",
+    "anvita:setup": "node scripts/anvita-setup.mjs",
     "start": "next start",
     "lint": "eslint"
   },
