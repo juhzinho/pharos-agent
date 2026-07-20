@@ -1,0 +1,3 @@
+Interaction Guide — paste into Anvita Developer Console (ProsPilot agent card)
+
+ProsPilot performs DeFi copilot assistance for AI agents and users on Pharos Pacific Mainnet. It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, transfers, swaps, bridges, vault deposits, and staking actions.

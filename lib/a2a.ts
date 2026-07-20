@@ -1,8 +1,9 @@
 // Minimal A2A v0.3 helpers for Anvita Flow / external agent gateways.
 
 import { randomUUID } from "node:crypto";
-import { AGENT_DESCRIPTION, AGENT_NAME, AGENT_TAGLINE } from "@/lib/branding";
+import { AGENT_DESCRIPTION, AGENT_INTERACTION_GUIDE, AGENT_NAME, AGENT_TAGLINE } from "@/lib/branding";
 import { parseWithGroq } from "@/lib/groq";
+import { tryFastPathAnswer } from "@/lib/fast-path";
 import { getTokenPrice, formatPriceBlock } from "@/lib/prices";
 
 const BASE = "https://pharos-agent-pi.vercel.app";
@@ -36,6 +37,7 @@ export function getAgentCard() {
     protocolVersion: "0.3.0",
     name: AGENT_NAME,
     description: AGENT_DESCRIPTION,
+    interactionGuide: AGENT_INTERACTION_GUIDE,
     url: `${BASE}/api/a2a`,
     preferredTransport: "JSONRPC",
     additionalInterfaces: [
@@ -156,6 +158,16 @@ export async function answerA2AMessage(userText: string): Promise<string> {
   }
   if (text.length > 4000) {
     return "Message too long (max 4000 characters). Please shorten your question.";
+  }
+
+  const fast = tryFastPathAnswer(text);
+  if (fast) {
+    let reply = fast.reply.trim();
+    if (fast.action) {
+      reply +=
+        `\n\n**On-chain action:** connect your wallet at ${BASE}/chat (Pharos Mainnet, chain 1672) to review and sign.`;
+    }
+    return reply;
   }
 
   const history = [{ role: "user" as const, content: text }];

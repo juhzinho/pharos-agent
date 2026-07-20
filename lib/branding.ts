@@ -14,5 +14,11 @@ export const AGENT_DESCRIPTION =
   `${AGENT_TAGLINE} (chain 1672). Swap, bridge, FaroSwap V3 liquidity, Faroo staking, ` +
   `wallet intelligence, RWA data, and ecosystem Q&A. Non-custodial. ${AGENT_DISCLAIMER}`;
 
+/** Anvita marketplace "Interaction Guide" — SafeHands-style scope list (no x402 / tx-hash review). */
+export const AGENT_INTERACTION_GUIDE =
+  "ProsPilot performs DeFi copilot assistance for AI agents and users on Pharos Pacific Mainnet. " +
+  "It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, " +
+  "transfers, swaps, bridges, vault deposits, and staking actions.";
+
 export const AGENT_SHORT_DESCRIPTION =
   `${AGENT_TAGLINE} on Pharos Mainnet (1672). ${AGENT_DISCLAIMER}`;
