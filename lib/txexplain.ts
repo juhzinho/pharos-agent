@@ -83,6 +83,13 @@ const KNOWN_SELECTORS: Record<string, string> = {
   "0x96f25cbe": "DODO mixSwap (FaroSwap route)",
 };
 
+export function decodeSelectorLabel(data: string | null | undefined): { selector: string; label: string } | null {
+  if (!data || data === "0x" || data.length < 10) return null;
+  const selector = data.slice(0, 10).toLowerCase();
+  const label = KNOWN_SELECTORS[selector];
+  return { selector, label: label ?? "Unknown contract call" };
+}
+
 async function rpc(url: string, method: string, params: unknown[]): Promise<unknown> {
   const res = await fetch(url, {
     method: "POST",

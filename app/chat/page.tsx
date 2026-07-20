@@ -73,6 +73,14 @@ import {
   formatLinkScanBatch, formatLinkScanIntro, formatLinkScanReport,
   type LinkCompareReport, type LinkScanBatchReport, type LinkScanReport,
 } from "@/lib/link-scanner";
+import {
+  analyzeUnsignedBatch, detectPresignQuery, formatPreSignReport,
+  type PreSignRiskReport, type UnsignedTxInput,
+} from "@/lib/presign-risk";
+import {
+  analyzeFaroSwapSafety, analyzeLifiSwapSafety,
+  type SwapSafetyReport,
+} from "@/lib/swap-safety";
 import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
 import Link from "next/link";
 import ChatHeader from "@/components/ChatHeader";
@@ -150,6 +158,7 @@ interface SwapRouteOption {
   pending: PendingTx;
   summary: string;
   receiveLabel: string;
+  swapSafety?: SwapSafetyReport;
 }
 
 interface SwapChoice {
@@ -262,6 +271,9 @@ interface Message {
   linkScanReport?: LinkScanReport;
   linkScanBatch?: LinkScanBatchReport;
   linkCompare?: LinkCompareReport;
+  presignPrompt?: boolean;
+  presignReport?: PreSignRiskReport;
+  swapSafety?: SwapSafetyReport;
   removeMode?: boolean;
   txHash?: string;
   transferPending?: TransferBuild;     // payment agent: 1..n txs to sign sequentially
@@ -770,15 +782,16 @@ const SWAP_ROUTE_META: Record<SwapRouteOption["provider"], { label: string; subt
   faroswap: { label: "FaroSwap direct",  subtitle: "native DEX · no aggregator fee", accent: "16,185,129" },
 };
 
-function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose: (opt: SwapRouteOption) => void }) {
+function SwapChoiceButtons({ choice, lang, onChoose }: { choice: SwapChoice; lang: "pt" | "en"; onChoose: (opt: SwapRouteOption) => void }) {
   return (
     <div className="mt-4">
       <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-3" style={{ color: "rgba(0,212,255,0.45)" }}>
-        Choose swap route
+        {lang === "pt" ? "Escolha a rota de swap" : "Choose swap route"}
       </p>
       <div className="flex gap-2.5 flex-wrap">
         {choice.options.map((opt) => {
           const meta = SWAP_ROUTE_META[opt.provider];
+          const safeColor = (opt.swapSafety?.safetyScore ?? 0) >= 70 ? "#6ee7b7" : (opt.swapSafety?.safetyScore ?? 0) >= 50 ? "#fbbf24" : "#f87171";
           return (
             <button key={opt.provider} onClick={() => onChoose(opt)}
               className="flex-1 min-w-[150px] flex flex-col gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer"
@@ -795,6 +808,11 @@ function SwapChoiceButtons({ choice, onChoose }: { choice: SwapChoice; onChoose:
               }}>
               <span className="text-sm font-semibold text-white">{meta.label}</span>
               <span className="text-sm font-data font-semibold" style={{ color: `rgb(${meta.accent})` }}>receive ~{opt.receiveLabel}</span>
+              {opt.swapSafety && (
+                <span className="text-[10px] font-semibold" style={{ color: safeColor }}>
+                  {lang === "pt" ? "Segurança" : "Safety"} {opt.swapSafety.safetyScore}/100 · {opt.swapSafety.slippageBps != null ? `${(opt.swapSafety.slippageBps / 100).toFixed(2)}% slip` : "—"}
+                </span>
+              )}
               <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.55)" }}>{meta.subtitle}</span>
             </button>
           );
@@ -2865,7 +2883,7 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 const ETH_ADDR_RE = /^0x[a-fA-F0-9]{40}$/i;
 
-function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare, onLinkScanSubmit, onLinkCompareSubmit, onLinkRescan, onSybilSubmit, onSybilRescan }: {
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare, onLinkScanSubmit, onLinkCompareSubmit, onLinkRescan, onSybilSubmit, onSybilRescan, onPresignSubmit, onPresignRescan }: {
   msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -2889,6 +2907,8 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
   onLinkRescan: (msgId: string, url: string) => void;
   onSybilSubmit: (msgId: string, address: string) => void;
   onSybilRescan: (msgId: string, address: string) => void;
+  onPresignSubmit: (msgId: string, tx: UnsignedTxInput) => void;
+  onPresignRescan: (msgId: string, tx: UnsignedTxInput) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -3055,7 +3075,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         )}
 
         {msg.swapChoice && walletAddress && (
-          <SwapChoiceButtons choice={msg.swapChoice} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
+          <SwapChoiceButtons choice={msg.swapChoice} lang={lang} onChoose={(opt) => onSwapChoice(msg.id, opt)} />
         )}
 
         {msg.bridgeWizard && walletAddress && (
@@ -3090,6 +3110,8 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
         {msg.radarPicker && (
           <Web3RadarTopicPicker lang={lang} onPick={(topic) => onRadarTopicPick(msg.id, topic)} />
         )}
+
+        {msg.swapSafety && <SwapSafetyCard report={msg.swapSafety} lang={lang} />}
 
         {msg.pending && walletAddress && (
           <div className="mt-3 px-4 py-3.5 rounded-2xl" style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.14)", backdropFilter: "blur(8px)" }}>
@@ -3296,6 +3318,13 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
           />
         ) : null}
 
+        {msg.presignPrompt && !msg.presignReport && !msg.isLoading && (
+          <PreSignPromptCard lang={lang} onAnalyze={(tx) => onPresignSubmit(msg.id, tx)} />
+        )}
+        {msg.presignReport && (
+          <PreSignRiskCard report={msg.presignReport} lang={lang} onRescan={(tx) => onPresignRescan(msg.id, tx)} />
+        )}
+
         {msg.transferPending && walletAddress && (
           <TransferCard
             build={msg.transferPending}
@@ -3350,7 +3379,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory" | "approve" | "allowance" | "web3radar" | "sybil" | "linkscan";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory" | "approve" | "allowance" | "web3radar" | "sybil" | "linkscan" | "presign";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -3732,6 +3761,132 @@ function SybilPromptCard({
           {lang === "pt" ? "Usar carteira conectada" : "Use connected wallet"}
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── Swap safety advisor card ───────────────────────────────────────────────
+
+const SWAP_SAFETY_COLORS: Record<SwapSafetyReport["verdict"], string> = {
+  excellent: "#34d399",
+  good: "#6ee7b7",
+  caution: "#fbbf24",
+  risky: "#f87171",
+};
+
+function SwapSafetyCard({ report, lang }: { report: SwapSafetyReport; lang: "pt" | "en" }) {
+  const color = SWAP_SAFETY_COLORS[report.verdict];
+  const verdictLabel = {
+    excellent: lang === "pt" ? "Excelente" : "Excellent",
+    good: lang === "pt" ? "Bom" : "Good",
+    caution: lang === "pt" ? "Atenção" : "Caution",
+    risky: lang === "pt" ? "Arriscado" : "Risky",
+  }[report.verdict];
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-[11px] font-semibold" style={{ color: "rgba(200,215,235,0.85)" }}>
+          🛡️ {lang === "pt" ? "Swap Safety Advisor" : "Swap Safety Advisor"} · {report.provider}
+        </p>
+        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: `${color}18`, border: `1px solid ${color}44`, color }}>
+          {verdictLabel} · {report.safetyScore}/100
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]" style={{ color: "rgba(200,215,235,0.75)" }}>
+        <span>{lang === "pt" ? "Slippage" : "Slippage"}: <b className="text-white">{report.slippageBps != null ? `${(report.slippageBps / 100).toFixed(2)}%` : "—"}</b></span>
+        <span>{lang === "pt" ? "Mín. receber" : "Min receive"}: <b className="text-white">{report.minReceive ?? "—"}</b></span>
+        <span>{lang === "pt" ? "Esperado" : "Expected"}: <b className="text-white">{report.expectedReceive ?? "—"}</b></span>
+        <span>{lang === "pt" ? "Approve" : "Approve"}: <b className="text-white">{report.needsApproval ? (lang === "pt" ? "sim" : "yes") : (lang === "pt" ? "não" : "no")}</b></span>
+      </div>
+      {report.warnings.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {report.warnings.slice(0, 4).map((w) => (
+            <p key={w.id} className="text-[11px] leading-snug" style={{ color: w.severity === "high" ? "#fb923c" : "rgba(200,215,235,0.65)" }}>
+              • {lang === "pt" ? w.titlePt : w.titleEn} — {lang === "pt" ? w.detailPt : w.detailEn}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Pre-sign risk card ─────────────────────────────────────────────────────
+
+const PRESIGN_COLORS: Record<PreSignRiskReport["verdict"], string> = {
+  safe: "#34d399",
+  caution: "#fbbf24",
+  high_risk: "#fb923c",
+  block: "#f87171",
+};
+
+function PreSignRiskCard({
+  report,
+  lang,
+  onRescan,
+}: {
+  report: PreSignRiskReport;
+  lang: "pt" | "en";
+  onRescan?: (tx: UnsignedTxInput) => void;
+}) {
+  const [to, setTo] = useState(report.to);
+  const [data, setData] = useState("0x");
+  const color = PRESIGN_COLORS[report.verdict];
+  const verdictLabel = {
+    safe: lang === "pt" ? "Seguro" : "Safe",
+    caution: lang === "pt" ? "Atenção" : "Caution",
+    high_risk: lang === "pt" ? "Alto risco" : "High risk",
+    block: lang === "pt" ? "Não assinar" : "Do not sign",
+  }[report.verdict];
+  const fails = report.checks.filter((c) => !c.pass && c.weight > 0);
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-2xl font-bold" style={{ color }}>{report.riskScore}</span>
+        <div>
+          <p className="text-sm font-bold" style={{ color }}>{verdictLabel}</p>
+          {report.actionLabel && <p className="text-[11px]" style={{ color: "rgba(200,215,235,0.75)" }}>{report.actionLabel}</p>}
+          <p className="text-[10px] font-mono mt-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>{report.to.slice(0, 10)}…</p>
+        </div>
+      </div>
+      {fails.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {fails.slice(0, 5).map((c) => (
+            <p key={c.id} className="text-[11px] leading-snug" style={{ color: c.severity === "critical" ? "#f87171" : "#fb923c" }}>
+              • {lang === "pt" ? c.titlePt : c.titleEn} — {lang === "pt" ? c.detailPt : c.detailEn}
+            </p>
+          ))}
+        </div>
+      )}
+      {onRescan && (
+        <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
+          <input type="text" value={to} onChange={(e) => setTo(e.target.value.trim())} placeholder="0x… to" className="w-full rounded-xl px-3 py-2 text-[11px] font-mono bg-black/30 border border-white/10 text-white outline-none focus:border-cyan-500/40" />
+          <input type="text" value={data} onChange={(e) => setData(e.target.value.trim())} placeholder="0x… calldata" className="w-full rounded-xl px-3 py-2 text-[11px] font-mono bg-black/30 border border-white/10 text-white outline-none focus:border-cyan-500/40" />
+          <button type="button" onClick={() => onRescan({ to, data })} className="px-4 py-2 rounded-xl text-[11px] font-semibold" style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}>
+            {lang === "pt" ? "Revisar de novo" : "Review again"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreSignPromptCard({ lang, onAnalyze }: { lang: "pt" | "en"; onAnalyze: (tx: UnsignedTxInput) => void }) {
+  const [to, setTo] = useState("");
+  const [data, setData] = useState("0x");
+  const can = /^0x[a-fA-F0-9]{40}$/.test(to);
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4 space-y-3">
+      <p className="text-[11px] leading-relaxed" style={{ color: "rgba(200,215,235,0.75)" }}>
+        {lang === "pt"
+          ? "Cole o contrato (`to`) e o **calldata** que a carteira vai pedir para assinar — eu decodifico approve, transfer e spenders desconhecidos."
+          : "Paste the contract (`to`) and **calldata** your wallet will ask you to sign — I decode approve, transfer, and unknown spenders."}
+      </p>
+      <input type="text" value={to} onChange={(e) => setTo(e.target.value.trim())} placeholder="0x… contrato (to)" className="w-full rounded-xl px-3 py-2.5 text-[11px] font-mono bg-black/30 border border-white/10 text-white outline-none focus:border-cyan-500/40" />
+      <input type="text" value={data} onChange={(e) => setData(e.target.value.trim())} placeholder="0x… calldata" className="w-full rounded-xl px-3 py-2.5 text-[11px] font-mono bg-black/30 border border-white/10 text-white outline-none focus:border-cyan-500/40" />
+      <button type="button" disabled={!can} onClick={() => onAnalyze({ to, data })} className="px-4 py-2.5 rounded-xl text-[11px] font-semibold disabled:opacity-40" style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}>
+        {lang === "pt" ? "Analisar risco" : "Analyze risk"}
+      </button>
     </div>
   );
 }
@@ -4900,14 +5055,14 @@ export default function ChatPage() {
       // choices, amount queries, and all built tx cards (swap/bridge, add and
       // remove liquidity, position pickers, transfers, approvals).
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.linkScanPrompt || m.sybilPrompt || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.linkScanPrompt || m.sybilPrompt || m.presignPrompt || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
         m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
         m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
         isLoading: false, isSearching: false,
-        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, linkScanPrompt: undefined, sybilPrompt: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined,
+        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, linkScanPrompt: undefined, sybilPrompt: undefined, presignPrompt: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined, presignReport: undefined, swapSafety: undefined,
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
         liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
         positions: undefined, removeMode: undefined,
@@ -5397,10 +5552,20 @@ export default function ChatPage() {
     if (opSeqRef.current !== seq) return;
 
     const options: SwapRouteOption[] = [];
-    if (lifiRes.status === "fulfilled") options.push({ provider: "lifi", ...lifiRes.value });
-    else console.warn("[pharos:swap] LI.FI quote failed:", lifiRes.reason);
-    if (faroRes.status === "fulfilled") options.push({ provider: "faroswap", ...faroRes.value });
-    else if (pairOnFaroswap) console.warn("[pharos:swap] FaroSwap quote failed:", faroRes.reason);
+    if (lifiRes.status === "fulfilled") {
+      const base = { provider: "lifi" as const, ...lifiRes.value };
+      const swapSafety = lifiRes.value.pending.quote
+        ? analyzeLifiSwapSafety(intent, lifiRes.value.pending.quote, lifiRes.value.receiveLabel, lifiRes.value.pending.needsApproval)
+        : undefined;
+      options.push({ ...base, swapSafety });
+    } else console.warn("[pharos:swap] LI.FI quote failed:", lifiRes.reason);
+    if (faroRes.status === "fulfilled") {
+      const base = { provider: "faroswap" as const, ...faroRes.value };
+      const swapSafety = faroRes.value.pending.faroswap
+        ? analyzeFaroSwapSafety(intent, faroRes.value.pending.faroswap)
+        : undefined;
+      options.push({ ...base, swapSafety });
+    } else if (pairOnFaroswap) console.warn("[pharos:swap] FaroSwap quote failed:", faroRes.reason);
 
     if (options.length === 0) {
       const msg = lifiRes.status === "rejected" && lifiRes.reason instanceof Error ? lifiRes.reason.message : "no route available";
@@ -5410,7 +5575,7 @@ export default function ChatPage() {
       const note = only.provider === "faroswap"
         ? "LI.FI had no route, so I built this via **FaroSwap direct** instead.\n\n"
         : "";
-      updateMessage(msgId, { isLoading: false, text: head + note + only.summary, pending: only.pending });
+      updateMessage(msgId, { isLoading: false, text: head + note + only.summary, pending: only.pending, swapSafety: only.swapSafety });
     } else {
       updateMessage(msgId, {
         isLoading: false,
@@ -5955,6 +6120,41 @@ export default function ChatPage() {
     }
   }
 
+  async function runPreSignCheck(msgId: string, txs: UnsignedTxInput[]) {
+    const seq = opSeqRef.current;
+    const lang = resolveChatLang(messages, siteLang);
+    updateMessage(msgId, {
+      isLoading: true,
+      text: lang === "pt" ? "Decodificando calldata e spenders…" : "Decoding calldata and spenders…",
+    });
+    try {
+      const report = analyzeUnsignedBatch(txs);
+      if (opSeqRef.current !== seq) return;
+      const verdictLabel = {
+        safe: lang === "pt" ? "Seguro" : "Safe",
+        caution: lang === "pt" ? "Atenção" : "Caution",
+        high_risk: lang === "pt" ? "Alto risco" : "High risk",
+        block: lang === "pt" ? "Não assinar" : "Do not sign",
+      }[report.verdict];
+      updateMessage(msgId, {
+        isLoading: false,
+        presignPrompt: undefined,
+        presignReport: report,
+        text: lang === "pt"
+          ? `🔍 **Pre-sign Risk Check** — risco **${report.riskScore}/100** · **${verdictLabel}**`
+          : `🔍 **Pre-sign Risk Check** — risk **${report.riskScore}/100** · **${verdictLabel}**`,
+      });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, {
+        isLoading: false,
+        isError: true,
+        text: lang === "pt" ? `Falha na revisão pré-assinatura: ${msg}` : `Pre-sign review failed: ${msg}`,
+      });
+    }
+  }
+
   async function runLinkCheck(msgId: string, urls: string[]) {
     const seq = opSeqRef.current;
     const lang = resolveChatLang(messages, siteLang);
@@ -6129,6 +6329,22 @@ export default function ChatPage() {
       return;
     }
 
+    // Pre-sign risk — unsigned calldata review, no wallet required.
+    if (kind === "presign") {
+      const existing = messagesRef.current.find(
+        (m) => m.presignPrompt && !m.presignReport && !m.isLoading && !m.isError,
+      );
+      if (existing) return;
+      addMessage({
+        role: "agent",
+        presignPrompt: true,
+        text: lang === "pt"
+          ? "🔍 **Pre-sign Risk Check** — cole contrato e calldata abaixo."
+          : "🔍 **Pre-sign Risk Check** — paste contract and calldata below.",
+      });
+      return;
+    }
+
     if (!walletAddress) {
       addMessage({
         role: "agent",
@@ -6231,6 +6447,17 @@ export default function ChatPage() {
       isError: false,
     });
     void runSybilCheck(msgId, a);
+  }
+
+  function handlePresignFromPrompt(msgId: string, tx: UnsignedTxInput) {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(tx.to.trim())) return;
+    void runPreSignCheck(msgId, [{ ...tx, to: tx.to.trim(), data: tx.data ?? "0x" }]);
+  }
+
+  function handlePresignRescan(msgId: string, tx: UnsignedTxInput) {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(tx.to.trim())) return;
+    updateMessage(msgId, { presignReport: undefined, presignPrompt: undefined, isError: false });
+    void runPreSignCheck(msgId, [{ ...tx, to: tx.to.trim(), data: tx.data ?? "0x" }]);
   }
 
   async function handleSend() {
@@ -6376,6 +6603,19 @@ export default function ChatPage() {
         text: fastLang === "pt" ? "Buscando suas últimas transações no explorer…" : "Fetching your latest transactions from the explorer…",
       });
       await runTxHistory(thinkingId);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Pre-sign risk fast path
+    const presignQuery = detectPresignQuery(text);
+    if (presignQuery) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Revisando calldata antes de assinar…" : "Reviewing calldata before signing…",
+      });
+      await runPreSignCheck(thinkingId, presignQuery.transactions);
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -7386,7 +7626,7 @@ export default function ChatPage() {
     setMessages((prev) => prev.map((m) => {
       if (m.id !== id) return m;
       const intro = m.text.split("\n\nI got quotes from both routes")[0];
-      return { ...m, swapChoice: undefined, text: intro + "\n\n" + opt.summary, pending: opt.pending };
+      return { ...m, swapChoice: undefined, text: intro + "\n\n" + opt.summary, pending: opt.pending, swapSafety: opt.swapSafety };
     }));
   }
 
@@ -7531,6 +7771,7 @@ export default function ChatPage() {
                 { label: "Web3 Briefing", icon: "📡", action: "web3radar" as const },
                 { label: "Sybil / Bot Check", icon: "🛡", action: "sybil" as const },
                 { label: "Link / Scam Scanner", icon: "🔗", action: "linkscan" as const },
+                { label: "Pre-sign Risk Check", icon: "🔍", action: "presign" as const },
               ]).map((item) => (
                 <button key={item.label} onClick={() => handleQuickAction(item.action)} className="sidebar-item">
                   <span className="sidebar-item-icon w-7 h-7 rounded-lg flex items-center justify-center text-xs">{item.icon}</span>
@@ -7729,6 +7970,8 @@ export default function ChatPage() {
               onLinkRescan={handleLinkRescan}
               onSybilSubmit={handleSybilFromPrompt}
               onSybilRescan={handleSybilRescan}
+              onPresignSubmit={handlePresignFromPrompt}
+              onPresignRescan={handlePresignRescan}
             />
           ))}
           <div ref={bottomRef} />

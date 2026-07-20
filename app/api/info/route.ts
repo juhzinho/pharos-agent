@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     version: "2.1",
     capabilities: [
       "knowledge", "swap-quote", "bridge-quote", "token-price",
-      "wallet-profile", "wallet-score", "explain-tx", "campaigns", "news", "web3-radar", "sybil-check", "link-check",
+      "wallet-profile", "wallet-score", "explain-tx", "campaigns", "news", "web3-radar", "sybil-check", "link-check", "pre-sign-risk", "swap-safety",
     ],
     endpoints: {
       walletScore: {
@@ -105,6 +105,29 @@ export async function GET(req: Request) {
         },
         env: "LINK_SCAM_BLOCKLIST (optional extra domains)",
         safety: "read-only — URL heuristics + optional web search, not a guarantee",
+      },
+      preSignRisk: {
+        method: "POST",
+        path: "/api/skill/pre-sign-risk",
+        body: { to: "string", data: "string (optional calldata)", value: "string (optional hex wei)", transactions: "UnsignedTxInput[] (batch)" },
+        returns: {
+          riskScore: "0–100 (higher = more dangerous)",
+          verdict: "safe | caution | high_risk | block",
+          checks: "selector decode, unlimited approve, unknown spender, large native value",
+        },
+        safety: "read-only — unsigned calldata analysis only",
+      },
+      swapSafety: {
+        method: "POST",
+        path: "/api/skill/swap-safety",
+        body: { provider: "lifi | faroswap", intent: "{ fromToken, toToken, amount }", quote: "LI.FI QuoteResult", faroswap: "FaroSwapBuildResult" },
+        returns: {
+          safetyScore: "0–100 (higher = safer)",
+          slippageBps: "basis points",
+          warnings: "approval, slippage, slow route",
+          verdict: "excellent | good | caution | risky",
+        },
+        safety: "read-only — quote analysis only",
       },
       query: {
         method: "POST",

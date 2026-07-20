@@ -220,6 +220,26 @@ export const PROSPILOT_SKILLS: ProsPilotSkill[] = [
     examples: ["Is this link safe?", "Check if https://… is a scam", "Verify phishing URL"],
     starterPrompt: { en: "Check if this link is safe: paste URL here", pt: "Verificar se este link é seguro: cole a URL aqui" },
   },
+  {
+    id: "pre-sign-risk-check",
+    nameEn: "Pre-sign risk check",
+    namePt: "Checagem de risco pré-assinatura",
+    descEn: "Decode unsigned calldata before signing — unlimited approvals, unknown spenders, large native transfers.",
+    descPt: "Decodifica calldata não assinada antes de assinar — approvals ilimitados, spenders desconhecidos, transferências grandes.",
+    tags: ["security", "presign", "calldata", "approve", "transaction"],
+    examples: ["Review this calldata before I sign", "Revisar transação 0x…", "Pre-sign risk check"],
+    starterPrompt: { en: "Review transaction calldata before I sign", pt: "Revisar calldata da transação antes de assinar" },
+  },
+  {
+    id: "swap-safety-advisor",
+    nameEn: "Swap safety advisor",
+    namePt: "Advisor de segurança de swap",
+    descEn: "Slippage, min receive, approval steps, and route warnings for LI.FI and FaroSwap quotes.",
+    descPt: "Slippage, recebimento mínimo, etapas de approve e avisos de rota para cotações LI.FI e FaroSwap.",
+    tags: ["swap", "security", "slippage", "defi", "safety"],
+    examples: ["Is this swap safe?", "Swap safety for 10 PROS to USDC"],
+    webAction: "swap",
+  },
 ];
 
 export function skillLabel(skill: ProsPilotSkill, lang: "en" | "pt"): string {
