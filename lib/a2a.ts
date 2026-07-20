@@ -1,7 +1,7 @@
 // Minimal A2A v0.3 helpers for Anvita Flow / external agent gateways.
 
 import { randomUUID } from "node:crypto";
-import { formatInteractionGuide, toAgentCardSkills } from "@/lib/agent-skills";
+import { toAgentCardSkills } from "@/lib/agent-skills";
 import { AGENT_DESCRIPTION, AGENT_NAME, AGENT_TAGLINE } from "@/lib/branding";
 import { parseWithGroq } from "@/lib/groq";
 import { tryFastPathAnswer } from "@/lib/fast-path";
@@ -38,7 +38,6 @@ export function getAgentCard() {
     protocolVersion: "0.3.0",
     name: AGENT_NAME,
     description: AGENT_DESCRIPTION,
-    interactionGuide: formatInteractionGuide("en"),
     url: `${BASE}/api/a2a`,
     preferredTransport: "JSONRPC",
     additionalInterfaces: [

@@ -107,16 +107,6 @@ export const UI: Dict = {
   "chat.home":    { en: "Home",     pt: "Início",       es: "Inicio",       ru: "Главная",   zh: "首页",   ja: "ホーム",     ar: "الرئيسية" },
   "chat.newChat": { en: "New chat", pt: "Novo chat",    es: "Nuevo chat",   ru: "Новый чат", zh: "新对话", ja: "新しいチャット", ar: "محادثة جديدة" },
 
-  "chat.interactionGuide.title": {
-    en: "Active skills",
-    pt: "Skills ativas",
-    es: "Skills activas",
-    ru: "Активные навыки",
-    zh: "可用技能",
-    ja: "利用可能なスキル",
-    ar: "المهارات النشطة",
-  },
-
   // Chat: agent welcome message (shown before the first user message)
   "chat.welcome": {
     en: "Hi! I'm **ProsPilot** — an independent, community-built DeFi copilot for the Pharos ecosystem (Chain ID 1672).\n\n_Not an official Pharos Network product._\n\nConnect your wallet and I'll help you:\n• **Swap** tokens via FaroSwap, OKX DEX or LI.FI\n• **Bridge** to Ethereum, Base, Arbitrum, Polygon via CCIP or Circle CCTP v2\n• **Add / remove liquidity** in FaroSwap V3 concentrated pools\n• **Stake PROS** → stPROS via Faroo liquid staking\n• **Answer any question** about the Pharos ecosystem, protocols, RWA, gas, contracts and more\n\nYou can write in any language. Let's go!",
@@ -160,6 +150,9 @@ const CHIP_LABELS: Record<string, Partial<Record<SiteLang, string>>> = {
   "DeFi Protocols":     { pt: "Protocolos DeFi", es: "Protocolos DeFi", ru: "DeFi-протоколы", zh: "DeFi 协议", ja: "DeFiプロトコル", ar: "بروتوكولات DeFi" },
   "Pharos Protocols":   { pt: "Protocolos Pharos", es: "Protocolos Pharos", ru: "Протоколы Pharos", zh: "Pharos 协议", ja: "Pharosプロトコル", ar: "بروتوكولات Pharos" },
   "Swap tokens":        { pt: "Trocar tokens", es: "Intercambiar tokens", ru: "Обмен токенов", zh: "兑换代币", ja: "トークンをスワップ", ar: "مبادلة الرموز" },
+  "Send tokens":        { pt: "Enviar tokens", es: "Enviar tokens", ru: "Отправка токенов", zh: "发送代币", ja: "トークン送信", ar: "إرسال الرموز" },
+  "Approve token":      { pt: "Aprovar token", es: "Aprobar token", ru: "Approve токена", zh: "授权代币", ja: "トークン承認", ar: "الموافقة على الرمز" },
+  "Check allowance":    { pt: "Ver allowance", es: "Ver allowance", ru: "Allowance", zh: "查看授权额度", ja: "Allowance確認", ar: "Allowance" },
   "Bridge cross-chain": { pt: "Bridge entre redes", es: "Bridge entre cadenas", ru: "Кроссчейн-бридж", zh: "跨链桥", ja: "クロスチェーンブリッジ", ar: "جسر عبر السلاسل" },
 };
 

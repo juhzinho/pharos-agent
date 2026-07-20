@@ -63,7 +63,7 @@ import { formatRwaMarket, type RwaMarketData } from "@/lib/rwa-live";
 import type { WalletIntel } from "@/lib/walletIntel";
 import { PHAROS_NETWORKS, type PharosNetworkId } from "@/lib/tokens";
 import { t, chipT, useSiteLang } from "@/lib/i18n";
-import { PROSPILOT_SKILLS, skillDesc, skillLabel, type ProsPilotSkill } from "@/lib/agent-skills";
+import { scanWalletAllowances, formatAllowanceReport } from "@/lib/allowance-skill";
 import { formatTxHistory, type TxHistoryResult } from "@/lib/tx-history";
 import Link from "next/link";
 import ChatHeader from "@/components/ChatHeader";
@@ -2948,7 +2948,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
 // ─── suggestion chips ──────────────────────────────────────────────────────
 
-type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory";
+type QuickActionKind = "swap" | "bridge" | "liquidity" | "transfer" | "positions" | "wallet" | "score" | "realfi" | "stake" | "unstake" | "mystake" | "rwamarket" | "txhistory" | "approve" | "allowance";
 
 const SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; text?: string; action?: QuickActionKind }> = [
   { label: "Swap PROS → USDC", action: "swap",
@@ -4863,6 +4863,33 @@ export default function ChatPage() {
     }
   }
 
+  async function runAllowanceCheck(msgId: string) {
+    const seq = opSeqRef.current;
+    const lang = guessUserLang(messages);
+    try {
+      const rows = await scanWalletAllowances(walletAddress);
+      if (opSeqRef.current !== seq) return;
+      updateMessage(msgId, { isLoading: false, text: formatAllowanceReport(rows, lang) });
+    } catch (err) {
+      if (opSeqRef.current !== seq) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      updateMessage(msgId, { isLoading: false, isError: true, text: `Allowance check failed: ${msg}` });
+    }
+  }
+
+  function startApproveFlow(msgId: string) {
+    const lang = guessUserLang(messages);
+    updateMessage(msgId, {
+      isLoading: false,
+      text:
+        lang === "pt"
+          ? "Envie o approve completo — eu monto a transação para assinar:\n\n`aprovar 100 USDC para 0x…`\n`aprovar USDC ilimitado para 0x…`"
+          : "Send a complete approve — I'll build the transaction to sign:\n\n`approve 100 USDC for 0x…`\n`approve unlimited USDC for 0x…`",
+    });
+    setInput(lang === "pt" ? "aprovar USDC para 0x" : "approve USDC for 0x");
+    inputRef.current?.focus();
+  }
+
   // Quick actions: clicking an on-chain function starts the guided flow
   // instantly — no auto-message, no LLM round-trip.
   function handleQuickAction(kind: QuickActionKind) {
@@ -4918,18 +4945,13 @@ export default function ChatPage() {
         updateMessage(id, { text: lang === "pt" ? "Coletando dados ao vivo do mercado global de RWA (rwa.xyz)…" : "Fetching live global RWA market data (rwa.xyz)…" });
         void runRwaMarket(id);
         break;
-    }
-  }
-
-  function handleProsPilotSkill(skill: ProsPilotSkill) {
-    const lang: "pt" | "en" = siteLang === "pt" ? "pt" : "en";
-    if (skill.webAction) {
-      handleQuickAction(skill.webAction as QuickActionKind);
-      return;
-    }
-    if (skill.starterPrompt) {
-      setInput(skill.starterPrompt[lang]);
-      inputRef.current?.focus();
+      case "allowance":
+        updateMessage(id, { text: lang === "pt" ? "Lendo allowances on-chain…" : "Reading on-chain allowances…" });
+        void runAllowanceCheck(id);
+        break;
+      case "approve":
+        startApproveFlow(id);
+        break;
     }
   }
 
@@ -5061,6 +5083,18 @@ export default function ChatPage() {
         text: fastLang === "pt" ? "Buscando suas últimas transações no explorer…" : "Fetching your latest transactions from the explorer…",
       });
       await runTxHistory(thinkingId);
+      setIsSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    // Allowance skill fast path
+    if (walletAddress && /\b(allowance|allowances|aprova[çc][ãa]o\s+de\s+gasto|spender\s+allowance|minhas?\s+allowances?)\b/i.test(text)) {
+      updateMessage(thinkingId, {
+        isLoading: true,
+        text: fastLang === "pt" ? "Lendo allowances on-chain…" : "Reading on-chain allowances…",
+      });
+      await runAllowanceCheck(thinkingId);
       setIsSending(false);
       inputRef.current?.focus();
       return;
@@ -6026,6 +6060,9 @@ export default function ChatPage() {
                 { label: "Swap tokens", icon: "⇄", action: "swap" as const },
                 { label: "Bridge cross-chain", icon: "⤡", action: "bridge" as const },
                 { label: "Add Liquidity", icon: "+", action: "liquidity" as const },
+                { label: "Send tokens", icon: "→", action: "transfer" as const },
+                { label: "Approve token", icon: "✓", action: "approve" as const },
+                { label: "Check allowance", icon: "🔐", action: "allowance" as const },
               ]).map((item) => (
                 <button key={item.label} onClick={() => handleQuickAction(item.action)} className="sidebar-item">
                   <span className="sidebar-item-icon w-7 h-7 rounded-lg flex items-center justify-center text-xs">{item.icon}</span>
@@ -6156,35 +6193,11 @@ export default function ChatPage() {
                 style={{ fontSize: "clamp(1.75rem, 4vw, 2.25rem)" }}>
                 {siteLang === "pt" ? "Como posso ajudar?" : "How can I help you today?"}
               </h2>
-              <p className="text-sm mb-6 max-w-md leading-relaxed text-[var(--text-muted)]">
+              <p className="text-sm mb-8 max-w-md leading-relaxed text-[var(--text-muted)]">
                 {siteLang === "pt"
                   ? "Seu copiloto DeFi na Pharos — swap, bridge, liquidez e muito mais."
                   : "Your DeFi copilot on Pharos — swap, bridge, liquidity, and more."}
               </p>
-
-              <div className="w-full max-w-xl mb-8">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-3 text-center text-[var(--accent-soft)]">
-                  {t("chat.interactionGuide.title", siteLang)}
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {PROSPILOT_SKILLS.map((skill, i) => (
-                    <button
-                      key={skill.id}
-                      type="button"
-                      onClick={() => handleProsPilotSkill(skill)}
-                      className="text-left p-3 rounded-xl chat-welcome-card"
-                      style={{ animation: `cardAppear 0.35s cubic-bezier(0.22,1,0.36,1) ${0.05 + i * 0.025}s both` }}
-                    >
-                      <p className="font-semibold text-[12px] text-white mb-1 tracking-[-0.01em]">
-                        {skillLabel(skill, siteLang === "pt" ? "pt" : "en")}
-                      </p>
-                      <p className="text-[10px] leading-relaxed" style={{ color: "rgba(148,163,184,0.55)" }}>
-                        {skillDesc(skill, siteLang === "pt" ? "pt" : "en")}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl">
                 {WELCOME_CARDS.map((card, i) => (
