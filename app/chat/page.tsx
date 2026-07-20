@@ -255,6 +255,7 @@ interface Message {
   transferWizard?: TransferWizardState;   // Guided transfer flow (token → amount → count → addresses)
   approveWizard?: ApproveWizardState;     // Guided approve flow (token → spender → amount)
   radarPicker?: boolean;                  // Web3 briefing topic picker
+  sybilPrompt?: boolean;
   sybilReport?: SybilReport;
   sybilCluster?: SybilClusterReport;
   linkScanPrompt?: boolean;
@@ -2862,7 +2863,9 @@ const MD_FONT_DISPLAY  = "var(--font-display), var(--font-inter), sans-serif";
 
 // ─── chat bubble ───────────────────────────────────────────────────────────
 
-function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare, onLinkScanSubmit, onLinkCompareSubmit }: {
+const ETH_ADDR_RE = /^0x[a-fA-F0-9]{40}$/i;
+
+function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReverted, onProviderChoice, onSwapChoice, onWalletChoice, onAmountPicked, onPositionSelect, onPctSelect, onBridgeWizardSubmit, onBridgeRouteChoice, onSwapWizardSubmit, onLiquidityWizardSubmit, onTransferWizardSubmit, onApproveWizardSubmit, onRadarTopicPick, onLinkCompare, onLinkScanSubmit, onLinkCompareSubmit, onLinkRescan, onSybilSubmit, onSybilRescan }: {
   msg: Message; walletAddress: string; lang: "pt" | "en";
   onTxSuccess: (id: string, hash: string) => void;
   onTxError: (id: string, err: string) => void;
@@ -2883,6 +2886,9 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
   onLinkCompare: (msgId: string, suspiciousUrl: string, officialUrl: string) => void;
   onLinkScanSubmit: (msgId: string, url: string) => void;
   onLinkCompareSubmit: (msgId: string, suspiciousUrl: string, officialUrl: string) => void;
+  onLinkRescan: (msgId: string, url: string) => void;
+  onSybilSubmit: (msgId: string, address: string) => void;
+  onSybilRescan: (msgId: string, address: string) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -3258,7 +3264,20 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
 
         {msg.walletIntel && <WalletScoreCard intel={msg.walletIntel} lang={lang} />}
 
-        {msg.sybilReport && <SybilReportCard report={msg.sybilReport} lang={lang} />}
+        {msg.sybilPrompt && !msg.sybilReport && !msg.isLoading && (
+          <SybilPromptCard
+            lang={lang}
+            defaultAddress={walletAddress || undefined}
+            onAnalyze={(address) => onSybilSubmit(msg.id, address)}
+          />
+        )}
+        {msg.sybilReport && (
+          <SybilReportCard
+            report={msg.sybilReport}
+            lang={lang}
+            onRescan={(address) => onSybilRescan(msg.id, address)}
+          />
+        )}
         {msg.linkScanPrompt && !msg.linkScanReport && !msg.isLoading && (
           <LinkScanPromptCard
             lang={lang}
@@ -3272,6 +3291,7 @@ function ChatBubble({ msg, walletAddress, lang, onTxSuccess, onTxError, onTxReve
           <LinkScanCard
             report={msg.linkScanReport}
             lang={lang}
+            onRescan={(url) => onLinkRescan(msg.id, url)}
             onCompare={(officialUrl) => onLinkCompare(msg.id, msg.linkScanReport!.inputUrl, officialUrl)}
           />
         ) : null}
@@ -3508,7 +3528,18 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: "#f87171",
 };
 
-function SybilReportCard({ report, lang }: { report: SybilReport; lang: "pt" | "en" }) {
+function SybilReportCard({
+  report,
+  lang,
+  onRescan,
+}: {
+  report: SybilReport;
+  lang: "pt" | "en";
+  onRescan?: (address: string) => void;
+}) {
+  const [addr, setAddr] = useState(report.address);
+  useEffect(() => { setAddr(report.address); }, [report.address]);
+  const canRescan = ETH_ADDR_RE.test(addr.trim());
   const color = VERDICT_COLORS[report.verdict];
   const R = 42;
   const CIRC = 2 * Math.PI * R;
@@ -3617,6 +3648,90 @@ function SybilReportCard({ report, lang }: { report: SybilReport; lang: "pt" | "
           {lang === "pt" ? "Ver no explorer ↗" : "View on explorer ↗"}
         </a>
       </div>
+
+      {onRescan && (
+        <div className="mt-4 pt-3 border-t border-white/10">
+          <p className="text-[11px] font-semibold mb-2" style={{ color: "rgba(200,215,235,0.85)" }}>
+            {lang === "pt" ? "Analisar outra carteira ou repetir" : "Analyze another wallet or rescan"}
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              value={addr}
+              onChange={(e) => setAddr(e.target.value.trim())}
+              onKeyDown={(e) => { if (e.key === "Enter" && canRescan) onRescan(addr.trim()); }}
+              placeholder="0x…"
+              spellCheck={false}
+              className="flex-1 min-w-[200px] rounded-xl px-3 py-2 text-[11px] font-mono bg-black/30 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-cyan-500/40"
+            />
+            <button
+              type="button"
+              disabled={!canRescan}
+              onClick={() => onRescan(addr.trim())}
+              className="shrink-0 px-4 py-2 rounded-xl text-[11px] font-semibold disabled:opacity-40"
+              style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}
+            >
+              {lang === "pt" ? "Analisar de novo" : "Scan again"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sybil prompt (sidebar entry) ───────────────────────────────────────────
+
+function SybilPromptCard({
+  lang,
+  defaultAddress,
+  onAnalyze,
+}: {
+  lang: "pt" | "en";
+  defaultAddress?: string;
+  onAnalyze: (address: string) => void;
+}) {
+  const [addr, setAddr] = useState(defaultAddress ?? "");
+  const canAnalyze = ETH_ADDR_RE.test(addr.trim());
+
+  return (
+    <div className="mt-3 rounded-2xl border border-white/10 bg-[#0a1322]/80 p-4 space-y-3">
+      <p className="text-[11px] leading-relaxed" style={{ color: "rgba(200,215,235,0.75)" }}>
+        {lang === "pt"
+          ? "Cole qualquer endereço **0x…** (sua carteira conectada, outra wallet ou endereço de airdrop suspeito). Não precisa ser a carteira conectada."
+          : "Paste any **0x…** address (connected wallet, another wallet, or suspicious airdrop address). It does not have to be your connected wallet."}
+      </p>
+      <div className="flex gap-2 flex-wrap">
+        <input
+          type="text"
+          value={addr}
+          onChange={(e) => setAddr(e.target.value.trim())}
+          onKeyDown={(e) => { if (e.key === "Enter" && canAnalyze) onAnalyze(addr.trim()); }}
+          placeholder="0x…"
+          spellCheck={false}
+          className="flex-1 min-w-[200px] rounded-xl px-3 py-2.5 text-[11px] font-mono bg-black/30 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-cyan-500/40"
+          autoFocus
+        />
+        <button
+          type="button"
+          disabled={!canAnalyze}
+          onClick={() => onAnalyze(addr.trim())}
+          className="shrink-0 px-4 py-2.5 rounded-xl text-[11px] font-semibold disabled:opacity-40"
+          style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}
+        >
+          {lang === "pt" ? "Analisar" : "Analyze"}
+        </button>
+      </div>
+      {defaultAddress && addr.toLowerCase() !== defaultAddress.toLowerCase() && (
+        <button
+          type="button"
+          onClick={() => setAddr(defaultAddress)}
+          className="text-[10px] font-semibold hover:underline"
+          style={{ color: "rgba(148,163,184,0.65)" }}
+        >
+          {lang === "pt" ? "Usar carteira conectada" : "Use connected wallet"}
+        </button>
+      )}
     </div>
   );
 }
@@ -3713,13 +3828,18 @@ const LINK_VERDICT_COLORS: Record<LinkScanReport["verdict"], string> = {
 function LinkScanCard({
   report,
   lang,
+  onRescan,
   onCompare,
 }: {
   report: LinkScanReport;
   lang: "pt" | "en";
+  onRescan?: (url: string) => void;
   onCompare?: (officialUrl: string) => void;
 }) {
   const [officialInput, setOfficialInput] = useState("");
+  const [url, setUrl] = useState(report.inputUrl);
+  useEffect(() => { setUrl(report.inputUrl); }, [report.inputUrl]);
+  const canRescan = /^https?:\/\/.+/i.test(url.trim());
   const color = LINK_VERDICT_COLORS[report.verdict];
   const R = 42;
   const CIRC = 2 * Math.PI * R;
@@ -3810,6 +3930,33 @@ function LinkScanCard({
           ? "Heurísticas + redirects + allowlist — confirme sempre no canal oficial antes de conectar carteira."
           : "Heuristics + redirects + allowlist — always confirm via official channel before connecting a wallet."}
       </div>
+
+      {onRescan && (
+        <div className="mt-4 pt-3 border-t border-white/10">
+          <p className="text-[11px] font-semibold mb-2" style={{ color: "rgba(200,215,235,0.85)" }}>
+            {lang === "pt" ? "Escanear outro link ou repetir" : "Scan another link or rescan"}
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && canRescan) onRescan(url.trim()); }}
+              placeholder={lang === "pt" ? "https://…" : "https://…"}
+              className="flex-1 min-w-[200px] rounded-xl px-3 py-2 text-[11px] font-mono bg-black/30 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-cyan-500/40"
+            />
+            <button
+              type="button"
+              disabled={!canRescan}
+              onClick={() => onRescan(url.trim())}
+              className="shrink-0 px-4 py-2 rounded-xl text-[11px] font-semibold disabled:opacity-40"
+              style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.25)", color: "rgba(0,212,255,0.9)" }}
+            >
+              {lang === "pt" ? "Escanear de novo" : "Scan again"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {onCompare && report.trustStatus !== "allowlist_verified" && (
         <div className="mt-4 pt-3 border-t border-white/10">
@@ -4753,14 +4900,14 @@ export default function ChatPage() {
       // choices, amount queries, and all built tx cards (swap/bridge, add and
       // remove liquidity, position pickers, transfers, approvals).
       const hasActive = m.isLoading || m.isSearching || m.bridgeWizard || m.bridgeChoice || m.swapWizard ||
-        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.linkScanPrompt || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
+        m.liquidityWizard || m.transferWizard || m.approveWizard || m.radarPicker || m.linkScanPrompt || m.sybilPrompt || m.swapChoice || m.providerChoice || m.amountQuery || m.pending ||
         m.liquidityPending || m.removeLiquidityPending || m.removePctPending || m.positions ||
         m.transferPending || m.approvePending || m.stakePending || m.tokenChoice || m.chainChoice || m.walletChoice;
       if (!hasActive) return m;
       return {
         ...m,
         isLoading: false, isSearching: false,
-        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, linkScanPrompt: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined,
+        bridgeWizard: undefined, bridgeChoice: undefined, swapWizard: undefined, liquidityWizard: undefined, transferWizard: undefined, approveWizard: undefined, radarPicker: undefined, linkScanPrompt: undefined, sybilPrompt: undefined, sybilReport: undefined, sybilCluster: undefined, linkScanReport: undefined, linkScanBatch: undefined, linkCompare: undefined,
         swapChoice: undefined, providerChoice: undefined, amountQuery: undefined, pending: undefined,
         liquidityPending: undefined, removeLiquidityPending: undefined, removePctPending: undefined,
         positions: undefined, removeMode: undefined,
@@ -5756,6 +5903,7 @@ export default function ChatPage() {
       if (opSeqRef.current !== seq) return;
       updateMessage(msgId, {
         isLoading: false,
+        sybilPrompt: undefined,
         text: formatSybilIntro(report, lang),
         sybilReport: report,
       });
@@ -5959,8 +6107,24 @@ export default function ChatPage() {
         role: "agent",
         linkScanPrompt: true,
         text: lang === "pt"
-          ? "🔗 **Scanner Web3** — verifica links suspeitos (não usa sua carteira).\n\n_Diferente de **Análise de Carteira** e **Sybil Check**, que rodam sozinhos na carteira conectada — aqui você cola um link que recebeu (DM, Discord, e-mail…)._"
-          : "🔗 **Web3 scanner** — checks suspicious links (does not use your wallet).\n\n_Unlike **Wallet Analysis** and **Sybil Check**, which run on your connected wallet automatically — here you paste a link you received (DM, Discord, email…)._",
+          ? "🔗 **Scanner Web3** — verifica links suspeitos (não usa sua carteira).\n\n_Cole um link que recebeu (DM, Discord, e-mail…). Para analisar carteiras, use **Sybil/Bot Check**._"
+          : "🔗 **Web3 scanner** — checks suspicious links (does not use your wallet).\n\n_Paste a link you received (DM, Discord, email…). To analyze wallets, use **Sybil/Bot Check**._",
+      });
+      return;
+    }
+
+    // Sybil check — any 0x address, wallet connection optional.
+    if (kind === "sybil") {
+      const existing = messagesRef.current.find(
+        (m) => m.sybilPrompt && !m.sybilReport && !m.isLoading && !m.isError,
+      );
+      if (existing) return;
+      addMessage({
+        role: "agent",
+        sybilPrompt: true,
+        text: lang === "pt"
+          ? "🛡️ **Sybil/Bot Check** — qual carteira analisar?"
+          : "🛡️ **Sybil/Bot Check** — which wallet to analyze?",
       });
       return;
     }
@@ -6026,19 +6190,6 @@ export default function ChatPage() {
       case "web3radar":
         startWeb3RadarPicker(id);
         break;
-      case "sybil":
-        if (!walletAddress) {
-          updateMessage(id, {
-            isLoading: false,
-            text: lang === "pt"
-              ? "Para analisar Sybil/bot, conecte sua carteira ou cole um endereço 0x… no chat."
-              : "To run Sybil/bot detection, connect your wallet or paste a 0x… address in chat.",
-          });
-        } else {
-          updateMessage(id, { text: lang === "pt" ? "Analisando padrões Sybil/bot…" : "Analyzing Sybil/bot patterns…", isLoading: true });
-          void runSybilCheck(id, walletAddress);
-        }
-        break;
     }
   }
 
@@ -6050,6 +6201,36 @@ export default function ChatPage() {
   function handleLinkCompareFromPrompt(msgId: string, suspiciousUrl: string, officialUrl: string) {
     updateMessage(msgId, { linkScanPrompt: undefined });
     void runLinkCompare(msgId, suspiciousUrl, officialUrl);
+  }
+
+  function handleLinkRescan(msgId: string, url: string) {
+    updateMessage(msgId, {
+      linkScanReport: undefined,
+      linkScanBatch: undefined,
+      linkCompare: undefined,
+      linkScanPrompt: undefined,
+      isError: false,
+    });
+    void runLinkCheck(msgId, [url]);
+  }
+
+  function handleSybilFromPrompt(msgId: string, address: string) {
+    const a = address.trim();
+    if (!ETH_ADDR_RE.test(a)) return;
+    updateMessage(msgId, { sybilPrompt: undefined });
+    void runSybilCheck(msgId, a);
+  }
+
+  function handleSybilRescan(msgId: string, address: string) {
+    const a = address.trim();
+    if (!ETH_ADDR_RE.test(a)) return;
+    updateMessage(msgId, {
+      sybilReport: undefined,
+      sybilCluster: undefined,
+      sybilPrompt: undefined,
+      isError: false,
+    });
+    void runSybilCheck(msgId, a);
   }
 
   async function handleSend() {
@@ -7545,6 +7726,9 @@ export default function ChatPage() {
               onLinkCompare={runLinkCompare}
               onLinkScanSubmit={handleLinkScanFromPrompt}
               onLinkCompareSubmit={handleLinkCompareFromPrompt}
+              onLinkRescan={handleLinkRescan}
+              onSybilSubmit={handleSybilFromPrompt}
+              onSybilRescan={handleSybilRescan}
             />
           ))}
           <div ref={bottomRef} />
