@@ -12,16 +12,6 @@
     "anvita:helper": "node scripts/serve-anvita-helper.mjs",
     "anvita:ask": "node scripts/anvita-ask-local.mjs",
     "anvita:setup": "node scripts/anvita-setup.mjs",
-    "anvita:test": "node scripts/test-anvita-helper.mjs",
-    "anvita:auto": "node scripts/run-anvita-auto.mjs",
-    "anvita:auto:2": "node scripts/run-anvita-auto-batch.mjs 2 --parallel",
-    "anvita:auto:100": "node scripts/run-anvita-auto-pool.mjs 100 3",
-    "anvita:vps": "node scripts/run-anvita-vps.mjs 500 2",
-    "anvita:auto:3": "node scripts/run-anvita-auto-batch.mjs 3 --parallel",
-    "anvita:auto:5": "node scripts/run-anvita-auto-batch.mjs 5 --parallel",
-    "anvita:auto:10": "node scripts/run-anvita-auto-batch.mjs 10 --parallel",
-    "anvita:msg": "node scripts/anvita-send-prospilot.mjs",
-    "anvita:agent": "node scripts/anvita-agent-only.mjs",
     "start": "next start",
     "lint": "eslint"
   },
@@ -41,7 +31,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
-    "playwright": "^1.62.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

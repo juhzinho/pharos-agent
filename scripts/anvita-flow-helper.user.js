@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anvita Flow - Criar Conta + Agente + @prospilot
 // @namespace    https://flow.anvita.xyz
-// @version      1.1
+// @version      1.0
 // @description  Automatiza registro Anvita, cria Steward Agent e chama @prospilot
 // @author       ProsPilot
 // @match        https://flow.anvita.xyz/*
@@ -111,77 +111,9 @@
     });
   }
 
-  function clickByExactText(...patterns) {
-    return clickButton((b) => {
-      const t = (b.textContent || "").trim();
-      return patterns.some((p) => new RegExp(`^${p}$`, "i").test(t));
-    });
-  }
-
-  function hasAddAgentButton() {
-    return [...document.querySelectorAll("button,a,[role='button']")].some(
-      (b) => /^Add Agent$/i.test((b.textContent || "").trim()) && b.offsetParent !== null
-    );
-  }
-
-  function clickTermsCheckbox() {
-    const radix = document.querySelector('button[role="checkbox"]');
-    if (radix) {
-      if (radix.getAttribute("data-state") !== "checked") radix.click();
-      return true;
-    }
-    const cb = document.querySelector('input[type="checkbox"]');
-    if (cb && !cb.checked) cb.click();
-    return !!cb;
-  }
-
-  function fillVisibleInputs(values) {
-    const inputs = [...document.querySelectorAll("input:visible")].filter(
-      (el) => !["password", "checkbox", "hidden"].includes(el.type)
-    );
-    values.forEach((v, i) => {
-      if (inputs[i] && !inputs[i].value) setNativeValue(inputs[i], v);
-    });
-  }
-
-  function findInputByLabel(labelRe) {
-    const labels = [...document.querySelectorAll("label")];
-    for (const label of labels) {
-      if (!labelRe.test(label.textContent || "")) continue;
-      const forId = label.getAttribute("for");
-      if (forId) {
-        const el = document.getElementById(forId);
-        if (el) return el;
-      }
-      const nested = label.querySelector("input,textarea");
-      if (nested) return nested;
-    }
-    return null;
-  }
-
-  function openGeneralChat() {
-    const heading = [...document.querySelectorAll("button,a,div,h3,h4,p,span")].find(
-      (el) => /^General chat$/i.test((el.textContent || "").trim()) && el.offsetParent
-    );
-    if (heading) {
-      (heading.closest("button,[role=button],a") || heading).click();
-      return true;
-    }
-    const byDesc = [...document.querySelectorAll("button,a,div,p,span")].find(
-      (el) => /interact with the Agent on Anvita Flow/i.test(el.textContent || "") && el.offsetParent
-    );
-    if (byDesc) {
-      (byDesc.closest("button,[role=button],a") || byDesc).click();
-      return true;
-    }
-    return false;
-  }
-
   function findChatInput() {
-    openGeneralChat();
-    const textareas = [...document.querySelectorAll("textarea")].filter((el) => el.offsetParent);
-    if (textareas.length) return textareas[textareas.length - 1];
     const candidates = [
+      ...document.querySelectorAll("textarea"),
       ...document.querySelectorAll('[contenteditable="true"]'),
       ...document.querySelectorAll('[role="textbox"]'),
     ];
@@ -219,29 +151,17 @@
       return "register-email";
     }
     if (path === "/m/agent-init" || path.startsWith("/m/agent-init/")) {
-      if (/Establish Identity|get to know each other/i.test(document.body.innerText)) {
-        return "agent-init-name";
-      }
       const nameInput = findInput(['input[name="name"]', 'input[placeholder*="name" i]']);
       if (nameInput && !nameInput.value) return "agent-init-name";
-    if (/Shape Personality|Core Archetype/i.test(document.body.innerText)) {
       const personaVisible = PERSONAS.some((p) =>
         [...document.querySelectorAll("h3,h4,button,div,span")].some(
           (el) => (el.textContent || "").trim() === p && el.offsetParent !== null
         )
       );
       if (personaVisible) return "agent-init-persona";
+      return "agent-init-step";
     }
-    if (/Set Boundaries|Almost there|Generate Soul/i.test(document.body.innerText)) {
-      return "agent-init-boundaries";
-    }
-    return "agent-init-step";
-    }
-    if (path === "/agent/chat") {
-      if (hasAddAgentButton()) return "chat-add-agent";
-      if (!findChatInput()) return "chat-setup";
-      return "chat";
-    }
+    if (path === "/agent/chat") return "chat";
     if (path === "/login") return "login";
     if (path === "/home") return "home";
     return "unknown";
@@ -311,7 +231,8 @@
       if (inviteEl) setNativeValue(inviteEl, cfg.inviteCode);
     }
 
-    clickTermsCheckbox();
+    const checkbox = document.querySelector('input[type="checkbox"]');
+    if (checkbox && !checkbox.checked) checkbox.click();
 
     if (!clickByText("sign up", "continue", "create account")) {
       clickByText("sign up");
@@ -320,45 +241,7 @@
     return true;
   }
 
-  async function stepAddAgent(cfg) {
-    log("Clicar Add Agent e iniciar wizard");
-    if (!clickByExactText("Add Agent")) {
-      location.href = "https://flow.anvita.xyz/m/agent-init";
-      return false;
-    }
-    await sleep(2000);
-    return true;
-  }
-
-  async function stepAgentIdentity(cfg) {
-    log("Establish Identity");
-    await sleep(800);
-
-    const nameEl =
-      findInputByLabel(/Agent Name/i) ||
-      findInput(['input[name="name"]']) ||
-      findInput(['input[placeholder*="name" i]']);
-    const nickEl =
-      findInputByLabel(/How should I address you/i) ||
-      findInput(['input[name="nickname"]']);
-
-    if (nameEl && !nameEl.value) setNativeValue(nameEl, cfg.agent.nome);
-    if (nickEl && !nickEl.value) setNativeValue(nickEl, cfg.agent.nickname || cfg.agent.nome);
-
-    if (!nameEl && !nickEl) {
-      fillVisibleInputs([cfg.agent.nome, cfg.agent.nickname || cfg.agent.nome]);
-    }
-
-    await sleep(500);
-    clickByText("continue");
-    await sleep(1500);
-    return true;
-  }
-
   async function stepAgentInitName(cfg) {
-    if (/Establish Identity|get to know each other/i.test(document.body.innerText)) {
-      return stepAgentIdentity(cfg);
-    }
     log("Criar agente — nome");
     if (!location.pathname.startsWith("/m/agent-init")) {
       location.href = "https://flow.anvita.xyz/m/agent-init";
@@ -409,76 +292,21 @@
     return true;
   }
 
-  async function stepAgentInitBoundaries(cfg) {
-    log("Set Boundaries → Generate Soul");
-    await sleep(600);
-    if (!clickByText("generate soul")) {
-      clickButton((b) => /Generate Soul/i.test((b.textContent || "").trim()));
-    }
-    await sleep(3000);
-    if (location.pathname !== "/agent/chat") {
-      location.href = "https://flow.anvita.xyz/agent/chat";
-      return false;
-    }
-    return true;
-  }
-
   async function stepAgentInitGeneric() {
-    log("A redirecionar para chat…");
-    if (location.pathname !== "/agent/chat") {
-      location.href = "https://flow.anvita.xyz/agent/chat";
-      return false;
-    }
+    log("Criar agente — passo intermédio");
+    clickByText("continue", "activate", "create", "authorize", "done", "finish");
     await sleep(1200);
-    return true;
-  }
 
-  async function runAgentWizard(cfg) {
-    for (let i = 0; i < 12; i++) {
-      const phase = detectPhase();
-      log(`Wizard: ${phase}`);
-      if (phase === "chat" && findChatInput()) return true;
-      if (phase === "chat-add-agent") {
-        await stepAddAgent(cfg);
-        continue;
-      }
-      if (phase === "agent-init-name" || phase === "chat-setup") {
-        await stepAgentInitName(cfg);
-        continue;
-      }
-      if (phase === "agent-init-persona") {
-        await stepAgentInitPersona(cfg);
-        continue;
-      }
-      if (phase === "agent-init-boundaries") {
-        await stepAgentInitBoundaries();
-        continue;
-      }
-      if (phase === "agent-init-step") {
-        await stepAgentInitGeneric();
-        continue;
-      }
-      if (location.pathname === "/agent/chat" && !hasAddAgentButton() && !findChatInput()) {
-        location.href = "https://flow.anvita.xyz/agent/chat";
-        await sleep(1200);
-        continue;
-      }
-      break;
+    if (location.pathname === "/agent/authorize") {
+      log("Autorização on-chain — confirma manualmente se aparecer popup/carteira.");
+      await sleep(3000);
+      clickByText("continue", "authorize", "confirm", "done");
     }
-    return !!findChatInput();
+    return true;
   }
 
   async function stepChat(cfg) {
     if (!cfg.prospilot.enabled) return true;
-
-    if (hasAddAgentButton() || !findChatInput()) {
-      const ok = await runAgentWizard(cfg);
-      if (!ok) {
-        toast("Agente ainda não pronto — completa o wizard ou clica de novo no botão.");
-        return false;
-      }
-    }
-
     log("Chamar @prospilot");
 
     const input = findChatInput();
@@ -529,17 +357,8 @@
         case "agent-init-persona":
           await stepAgentInitPersona(cfg);
           break;
-        case "agent-init-boundaries":
-          await stepAgentInitBoundaries();
-          break;
         case "agent-init-step":
           await stepAgentInitGeneric();
-          break;
-        case "chat-add-agent":
-        case "chat-setup":
-          await runAgentWizard(cfg);
-          if (findChatInput()) await stepChat(cfg);
-          else toast("Wizard em curso — recarrega ou clica no botão se parar.");
           break;
         case "chat":
           await stepChat(cfg);
