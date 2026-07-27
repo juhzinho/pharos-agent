@@ -1,11 +1,12 @@
 {
   "name": "prospilot",
-  "version": "3.1-full",
+  "version": "3.2-playbooks",
   "deployment": "anvita-managed-only",
   "externalHttpCalls": false,
-  "description": "Full ProsPilot skill pack for Anvita: 31 DeFi + intel + security skills. Excludes campaigns/news/tweets feeds.",
+  "description": "31 ProsPilot skills with answer playbooks for Managed Q&A. Live gauges on web /chat. Excludes campaigns/news/tweets feeds.",
   "webAppLinkForUsers": "https://pharos-agent-pi.vercel.app/chat",
   "skillCount": 31,
+  "answerPlaybooks": "references/skill-playbooks.md",
   "excludedFromCard": ["campaigns", "news", "tweets"],
   "categories": [
     "defi",
@@ -21,7 +22,8 @@
     "swap-safety",
     "web3-briefings",
     "ecosystem",
-    "developer"
+    "developer",
+    "playbooks"
   ],
   "onChainSkillsRequireWallet": true,
   "network": {
@@ -30,6 +32,5 @@
     "rpc": "https://rpc.pharos.xyz",
     "explorer": "https://pharos.socialscan.io"
   },
-  "comparativeDoc": "references/COMPARATIVE.md",
   "packageDate": "2026-07-26"
 }

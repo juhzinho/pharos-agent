@@ -1,14 +1,10 @@
-﻿# Checklist upload Anvita — ProsPilot v3.1-full (31 skills)
+﻿# Checklist — ProsPilot v3.2-playbooks
 
-EXCLUIDO do Agent Card: Campaigns / News / Tweets.
+1. Cola 01-STRATEGY.txt (obrigatorio — tem cheat-sheet de respostas)
+2. Upload prospilot.zip (inclui skill-playbooks.md)
+3. Cola 02-INTERACTION-GUIDE.txt
+4. Debug: What is Faroo?
+5. Debug: What is wallet score? / Is this link safe? / How does Faroo unstake work?
+6. Publish Free
 
-1. https://flow.anvita.xyz/service-agents
-2. Pause se Running
-3. Strategy → cola 01-STRATEGY.txt → Save
-4. Upload prospilot.zip → Save
-5. Interaction Guide → cola 02-INTERACTION-GUIDE.txt → Save
-6. Debug: What is Faroo?
-7. Debug: Wallet score / Is this link safe?
-8. Publish · Free
-
-Skills: 31 (DeFi + LP + score + RWA + prices + explain-tx + security). Sem feeds de campanhas/news/tweets.
+Regra: agente SEMPRE responde com contexto; live numbers so no /chat.

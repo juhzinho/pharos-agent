@@ -1,26 +1,20 @@
-# Pacote Skill — ProsPilot v3.1-full (Anvita Flow)
+# ProsPilot Anvita — v3.2-playbooks
 
-**31 skills** · Exclui **Campaigns / News / Tweets** do Agent Card.
+**31 skills** com **contexto de resposta** (`skill-playbooks.md`).  
+Exclui Campaigns / News / Tweets.
+
+## Desktop
+
+`ProsPilot-Anvita-v3.2-complete.zip` · `prospilot.zip`
 
 ## Upload
 
-| Arquivo | Uso |
-|---------|-----|
-| **`ProsPilot-Anvita-v3.1-complete.zip`** | Kit completo (Desktop também) |
-| **`prospilot.zip`** | Só o skill package |
-| **`anvita-strategy-complete.txt`** | Strategy |
-| **`interaction-guide.txt`** | Interaction Guide |
+1. **01-STRATEGY.txt** → Customer Service Strategy (cheat-sheet completo)
+2. **prospilot.zip** → Skill package
+3. **02-INTERACTION-GUIDE.txt** → Interaction Guide
 
-Console: https://flow.anvita.xyz/service-agents
+## Comportamento
 
-## Regenerar
-
-```powershell
-.\skill-package\pack.ps1
-```
-
-## Skills incluídas (31)
-
-Wallet inspection · Wallet score · Tokens · Prices · Price alerts · Contracts · Recipients · Approvals · Allowances · Calldata · Transfers · Swaps · Bridges · Liquidity · LP positions · Vaults · Staking · Tx history · Explain tx · RWA market · Ecosystem Q&A · Scripts · 5 Web3 briefings · Sybil · Link scanner · Pre-sign · Swap safety
-
-**Fora do card:** Campaigns / News / Tweets.
+- Sempre **responde com contexto** (como funciona, riscos, endereços)
+- Dados ao vivo (saldo, preço, score Sybil) → explica + manda para `/chat`
+- Nunca inventa números on-chain

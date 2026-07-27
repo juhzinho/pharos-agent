@@ -1,24 +1,10 @@
-# LIVE SNAPSHOT (refresh when re-publishing)
+# LIVE SNAPSHOT (Managed — no HTTP)
 
-Use this when Managed mode cannot call live APIs. Update dates before each upload.
+- Chain **1672** · gas PROS · RPC https://rpc.pharos.xyz · Explorer https://pharos.socialscan.io
+- Chat https://pharos-agent-pi.vercel.app/chat
+- Faroo https://app.faroo.xyz · stake PROS→stPROS · unstake 7d 0% fee
+- FaroSwap V3 · WPROS/USDC · fees 0.01% 0.05% 0.30% 1.00%
+- Security live cards on chat: Sybil · Link Scanner · Pre-sign · Swap Safety
+- Do **not** invent campaigns/news/tweets — port.pharos.xyz if asked
 
-## Network
-- Pharos Mainnet · Chain ID **1672** · gas PROS
-- RPC https://rpc.pharos.xyz · Explorer https://pharos.socialscan.io
-- Web chat https://pharos-agent-pi.vercel.app/chat
-
-## Faroo
-- Stake PROS → stPROS · min 0.1 · unstake 7 days 0% fee · app.faroo.xyz
-
-## Campaigns (verify on Port before publish)
-- Check live: https://port.pharos.xyz
-- Agent Carnival · Anvita Cyber Cup · ecosystem campaigns on Port / flow.anvita.xyz
-
-## Tokens (main)
-- PROS (native) · WPROS · USDC · WETH · LINK · stPROS
-
-## Security product surface (web app)
-- Sybil/Bot Check · Link/Scam Scanner · Pre-sign Risk · Swap Safety Advisor
-- Wallet Score · Explain TX · Web3 Briefings (no NFT/DAO)
-
-_Last package build: 2026-07-26 — ProsPilot v3.0-security_
+_Package: v3.2-playbooks · 2026-07-26_
