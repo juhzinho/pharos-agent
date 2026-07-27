@@ -1,10 +1,11 @@
-Interaction Guide — paste into Anvita Developer Console (ProsPilot agent card)
-
-ProsPilot performs DeFi copilot assistance for AI agents and users on Pharos Pacific Mainnet. It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, transfers, swaps, bridges, vault deposits, staking actions, and Web3 intelligence briefings (DeFi, Layer 2, security alerts, regulation, airdrops — NFTs and DAOs excluded), plus Sybil/bot detection from on-chain heuristics, link/phishing URL scanning, pre-sign calldata risk checks, and swap safety scoring.
+ProsPilot performs DeFi copilot assistance for AI agents and users on Pharos Pacific Mainnet. It can inspect wallets and wallet scores, tokens, prices and price alerts, contracts, recipients, approvals, allowances, calldata, transfers, swaps, bridges, FaroSwap V3 liquidity and LP positions, vault deposits, staking, transaction history, explain tx hashes, live RWA market data, ecosystem Q&A, developer scripts, and Web3 intelligence briefings (DeFi, Layer 2, security alerts, regulation, airdrops — NFTs and DAOs excluded), plus Sybil/bot detection, link/phishing URL scanning, pre-sign calldata risk checks, and swap safety scoring.
 
 Active skills:
-• Wallet inspection — Read-only holdings, USD totals, wallet score, tags and activity heuristics.
-• Token inspection — Balances per token, live prices, and LP / RealFi token exposure on Pharos.
+• Wallet inspection — Read-only holdings, USD totals, tags and activity heuristics for a connected or pasted wallet.
+• Wallet score — 0–100 Pharos wallet score with 6 categories, level badge, protocols, and activity flags.
+• Token inspection — Balances per token and LP / RealFi token exposure on Pharos.
+• Token prices — Live USD prices for PROS, WPROS, BTC, ETH, USDC, LINK and related charts.
+• Price alerts — Local browser alerts when a token goes above or below a target price.
 • Contract & calldata review — Explain contract roles and decode calldata before the user signs (no tx-hash forensics).
 • Recipient validation — Check transfer destinations and batch payout addresses before sending.
 • Token approvals — Build ERC-20 approve transactions (exact or unlimited) for a spender contract.
@@ -13,16 +14,23 @@ Active skills:
 • Transfers — Send native PROS or ERC-20 (PROS/WPROS/USDC) to one or many recipients.
 • Swaps — Token swaps on Pharos via LI.FI aggregator or direct FaroSwap routing.
 • Cross-chain bridges — Bridge assets to/from Ethereum, Base, Arbitrum, Polygon via LI.FI, CCIP, or CCTP v2.
+• Add & remove liquidity — FaroSwap V3 WPROS/USDC liquidity: add (fee tier + range), remove %, and collect fees.
+• LP positions view — List FaroSwap V3 NFT positions with ranges, fees, and remove/collect actions.
 • Vault deposits — Track Faroo RealFi vault shares (FRHV001/FYV001) and underlying stPROS exposure.
 • Staking actions — Stake PROS → stPROS and unstake via Faroo liquid staking (7-day queue, 0% fee).
-• DeFi briefings — Live Web3 DeFi trend briefings (no NFTs/DAOs).
-• Layer 2 trends — Rollup and L2 scaling trend calls.
-• Security & risk alerts — Exploit, audit, and vulnerability alerts.
-• Regulation briefings — Compliance and legal-policy updates.
-• Airdrop intelligence — Token distribution and farming eligibility signals.
-• Sybil & bot detection — Phases 1–4 on-chain heuristics + optional reputation.
-• Link & phishing scanner — Official allowlist, typosquats, redirects, HTML sniff.
-• Pre-sign risk check — Decode unsigned calldata before signing (unlimited approve, unknown spenders).
-• Swap safety advisor — Slippage, min receive, approval steps for LI.FI and FaroSwap.
+• Transaction history — Recent on-chain transactions for the connected wallet with explorer links.
+• Explain transaction — Paste a Pharos tx hash for plain-language decode: action, status, value, gas, revert reason.
+• RWA market (live) — Live global RWA tokenization aggregates from rwa.xyz (TVL, asset classes).
+• Ecosystem Q&A — Pharos protocols, Faroo, FaroSwap, partners, chain ID/RPC/explorer, and dApp directory answers.
+• Developer scripts — Generate Foundry cast / ethers snippets for Pharos reads (never executes; code only).
+• DeFi briefings — Live Web3 DeFi trend briefings — yields, TVL shifts, protocol news (no NFTs/DAOs).
+• Layer 2 trends — Rollup and L2 scaling trend calls from live Web3 sources.
+• Security & risk alerts — Exploit, audit, and vulnerability alerts with risk guidance.
+• Regulation briefings — Compliance and legal-policy updates for crypto markets.
+• Airdrop intelligence — Token distribution and farming eligibility signals from live sources.
+• Sybil & bot detection — Phases 1–4: deep on-chain, Trusta/Passport reputation, cluster graph, campaign correlation.
+• Link & phishing scanner — Web3-wide URL analysis: 80+ official domains, typosquats, free-host drainers, HTML sniff, redirects, web reputation.
+• Pre-sign risk check — Decode unsigned calldata before signing — unlimited approvals, unknown spenders, large native transfers.
+• Swap safety advisor — Slippage, min receive, approval steps, and route warnings for LI.FI and FaroSwap quotes.
 
 On-chain execution: https://pharos-agent-pi.vercel.app/chat (Chain 1672) — user signs in wallet. No x402 payment intents or existing tx-hash forensics.

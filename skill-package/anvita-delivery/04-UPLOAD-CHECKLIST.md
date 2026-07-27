@@ -1,13 +1,14 @@
-﻿# Checklist upload Anvita — ProsPilot v3.0-security
+﻿# Checklist upload Anvita — ProsPilot v3.1-full (31 skills)
 
-1. Abre https://flow.anvita.xyz/service-agents
-2. Pause o ProsPilot se estiver Running
-3. Customer Service Strategy → cola **01-STRATEGY.txt** → Save
-4. Upload skill package → **prospilot.zip** → Save
-5. Interaction Guide / Agent Card → cola **02-INTERACTION-GUIDE.txt** → Save
-6. Debug: `What is Faroo?` → deve responder staking Pharos (nao search engine)
-7. Debug: `Is this link safe?` → deve falar phishing + link /chat
-8. Publish · preco **Free** (beta)
-9. Opcional: ler **03-COMPARATIVE.md** para Agent Card / Discord
+EXCLUIDO do Agent Card: Campaigns / News / Tweets.
 
-Diferencial: DeFi Pharos + Sybil + Link Scanner + Pre-sign + Swap Safety (21 skills).
+1. https://flow.anvita.xyz/service-agents
+2. Pause se Running
+3. Strategy → cola 01-STRATEGY.txt → Save
+4. Upload prospilot.zip → Save
+5. Interaction Guide → cola 02-INTERACTION-GUIDE.txt → Save
+6. Debug: What is Faroo?
+7. Debug: Wallet score / Is this link safe?
+8. Publish · Free
+
+Skills: 31 (DeFi + LP + score + RWA + prices + explain-tx + security). Sem feeds de campanhas/news/tweets.

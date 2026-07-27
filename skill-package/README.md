@@ -1,44 +1,26 @@
-# Pacote Skill — ProsPilot v3.0-security (Anvita Flow)
+# Pacote Skill — ProsPilot v3.1-full (Anvita Flow)
 
-## Upload agora
+**31 skills** · Exclui **Campaigns / News / Tweets** do Agent Card.
+
+## Upload
 
 | Arquivo | Uso |
 |---------|-----|
-| **`prospilot.zip`** | Upload no Console (pasta `prospilot/` + `SKILL.md`) |
-| **`anvita-strategy-complete.txt`** | Colar em Customer Service Strategy |
-| **`interaction-guide.txt`** | Colar no Interaction Guide / Agent Card |
-| **`prospilot/references/COMPARATIVE.md`** | Comparativo marketplace (ler / anexar docs) |
+| **`ProsPilot-Anvita-v3.1-complete.zip`** | Kit completo (Desktop também) |
+| **`prospilot.zip`** | Só o skill package |
+| **`anvita-strategy-complete.txt`** | Strategy |
+| **`interaction-guide.txt`** | Interaction Guide |
 
-Console: https://flow.anvita.xyz/service-agents  
-Docs: https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af
+Console: https://flow.anvita.xyz/service-agents
 
-## Regras do ZIP
+## Regenerar
 
-1. `SKILL.md` em **MAIÚSCULAS**
-2. Frontmatter `name: prospilot` = pasta `prospilot/`
-3. Regenerar com `.\skill-package\pack.ps1` (não use Compress-Archive)
-
-## Conteúdo do pacote
-
-```
-prospilot.zip
-└── prospilot/
-    ├── SKILL.md
-    ├── assets/        (tokens, networks, contracts, service)
-    ├── references/    (managed, faroo, snapshot, security, comparative, strategy)
-    └── scripts/       (README — Managed não executa scripts)
+```powershell
+.\skill-package\pack.ps1
 ```
 
-## Checklist rápido
+## Skills incluídas (31)
 
-1. Pause → Resume agente (se já existir)
-2. Colar Strategy completa → Save
-3. Upload `prospilot.zip` → Save
-4. Debug: `What is Faroo?` → staking Pharos
-5. Debug: `Is this link safe?` → phishing guidance + /chat
-6. Publish · preço **Free** (beta)
+Wallet inspection · Wallet score · Tokens · Prices · Price alerts · Contracts · Recipients · Approvals · Allowances · Calldata · Transfers · Swaps · Bridges · Liquidity · LP positions · Vaults · Staking · Tx history · Explain tx · RWA market · Ecosystem Q&A · Scripts · 5 Web3 briefings · Sybil · Link scanner · Pre-sign · Swap safety
 
-## Diferencial (comparativo)
-
-ProsPilot = DeFi Pharos **+** Sybil + Link Scanner + Pre-sign Risk + Swap Safety.  
-Ver `prospilot/references/COMPARATIVE.md`.
+**Fora do card:** Campaigns / News / Tweets.

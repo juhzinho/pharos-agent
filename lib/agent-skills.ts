@@ -13,7 +13,15 @@ export type SkillWebAction =
   | "stake"
   | "mystake"
   | "realfi"
-  | "liquidity";
+  | "liquidity"
+  | "txhistory"
+  | "rwamarket"
+  | "approve"
+  | "allowance"
+  | "web3radar"
+  | "sybil"
+  | "linkscan"
+  | "presign";
 
 export interface ProsPilotSkill {
   id: string;
@@ -33,22 +41,52 @@ export const PROSPILOT_SKILLS: ProsPilotSkill[] = [
     id: "inspect-wallets",
     nameEn: "Wallet inspection",
     namePt: "Inspeção de carteiras",
-    descEn: "Read-only holdings, USD totals, wallet score, tags and activity heuristics.",
-    descPt: "Holdings somente leitura, total em USD, score, tags e heurísticas de atividade.",
+    descEn: "Read-only holdings, USD totals, tags and activity heuristics for a connected or pasted wallet.",
+    descPt: "Holdings somente leitura, total em USD, tags e heurísticas de atividade para carteira conectada ou colada.",
     tags: ["wallet", "analysis", "read-only"],
-    examples: ["Analyze my wallet", "Wallet score for 0x…"],
+    examples: ["Analyze my wallet", "What do I hold?"],
     webAction: "wallet",
+  },
+  {
+    id: "wallet-score",
+    nameEn: "Wallet score",
+    namePt: "Score da carteira",
+    descEn: "0–100 Pharos wallet score with 6 categories, level badge, protocols, and activity flags.",
+    descPt: "Score 0–100 da carteira Pharos com 6 categorias, badge de nível, protocolos e flags de atividade.",
+    tags: ["wallet", "score", "intel", "read-only"],
+    examples: ["Wallet score", "My score", "Score for 0x…"],
+    webAction: "score",
   },
   {
     id: "inspect-tokens",
     nameEn: "Token inspection",
     namePt: "Inspeção de tokens",
-    descEn: "Balances per token, live prices, and LP / RealFi token exposure on Pharos.",
-    descPt: "Saldos por token, preços ao vivo e exposição LP / RealFi na Pharos.",
-    tags: ["tokens", "balance", "price"],
-    examples: ["Price of PROS", "What tokens do I hold?"],
-    webAction: "positions",
+    descEn: "Balances per token and LP / RealFi token exposure on Pharos.",
+    descPt: "Saldos por token e exposição LP / RealFi na Pharos.",
+    tags: ["tokens", "balance"],
+    examples: ["What tokens do I hold?", "Show my balances"],
+    webAction: "wallet",
     starterPrompt: { en: "Show my token balances", pt: "Mostrar meus saldos de tokens" },
+  },
+  {
+    id: "token-prices",
+    nameEn: "Token prices",
+    namePt: "Preços de tokens",
+    descEn: "Live USD prices for PROS, WPROS, BTC, ETH, USDC, LINK and related charts.",
+    descPt: "Preços USD ao vivo de PROS, WPROS, BTC, ETH, USDC, LINK e gráficos relacionados.",
+    tags: ["price", "market", "chart"],
+    examples: ["Price of PROS", "Quanto vale WPROS?"],
+    starterPrompt: { en: "What is the price of PROS?", pt: "Qual o preço do PROS?" },
+  },
+  {
+    id: "price-alerts",
+    nameEn: "Price alerts",
+    namePt: "Alertas de preço",
+    descEn: "Local browser alerts when a token goes above or below a target price.",
+    descPt: "Alertas locais no browser quando um token passa acima ou abaixo de um preço-alvo.",
+    tags: ["price", "alert", "notification"],
+    examples: ["Alert me when PROS above 0.10", "List my price alerts"],
+    starterPrompt: { en: "Alert me when PROS goes above 0.10", pt: "Alertar quando PROS passar de 0.10" },
   },
   {
     id: "inspect-contracts",
@@ -131,6 +169,26 @@ export const PROSPILOT_SKILLS: ProsPilotSkill[] = [
     webAction: "bridge",
   },
   {
+    id: "liquidity-actions",
+    nameEn: "Add & remove liquidity",
+    namePt: "Adicionar e remover liquidez",
+    descEn: "FaroSwap V3 WPROS/USDC liquidity: add (fee tier + range), remove %, and collect fees.",
+    descPt: "Liquidez FaroSwap V3 WPROS/USDC: adicionar (fee + range), remover % e coletar fees.",
+    tags: ["liquidity", "lp", "faroswap", "v3"],
+    examples: ["Add liquidity", "Remove 50% of my LP", "Collect fees"],
+    webAction: "liquidity",
+  },
+  {
+    id: "lp-positions",
+    nameEn: "LP positions view",
+    namePt: "Posições LP",
+    descEn: "List FaroSwap V3 NFT positions with ranges, fees, and remove/collect actions.",
+    descPt: "Listar posições NFT FaroSwap V3 com ranges, fees e ações de remover/coletar.",
+    tags: ["liquidity", "positions", "faroswap"],
+    examples: ["My LP positions", "Minhas posições"],
+    webAction: "positions",
+  },
+  {
     id: "vault-deposits",
     nameEn: "Vault deposits",
     namePt: "Depósitos em vaults",
@@ -149,6 +207,56 @@ export const PROSPILOT_SKILLS: ProsPilotSkill[] = [
     tags: ["stake", "unstake", "stpros", "faroo"],
     examples: ["Stake 1 PROS", "My staking position", "Unstake stPROS"],
     webAction: "mystake",
+  },
+  {
+    id: "tx-history",
+    nameEn: "Transaction history",
+    namePt: "Histórico de transações",
+    descEn: "Recent on-chain transactions for the connected wallet with explorer links.",
+    descPt: "Transações recentes da carteira conectada com links do explorer.",
+    tags: ["history", "transactions", "explorer"],
+    examples: ["My last transactions", "Minhas transações"],
+    webAction: "txhistory",
+  },
+  {
+    id: "explain-tx",
+    nameEn: "Explain transaction",
+    namePt: "Explicar transação",
+    descEn: "Paste a Pharos tx hash for plain-language decode: action, status, value, gas, revert reason.",
+    descPt: "Cole um hash de tx Pharos para decodificação em linguagem simples: ação, status, valor, gás, revert.",
+    tags: ["explain", "tx", "hash", "read-only"],
+    examples: ["Explain tx 0x…", "What happened in this transaction?"],
+    starterPrompt: { en: "Explain this transaction: paste 0x hash", pt: "Explicar esta transação: cole o hash 0x" },
+  },
+  {
+    id: "rwa-market",
+    nameEn: "RWA market (live)",
+    namePt: "Mercado RWA (ao vivo)",
+    descEn: "Live global RWA tokenization aggregates from rwa.xyz (TVL, asset classes).",
+    descPt: "Agregados ao vivo do mercado global de RWA via rwa.xyz (TVL, classes de ativos).",
+    tags: ["rwa", "market", "live"],
+    examples: ["RWA market", "Mercado de RWA global"],
+    webAction: "rwamarket",
+  },
+  {
+    id: "ecosystem-qa",
+    nameEn: "Ecosystem Q&A",
+    namePt: "Q&A do ecossistema",
+    descEn: "Pharos protocols, Faroo, FaroSwap, partners, chain ID/RPC/explorer, and dApp directory answers.",
+    descPt: "Respostas sobre protocolos Pharos, Faroo, FaroSwap, parceiros, chain ID/RPC/explorer e diretório de dApps.",
+    tags: ["knowledge", "ecosystem", "pharos", "faroo"],
+    examples: ["What is Faroo?", "List Pharos DeFi protocols", "What is chain ID 1672?"],
+    starterPrompt: { en: "What DeFi protocols are on Pharos?", pt: "Quais protocolos DeFi tem na Pharos?" },
+  },
+  {
+    id: "script-generation",
+    nameEn: "Developer scripts",
+    namePt: "Scripts de desenvolvedor",
+    descEn: "Generate Foundry cast / ethers snippets for Pharos reads (never executes; code only).",
+    descPt: "Gerar snippets Foundry cast / ethers para leituras Pharos (nunca executa; só código).",
+    tags: ["script", "developer", "cast", "ethers"],
+    examples: ["Generate cast script to read ERC-20 balance", "Ethers snippet for Pharos RPC"],
+    starterPrompt: { en: "Generate a cast script to read my USDC balance", pt: "Gerar script cast para ler meu saldo USDC" },
   },
   {
     id: "web3-defi-briefings",
