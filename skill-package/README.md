@@ -1,20 +1,25 @@
-# ProsPilot Anvita — v3.2-playbooks
+# ProsPilot Anvita — v3.3 comparative + contextual Strategy
 
-**31 skills** com **contexto de resposta** (`skill-playbooks.md`).  
-Exclui Campaigns / News / Tweets.
+## O que colar AGORA (já fizeste reload do zip)
 
-## Desktop
+Arquivo no Desktop: **`01-STRATEGY-ProsPilot-COMPARATIVE.txt`**
 
-`ProsPilot-Anvita-v3.2-complete.zip` · `prospilot.zip`
+1. https://flow.anvita.xyz/service-agents → ProsPilot
+2. Campo **Customer Service Strategy**
+3. Apaga a Strategy antiga
+4. Cola o ficheiro **inteiro**
+5. **Save**
+6. Debug: `What is Faroo?` · `How is ProsPilot different?` · `What is wallet score?`
 
-## Upload
+## O que tem esta Strategy
 
-1. **01-STRATEGY.txt** → Customer Service Strategy (cheat-sheet completo)
-2. **prospilot.zip** → Skill package
-3. **02-INTERACTION-GUIDE.txt** → Interaction Guide
+| Secção | Conteúdo |
+|--------|----------|
+| A | Posicionamento comparativo vs agentes genéricos |
+| B | Regras: sempre responder com contexto |
+| C | Fatos duros (chain, Faroo, contratos) |
+| D | Playbooks contextuais das 31 skills |
+| E | One-liners competitivos |
+| F | Exclusões (campaigns/news/tweets) + segurança |
 
-## Comportamento
-
-- Sempre **responde com contexto** (como funciona, riscos, endereços)
-- Dados ao vivo (saldo, preço, score Sybil) → explica + manda para `/chat`
-- Nunca inventa números on-chain
+Reload do zip ≠ atualiza Strategy. Tens de colar este texto.
