@@ -1,12 +1,35 @@
 {
   "name": "prospilot",
-  "version": "2.7-ultra-fast",
+  "version": "3.0-security",
   "deployment": "anvita-managed-only",
   "externalHttpCalls": false,
-  "description": "Ultra-minimal skill pack for fastest Managed runtime responses.",
+  "description": "Pharos DeFi + security copilot: Sybil, link scanner, pre-sign risk, swap safety, Faroo staking, swap/bridge/LP.",
   "webAppLinkForUsers": "https://pharos-agent-pi.vercel.app/chat",
-  "skillCount": 6,
-  "categories": ["knowledge", "faroo-staking", "swap"],
+  "skillCount": 21,
+  "categories": [
+    "defi",
+    "faroo-staking",
+    "wallet-intel",
+    "security",
+    "sybil",
+    "phishing",
+    "presign",
+    "swap-safety",
+    "web3-briefings"
+  ],
   "onChainSkillsRequireWallet": true,
-  "network": { "chainId": 1672, "symbol": "PROS", "explorer": "https://pharos.socialscan.io" }
+  "securitySkills": [
+    "sybil-bot-detection",
+    "link-scam-scanner",
+    "pre-sign-risk-check",
+    "swap-safety-advisor"
+  ],
+  "network": {
+    "chainId": 1672,
+    "symbol": "PROS",
+    "rpc": "https://rpc.pharos.xyz",
+    "explorer": "https://pharos.socialscan.io"
+  },
+  "comparativeDoc": "references/COMPARATIVE.md",
+  "packageDate": "2026-07-26"
 }

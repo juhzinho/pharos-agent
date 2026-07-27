@@ -1,65 +1,44 @@
-# Pacote Skill — ProsPilot (Anvita Flow)
+# Pacote Skill — ProsPilot v3.0-security (Anvita Flow)
 
-Upload **`prospilot.zip`** (pasta `prospilot/` na raiz do zip).
+## Upload agora
 
+| Arquivo | Uso |
+|---------|-----|
+| **`prospilot.zip`** | Upload no Console (pasta `prospilot/` + `SKILL.md`) |
+| **`anvita-strategy-complete.txt`** | Colar em Customer Service Strategy |
+| **`interaction-guide.txt`** | Colar no Interaction Guide / Agent Card |
+| **`prospilot/references/COMPARATIVE.md`** | Comparativo marketplace (ler / anexar docs) |
 
-Guia oficial: https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af
+Console: https://flow.anvita.xyz/service-agents  
+Docs: https://docs.pharos.xyz/tooling-and-infrastructure/overview/publish-skill-af
 
-## Regras do pacote (docs Pharos)
+## Regras do ZIP
 
-1. **`SKILL.md` em MAIÚSCULAS** — `skill.md` minúsculo **não passa** na validação
-2. **ZIP da pasta**, não dos arquivos soltos:
+1. `SKILL.md` em **MAIÚSCULAS**
+2. Frontmatter `name: prospilot` = pasta `prospilot/`
+3. Regenerar com `.\skill-package\pack.ps1` (não use Compress-Archive)
+
+## Conteúdo do pacote
 
 ```
 prospilot.zip
 └── prospilot/
-    ├── SKILL.md            ← obrigatório, MAIÚSCULAS
-    ├── scripts/
-    ├── references/
-    └── assets/
+    ├── SKILL.md
+    ├── assets/        (tokens, networks, contracts, service)
+    ├── references/    (managed, faroo, snapshot, security, comparative, strategy)
+    └── scripts/       (README — Managed não executa scripts)
 ```
 
-3. **Frontmatter** — `name` deve ser **igual** ao nome da pasta:
+## Checklist rápido
 
-```yaml
----
-name: prospilot
-description: ...
----
-```
+1. Pause → Resume agente (se já existir)
+2. Colar Strategy completa → Save
+3. Upload `prospilot.zip` → Save
+4. Debug: `What is Faroo?` → staking Pharos
+5. Debug: `Is this link safe?` → phishing guidance + /chat
+6. Publish · preço **Free** (beta)
 
-## Upload
+## Diferencial (comparativo)
 
-Arquivo: **`skill-package/pharos-agent.zip`**
-
-Console: https://flow.anvita.xyz/service-agents → **Create A Managed Service Agent**
-
-## Regenerar o ZIP
-
-```powershell
-.\skill-package\pack.ps1
-```
-
-**Não use** `Compress-Archive` (paths com `\` quebram o upload).
-
-## Passo a passo completo
-
-| # | Etapa | Onde |
-|---|-------|------|
-| 1 | Preparar pacote com `SKILL.md` | `skill-package/pharos-agent/` |
-| 2 | Zipar pasta `pharos-agent/` | `pharos-agent.zip` |
-| 3 | Conta Anvita Flow | https://flow.anvita.xyz/home |
-| 4 | Developer Console | https://flow.anvita.xyz/service-agents |
-| 5 | Upload ZIP + Customer Service Strategy + Runtime | Create Agent |
-| 6 | Debug (1 teste end-to-end) | Debug tab |
-| 7 | Agent Card + Publish | Publish tab |
-| 8 | Preço | **Free** (beta) |
-| 9 | Wallet earnings (opcional) | https://flow.anvita.xyz/dashboard |
-
-## Se o upload falhar
-
-| Erro | Correção |
-|------|----------|
-| Skill package must contain SKILL.md | Regenerar com `pack.ps1` |
-| skill.md not recognized | Renomear para **SKILL.md** (S maiúsculo) |
-| Frontmatter mismatch | `name: pharos-agent` = pasta `pharos-agent/` |
+ProsPilot = DeFi Pharos **+** Sybil + Link Scanner + Pre-sign Risk + Swap Safety.  
+Ver `prospilot/references/COMPARATIVE.md`.

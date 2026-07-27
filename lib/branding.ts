@@ -12,7 +12,8 @@ export const AGENT_DISCLAIMER =
 
 export const AGENT_DESCRIPTION =
   `${AGENT_TAGLINE} (chain 1672). Swap, bridge, FaroSwap V3 liquidity, Faroo staking, ` +
-  `wallet intelligence, RWA data, Web3 briefings (DeFi, L2, security, regulation, airdrops), link/phishing scanning, and ecosystem Q&A. Non-custodial. ${AGENT_DISCLAIMER}`;
+  `wallet intelligence, RWA data, Web3 briefings (DeFi, L2, security, regulation, airdrops), ` +
+  `Sybil/bot detection, link/phishing scanning, pre-sign risk checks, swap safety scoring, and ecosystem Q&A. Non-custodial. ${AGENT_DISCLAIMER}`;
 
 /** Anvita marketplace "Interaction Guide" — SafeHands-style scope list (no x402 / tx-hash review). */
 export const AGENT_INTERACTION_GUIDE =
@@ -20,14 +21,16 @@ export const AGENT_INTERACTION_GUIDE =
   "It can inspect wallets, tokens, contracts, recipients, approvals, allowances, calldata, " +
   "transfers, swaps, bridges, vault deposits, staking actions, and Web3 intelligence briefings " +
   "(DeFi, Layer 2, security alerts, regulation, airdrops — NFTs and DAOs excluded), plus Sybil/bot " +
-  "detection from on-chain heuristics, and link/phishing URL scanning (typosquat, redirects, official allowlist).";
+  "detection from on-chain heuristics, link/phishing URL scanning (typosquat, redirects, official allowlist), " +
+  "pre-sign calldata risk checks, and swap safety scoring (slippage, min receive, approvals).";
 
 export const AGENT_INTERACTION_GUIDE_PT =
   "O ProsPilot oferece assistência DeFi para agentes de IA e usuários na Pharos Pacific Mainnet. " +
   "Pode inspecionar carteiras, tokens, contratos, destinatários, aprovações, allowances, calldata, " +
   "transferências, swaps, bridges, depósitos em vaults, ações de staking e briefings Web3 " +
   "(DeFi, Layer 2, alertas de segurança, regulação, airdrops — sem NFTs nem DAOs), além de detecção " +
-  "Sybil/bot por heurísticas on-chain, e scanner de links/phishing (typosquat, redirects, allowlist oficial).";
+  "Sybil/bot por heurísticas on-chain, scanner de links/phishing (typosquat, redirects, allowlist oficial), " +
+  "checagem de risco pré-assinatura e advisor de segurança de swap (slippage, mínimo a receber, approvals).";
 
 export const AGENT_SHORT_DESCRIPTION =
   `${AGENT_TAGLINE} on Pharos Mainnet (1672). ${AGENT_DISCLAIMER}`;
