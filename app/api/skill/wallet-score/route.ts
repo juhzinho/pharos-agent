@@ -6,8 +6,9 @@
 
 import { getWalletIntel } from "@/lib/walletIntel";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { withPaidSkill, X402_SKILL_PRICES } from "@/lib/x402";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const rl = checkRateLimit(req, 6);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 
@@ -34,3 +35,5 @@ export async function POST(req: Request) {
     return Response.json({ address, available: false, error: msg }, { status: 502 });
   }
 }
+
+export const POST = withPaidSkill(handlePost, X402_SKILL_PRICES.walletScore);

@@ -47,13 +47,15 @@ export function getAgentCard() {
       organization: `${AGENT_NAME} (${AGENT_TAGLINE})`,
       url: BASE,
     },
-    version: "2.1.0",
+    version: "2.2.0",
     documentationUrl: `${BASE}/api/info`,
     capabilities: {
       streaming: true,
       pushNotifications: false,
       stateTransitionHistory: false,
     },
+    // Premium skill HTTP APIs support x402 USDC on Pharos (see /api/info → x402).
+    // Managed Anvita Agent Card should stay Free during beta.
     authentication: {
       schemes: [] as string[],
     },

@@ -4,21 +4,33 @@
 import { toAgentCardSkills } from "@/lib/agent-skills";
 import { AGENT_DESCRIPTION, AGENT_NAME } from "@/lib/branding";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { X402_SKILL_PRICES, x402PublicStatus } from "@/lib/x402";
 
 export async function GET(req: Request) {
   // Public discovery for A2A gateways (Anvita Flow) and external agents.
   const rl = checkRateLimit(req, 60);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 
+  const x402 = x402PublicStatus();
+
   return Response.json({
     name: `${AGENT_NAME} API`,
     description: AGENT_DESCRIPTION,
     skills: toAgentCardSkills(),
-    version: "2.1",
+    version: "2.2",
+    x402,
     capabilities: [
       "knowledge", "swap-quote", "bridge-quote", "token-price",
       "wallet-profile", "wallet-score", "explain-tx", "campaigns", "news", "web3-radar", "sybil-check", "link-check", "pre-sign-risk", "swap-safety",
+      "x402",
     ],
+    paidEndpoints: {
+      "/api/skill/sybil-check": X402_SKILL_PRICES.sybilCheck,
+      "/api/skill/link-check": X402_SKILL_PRICES.linkCheck,
+      "/api/skill/pre-sign-risk": X402_SKILL_PRICES.preSignRisk,
+      "/api/skill/swap-safety": X402_SKILL_PRICES.swapSafety,
+      "/api/skill/wallet-score": X402_SKILL_PRICES.walletScore,
+    },
     endpoints: {
       walletScore: {
         method: "POST",

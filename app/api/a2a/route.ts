@@ -7,7 +7,8 @@ import { getAgentCard, handleA2AJsonRpc } from "@/lib/a2a";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Payment",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, X-Payment, PAYMENT-SIGNATURE, PAYMENT-REQUIRED, X-PAYMENT-RESPONSE, x-prospilot-bypass",
 };
 
 function withCors(res: Response): Response {

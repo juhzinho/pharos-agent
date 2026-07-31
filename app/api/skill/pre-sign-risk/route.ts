@@ -1,7 +1,8 @@
 import { analyzeUnsignedBatch, type UnsignedTxInput } from "@/lib/presign-risk";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { withPaidSkill, X402_SKILL_PRICES } from "@/lib/x402";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const rl = checkRateLimit(req, 20);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterSec);
 
@@ -41,3 +42,5 @@ export async function POST(req: Request) {
     return Response.json({ available: false, error: msg }, { status: 502 });
   }
 }
+
+export const POST = withPaidSkill(handlePost, X402_SKILL_PRICES.preSignRisk);
